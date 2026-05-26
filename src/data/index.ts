@@ -5,6 +5,8 @@ export const navItems = [
   { name: 'Về tôi', link: '#about' },
   { name: 'Dự án', link: '#projects' },
   { name: 'Liên hệ', link: '#contact' },
+  { name: 'Classroom', link: 'learn' },
+  { name: 'Admin Hub', link: 'admin' },
 ]
 
 export const projects = [

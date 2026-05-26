@@ -59,3 +59,6 @@ docs/specs/15-*.md
 docs/specs/16-*.md
 docs/specs/AGENTS.md
 
+/.node
+
+
