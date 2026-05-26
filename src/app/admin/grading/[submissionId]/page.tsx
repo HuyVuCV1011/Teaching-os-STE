@@ -36,10 +36,12 @@ export default function GradingPage({ params }: GradingPageProps) {
   const [submission, setSubmission] = useState<any>(null)
   const [rubric, setRubric] = useState<any>(null)
   const [criteria, setCriteria] = useState<any[]>([])
+  const [suggestions, setSuggestions] = useState<any[]>([])
 
   // Grading states
   const [scores, setScores] = useState<Record<string, number>>({}) // criterion_id -> score
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({}) // criterion_id -> feedback
+  const [overrideReasons, setOverrideReasons] = useState<Record<string, string>>({}) // criterion_id -> reason
   const [overallFeedback, setOverallFeedback] = useState('')
   const [gradingResultId, setGradingResultId] = useState<string | null>(null)
 
@@ -85,7 +87,20 @@ export default function GradingPage({ params }: GradingPageProps) {
         resultData.rubric_scores?.forEach((rs: any) => {
           initialScores[rs.rubric_criterion_id] = parseFloat(rs.score)
           initialFeedbacks[rs.rubric_criterion_id] = rs.feedback || ''
+          if (rs.override_reason) {
+            setOverrideReasons(prev => ({ ...prev, [rs.rubric_criterion_id]: rs.override_reason }))
+          }
         })
+      }
+
+      // 3. Fetch rubric score suggestions (AI grading results)
+      const { data: suggestionsData } = await supabase
+        .from('rubric_score_suggestions')
+        .select('*')
+        .eq('submission_id', submissionId)
+
+      if (suggestionsData) {
+        setSuggestions(suggestionsData)
       }
 
       setScores(initialScores)
@@ -109,11 +124,20 @@ export default function GradingPage({ params }: GradingPageProps) {
     setPublishing(publish ? true : false)
 
     try {
-      const rubricScoresData = criteria.map((c) => ({
-        rubric_criterion_id: c.id,
-        score: scores[c.id] || 0,
-        feedback: feedbacks[c.id] || '',
-      }))
+      const rubricScoresData = criteria.map((c) => {
+        const suggestion = suggestions.find(s => s.rubric_criterion_id === c.id)
+        const isOverridden = suggestion && (
+          scores[c.id] !== parseFloat(suggestion.suggested_score) || 
+          feedbacks[c.id] !== (suggestion.suggested_feedback || '')
+        )
+        return {
+          rubric_criterion_id: c.id,
+          score: scores[c.id] || 0,
+          feedback: feedbacks[c.id] || '',
+          derived_from_suggestion_id: suggestion ? suggestion.id : null,
+          override_reason: isOverridden ? (overrideReasons[c.id] || 'Manual override') : null,
+        }
+      })
 
       const result = await saveGradingResultAction({
         submissionId,
@@ -141,7 +165,7 @@ export default function GradingPage({ params }: GradingPageProps) {
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         <span className="text-sm">Fetching student submission and rubric criteria...</span>
       </div>
     )
@@ -154,7 +178,7 @@ export default function GradingPage({ params }: GradingPageProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/admin/grading')}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all"
+            className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -172,7 +196,7 @@ export default function GradingPage({ params }: GradingPageProps) {
           <button
             onClick={() => handleSaveGrade(false)}
             disabled={saving || publishing}
-            className="px-4 py-2 rounded-xl border border-slate-800 hover:border-slate-750 bg-slate-900 text-slate-350 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-900 text-slate-350 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Save className="w-4 h-4" />}
             <span>Save Draft</span>
@@ -242,7 +266,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                       href={`${process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zuwsvvpzivukrfegqgsp.supabase.co'}/storage/v1/object/sign/student-submissions/${path}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 shrink-0"
+                      className="text-[10px] font-semibold text-blue-600 hover:text-blue-400 flex items-center gap-1 shrink-0"
                     >
                       <FileDown className="w-3.5 h-3.5" />
                       <span>Download</span>
@@ -262,11 +286,11 @@ export default function GradingPage({ params }: GradingPageProps) {
           <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-6 shadow-xl">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-400" /> Rubric Matrix
+                <Sparkles className="w-4 h-4 text-blue-600" /> Rubric Matrix
               </h3>
               <div className="text-xs">
                 <span className="text-slate-500">Weighted Score:</span>{' '}
-                <span className="text-md font-extrabold text-blue-400">{clientTotalScore.toFixed(2)} pts</span>
+                <span className="text-md font-extrabold text-blue-600">{clientTotalScore.toFixed(2)} pts</span>
               </div>
             </div>
 
@@ -274,63 +298,119 @@ export default function GradingPage({ params }: GradingPageProps) {
               <p className="text-xs text-slate-500 italic">No criteria defined in the rubric template.</p>
             ) : (
               <div className="space-y-6">
-                {criteria.map((c) => (
-                  <div key={c.id} className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-850/80">
-                    <div className="flex justify-between items-start">
+                {criteria.map((c) => {
+                  const suggestion = suggestions.find(s => s.rubric_criterion_id === c.id)
+                  const isOverridden = suggestion && (
+                    (scores[c.id] !== undefined && scores[c.id] !== parseFloat(suggestion.suggested_score)) ||
+                    (feedbacks[c.id] !== undefined && feedbacks[c.id] !== (suggestion.suggested_feedback || ''))
+                  )
+
+                  return (
+                    <div key={c.id} className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-850/80">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">{c.name}</h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{c.description || 'No description.'}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-white">
+                            {(scores[c.id] || 0).toFixed(1)} / {c.max_points} pts
+                          </span>
+                          <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
+                            wt: {c.weight}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* AI Suggestion Box */}
+                      {suggestion && (
+                        <div className="p-3 bg-blue-600/5 border border-blue-500/10 rounded-xl space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold text-blue-400">
+                              AI Suggested Score: {parseFloat(suggestion.suggested_score).toFixed(1)} pts
+                            </span>
+                            {suggestion.confidence !== undefined && (
+                              <span className="text-[10px] bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full font-bold">
+                                Confidence: {Math.round(parseFloat(suggestion.confidence) * 100)}%
+                              </span>
+                            )}
+                          </div>
+                          {suggestion.suggested_feedback && (
+                            <p className="text-[11px] text-slate-400 italic">"{suggestion.suggested_feedback}"</p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setScores(prev => ({ ...prev, [c.id]: parseFloat(suggestion.suggested_score) }))
+                              setFeedbacks(prev => ({ ...prev, [c.id]: suggestion.suggested_feedback || '' }))
+                            }}
+                            className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-1 cursor-pointer bg-transparent border-0 p-0"
+                          >
+                            Accept AI Suggestion
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Slider Input */}
+                      <div className="flex gap-4 items-center">
+                        <input
+                          type="range"
+                          min="0"
+                          max={c.max_points}
+                          step="0.5"
+                          value={scores[c.id] || 0}
+                          onChange={(e) =>
+                            setScores({ ...scores, [c.id]: parseFloat(e.target.value) })
+                          }
+                          className="flex-1 accent-blue-550 h-1.5 bg-slate-900 rounded-lg cursor-pointer"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max={c.max_points}
+                          step="0.5"
+                          value={scores[c.id] || 0}
+                          onChange={(e) =>
+                            setScores({ ...scores, [c.id]: Math.min(c.max_points, Math.max(0, parseFloat(e.target.value) || 0)) })
+                          }
+                          className="w-14 bg-slate-955 border border-slate-850 rounded px-1 py-0.5 text-center text-xs font-mono font-semibold focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Individual feedback comment */}
                       <div>
-                        <h4 className="font-bold text-slate-200 text-xs">{c.name}</h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{c.description || 'No description.'}</p>
+                        <input
+                          type="text"
+                          placeholder="Criterion feedback notes..."
+                          value={feedbacks[c.id] || ''}
+                          onChange={(e) =>
+                            setFeedbacks({ ...feedbacks, [c.id]: e.target.value })
+                          }
+                          className="w-full bg-slate-950/60 border border-slate-850 rounded px-2.5 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-blue-500/50"
+                        />
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-white">
-                          {(scores[c.id] || 0).toFixed(1)} / {c.max_points} pts
-                        </span>
-                        <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
-                          wt: {c.weight}
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* Slider Input */}
-                    <div className="flex gap-4 items-center">
-                      <input
-                        type="range"
-                        min="0"
-                        max={c.max_points}
-                        step="0.5"
-                        value={scores[c.id] || 0}
-                        onChange={(e) =>
-                          setScores({ ...scores, [c.id]: parseFloat(e.target.value) })
-                        }
-                        className="flex-1 accent-blue-500 h-1.5 bg-slate-900 rounded-lg cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        max={c.max_points}
-                        step="0.5"
-                        value={scores[c.id] || 0}
-                        onChange={(e) =>
-                          setScores({ ...scores, [c.id]: Math.min(c.max_points, Math.max(0, parseFloat(e.target.value) || 0)) })
-                        }
-                        className="w-14 bg-slate-950 border border-slate-850 rounded px-1 py-0.5 text-center text-xs font-mono font-semibold focus:outline-none"
-                      />
+                      {/* Override Reason Box */}
+                      {isOverridden && (
+                        <div className="space-y-1 mt-1.5">
+                          <label className="block text-[9px] font-bold text-amber-500 uppercase tracking-widest">
+                            Override Reason Required
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="State reason for overriding the suggestion..."
+                            required
+                            value={overrideReasons[c.id] || ''}
+                            onChange={(e) =>
+                              setOverrideReasons({ ...overrideReasons, [c.id]: e.target.value })
+                            }
+                            className="w-full bg-slate-950/60 border border-amber-500/20 rounded px-2.5 py-1 text-[11px] text-amber-300 focus:outline-none focus:border-amber-500/50"
+                          />
+                        </div>
+                      )}
                     </div>
-
-                    {/* Individual feedback comment */}
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Criterion feedback notes..."
-                        value={feedbacks[c.id] || ''}
-                        onChange={(e) =>
-                          setFeedbacks({ ...feedbacks, [c.id]: e.target.value })
-                        }
-                        className="w-full bg-slate-950/60 border border-slate-850 rounded px-2.5 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-blue-500/50"
-                      />
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 

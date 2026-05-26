@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { calculateFileHash } from '@/lib/hash'
+import { triggerRubricoreGradingAction } from './actions'
 import {
   ArrowLeft,
   FileText,
@@ -209,7 +210,8 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         }
       }
 
-      // 1. Upload files to private student-submissions bucket
+      // 1. Upload files to private student-submissions bucket and record metadata
+      const fileMetadataList: any[] = []
       const uploadedUrls: string[] = []
       // Compute email hash using Web Crypto SHA-256 for folder path
       const emailBuffer = new TextEncoder().encode(email.trim().toLowerCase())
@@ -232,24 +234,57 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         }
 
         uploadedUrls.push(pathName)
+        fileMetadataList.push({
+          storage_bucket: 'student-submissions',
+          storage_path: pathName,
+          original_filename: file.name,
+          content_type: file.type,
+          size_bytes: file.size,
+          sha256: hash,
+          processing_status: 'pending'
+        })
       }
 
       // 2. Insert record to submissions table
-      // Storing late flag as a status/metadata column or status state. We store metadata in submissions
-      const { error: subError } = await supabase.from('submissions').insert([
-        {
-          class_id: classData.id,
-          assignment_id: assignmentId,
-          student_identifier: email.trim().toLowerCase(),
-          submitted_text: text,
-          submitted_files: uploadedUrls,
-          status: 'submitted',
-        },
-      ])
+      const nextAttempt = existingSubmission ? (existingSubmission.attempt_number + 1) : 1
+      const { data: newSub, error: subError } = await supabase
+        .from('submissions')
+        .insert([
+          {
+            class_id: classData.id,
+            assignment_id: assignmentId,
+            student_identifier: email.trim().toLowerCase(),
+            submitted_text: text,
+            submitted_files: uploadedUrls,
+            status: 'submitted',
+            attempt_number: nextAttempt,
+            is_late: isLate,
+          },
+        ])
+        .select()
+        .single()
 
       if (subError) throw subError
 
+      // 3. Insert metadata records to submission_files
+      if (fileMetadataList.length > 0 && newSub) {
+        const filesToInsert = fileMetadataList.map(meta => ({
+          ...meta,
+          submission_id: newSub.id
+        }))
+        const { error: filesInsertError } = await supabase
+          .from('submission_files')
+          .insert(filesToInsert)
+
+        if (filesInsertError) throw filesInsertError
+      }
+
       setSuccess(true)
+      if (newSub) {
+        triggerRubricoreGradingAction(newSub.id).catch((err) => {
+          console.error("Async grading trigger failed:", err)
+        })
+      }
       handleCheckSubmission()
     } catch (err: any) {
       setError(err.message || 'Submission failed')
@@ -261,7 +296,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         <span className="text-sm">Fetching assignment workspace...</span>
       </div>
     )
@@ -273,7 +308,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
       <div className="flex items-center gap-3">
         <Link
           href={`/learn/${classCode}/dashboard`}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all"
+          className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -298,7 +333,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
 
             <div className="flex flex-wrap gap-4 pt-6 border-t border-slate-800/60 text-xs">
               <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">
-                <Calendar className="w-4 h-4 text-blue-400" />
+                <Calendar className="w-4 h-4 text-blue-600" />
                 <span>
                   Due Date:{' '}
                   {schedule?.due_date
@@ -307,7 +342,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
                 </span>
               </div>
               <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">
-                <span className="font-bold text-blue-400">Max Points:</span>
+                <span className="font-bold text-blue-600">Max Points:</span>
                 <span>{assignment?.max_score} points</span>
               </div>
             </div>
@@ -424,7 +459,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                       Upload Files (Max 3, Total 50MB)
                     </label>
-                    <label className="border border-dashed border-slate-800 hover:border-slate-700 bg-slate-950/40 hover:bg-slate-950/80 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
+                    <label className="border border-dashed border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-950/80 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
                       <Upload className="w-6 h-6 text-slate-500 mb-2" />
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         Choose deliverables

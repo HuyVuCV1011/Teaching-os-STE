@@ -59,6 +59,8 @@ interface GradingInput {
     rubric_criterion_id: string
     score: number
     feedback: string
+    derived_from_suggestion_id?: string | null
+    override_reason?: string | null
   }>
 }
 
@@ -109,6 +111,8 @@ export async function saveGradingResultAction(input: GradingInput) {
           rubric_criterion_id: scoreRow.rubric_criterion_id,
           score: scoreRow.score,
           feedback: scoreRow.feedback,
+          derived_from_suggestion_id: scoreRow.derived_from_suggestion_id,
+          override_reason: scoreRow.override_reason,
         },
         {
           onConflict: 'grading_result_id,rubric_criterion_id',

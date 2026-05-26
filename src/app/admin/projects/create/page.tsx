@@ -307,7 +307,7 @@ export default function CreateProjectPage() {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Plus className="w-5 h-5 text-blue-500" /> Write New Showcase Project
+            <Plus className="w-5 h-5 text-blue-600" /> Write New Showcase Project
           </h1>
           <p className="text-xs text-slate-500">Configure visual diagrams, files uploads, and details.</p>
         </div>
@@ -408,7 +408,7 @@ export default function CreateProjectPage() {
                 <button
                   type="button"
                   onClick={addNode}
-                  className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-semibold text-slate-300"
+                  className="px-3 py-1.5 rounded bg-slate-900 border border-slate-500 hover:border-slate-400 text-xs font-semibold text-slate-300"
                 >
                   Add Node
                 </button>
@@ -417,7 +417,7 @@ export default function CreateProjectPage() {
                     <button
                       type="button"
                       onClick={updateNode}
-                      className="px-3 py-1.5 rounded bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/20 text-xs font-semibold text-blue-400"
+                      className="px-3 py-1.5 rounded bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/20 text-xs font-semibold text-blue-600"
                     >
                       Update
                     </button>
@@ -449,7 +449,7 @@ export default function CreateProjectPage() {
                 accept="image/*"
                 multiple
                 onChange={(e) => handleFileChange(e, setThumbnails, 'image/*')}
-                className="bg-slate-950 border-slate-800 text-slate-400 file:bg-blue-600/10 file:text-blue-400 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
+                className="bg-slate-950 border-slate-800 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
               />
             </div>
 
@@ -462,7 +462,7 @@ export default function CreateProjectPage() {
                 accept="application/pdf"
                 multiple
                 onChange={(e) => handleFileChange(e, setFiles, 'application/pdf')}
-                className="bg-slate-950 border-slate-800 text-slate-400 file:bg-blue-600/10 file:text-blue-400 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
+                className="bg-slate-950 border-slate-800 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
               />
             </div>
           </div>

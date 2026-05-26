@@ -103,7 +103,7 @@ export default function AdminProjectsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
-            <Briefcase className="w-8 h-8 text-blue-500" />
+            <Briefcase className="w-8 h-8 text-blue-600" />
             Projects CMS Dashboard
           </h1>
           <p className="text-slate-400 text-sm mt-1">Configure showcase data pipeline projects, upload details, and map icons.</p>
@@ -117,7 +117,7 @@ export default function AdminProjectsPage() {
 
       {loading ? (
         <div className="flex justify-center items-center py-20 text-slate-400 text-sm gap-2">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           <span>Retrieving showcase registry...</span>
         </div>
       ) : error ? (
@@ -155,7 +155,7 @@ export default function AdminProjectsPage() {
                     <td className="py-4 px-6">
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
                         project.product_option === 'customer'
-                          ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                          ? 'bg-blue-500/10 border-blue-500/20 text-blue-600'
                           : 'bg-violet-500/10 border-violet-500/20 text-violet-400'
                       }`}>
                         {project.product_option}
@@ -163,7 +163,7 @@ export default function AdminProjectsPage() {
                     </td>
                     <td className="py-4 px-6 text-right flex justify-end gap-2.5">
                       <Link href={`/admin/projects/edit/${project.id}`}>
-                        <span className="p-2 rounded-lg bg-slate-900 border border-slate-850 hover:border-slate-700 text-slate-400 hover:text-white transition-all flex items-center justify-center cursor-pointer" title="Edit Metadata">
+                        <span className="p-2 rounded-lg bg-slate-900 border border-slate-500 hover:border-slate-400 text-slate-400 hover:text-white transition-all flex items-center justify-center cursor-pointer" title="Edit Metadata">
                           <Edit className="w-4 h-4" />
                         </span>
                       </Link>
@@ -175,7 +175,7 @@ export default function AdminProjectsPage() {
                             project.files
                           )
                         }
-                        className="p-2 rounded-lg bg-slate-900 border border-slate-850 hover:border-rose-900/30 hover:bg-rose-950/10 text-slate-500 hover:text-rose-450 transition-all flex items-center justify-center"
+                        className="p-2 rounded-lg bg-slate-900 border border-slate-500 hover:border-rose-900/30 hover:bg-rose-950/10 text-slate-500 hover:text-rose-450 transition-all flex items-center justify-center"
                         title="Remove Showcase"
                       >
                         <Trash2 className="w-4 h-4" />

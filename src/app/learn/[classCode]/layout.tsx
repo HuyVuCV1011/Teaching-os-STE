@@ -94,7 +94,7 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
               </div>
             ) : classInfo ? (
               <>
-                <span className="block text-[9px] font-bold text-blue-400 uppercase tracking-widest">
+                <span className="block text-[9px] font-bold text-blue-600 uppercase tracking-widest">
                   Class: {classInfo.class_code}
                 </span>
                 <span className="block text-xs font-bold text-slate-200 truncate mt-0.5">
@@ -117,19 +117,19 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
                   href={item.href}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-l-2 border-blue-500 text-blue-400 bg-slate-900/50'
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-l-2 border-blue-500 text-blue-600 bg-slate-900/50'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30 border-l-2 border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <item.icon
                       className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${
-                        isActive ? 'text-blue-400' : 'text-slate-400'
+                        isActive ? 'text-blue-600' : 'text-slate-400'
                       }`}
                     />
                     <span>{item.name}</span>
                   </div>
-                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-blue-400" />}
+                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-blue-600" />}
                 </Link>
               )
             })}

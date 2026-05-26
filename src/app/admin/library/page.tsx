@@ -244,7 +244,7 @@ function AdminLibraryContent() {
         </div>
         <Link
           href="/admin/library/assignments"
-          className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 hover:text-white font-semibold text-xs transition-all flex items-center gap-1.5 shadow-md"
+          className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-500 hover:border-slate-400 text-slate-350 font-semibold text-xs transition-all flex items-center gap-1.5 shadow-md"
         >
           <ClipboardList className="w-3.5 h-3.5" /> Manage Assignments
         </Link>
@@ -256,7 +256,7 @@ function AdminLibraryContent() {
           onClick={() => handleTabChange('courses')}
           className={`flex items-center gap-2 pb-4 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'courses'
-              ? 'border-blue-500 text-blue-400'
+              ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -268,7 +268,7 @@ function AdminLibraryContent() {
           onClick={() => handleTabChange('subjects')}
           className={`flex items-center gap-2 pb-4 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'subjects'
-              ? 'border-blue-500 text-blue-400'
+              ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -280,7 +280,7 @@ function AdminLibraryContent() {
           onClick={() => handleTabChange('rubrics')}
           className={`flex items-center gap-2 pb-4 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'rubrics'
-              ? 'border-blue-500 text-blue-400'
+              ? 'border-blue-500 text-blue-600'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -387,7 +387,7 @@ function AdminLibraryContent() {
                         }`}
                       >
                         <div className="flex justify-between items-start">
-                          <span className="text-xs font-semibold text-blue-400">
+                          <span className="text-xs font-semibold text-blue-600">
                             {course.subjects?.name}
                           </span>
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
@@ -421,7 +421,7 @@ function AdminLibraryContent() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => setShowModuleForm(true)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-850 bg-slate-950/60 hover:bg-slate-950 text-xs font-semibold text-slate-300 transition-all flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-lg border border-slate-500 bg-slate-950/60 hover:bg-slate-950 text-xs font-semibold text-slate-300 transition-all flex items-center gap-1.5"
                           >
                             <Plus className="w-3.5 h-3.5" /> Add Module
                           </button>
@@ -545,7 +545,7 @@ function AdminLibraryContent() {
                                     setLessonForm({ ...lessonForm, moduleId: mod.id, order_index: (mod.lessons?.length || 0) + 1 })
                                     setShowLessonForm(true)
                                   }}
-                                  className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                                  className="text-xs text-blue-600 hover:text-blue-400 font-semibold flex items-center gap-1"
                                 >
                                   <Plus className="w-3.5 h-3.5" /> Lesson
                                 </button>
@@ -566,7 +566,7 @@ function AdminLibraryContent() {
                                     </div>
                                     <button
                                       onClick={() => router.push(`/admin/library/lesson-editor?lessonId=${lesson.id}`)}
-                                      className="p-1 rounded bg-slate-850 hover:bg-slate-850 text-slate-400 hover:text-blue-400 transition-colors"
+                                      className="p-1 rounded bg-slate-850 hover:bg-slate-850 text-slate-400 hover:text-blue-600 transition-colors"
                                       title="Edit Lesson Content"
                                     >
                                       <Edit className="w-3.5 h-3.5" />
@@ -732,7 +732,7 @@ function AdminLibraryContent() {
                         <button
                           type="button"
                           onClick={handleAddCriterionField}
-                          className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                          className="text-xs text-blue-600 hover:text-blue-400 font-semibold flex items-center gap-1"
                         >
                           <Plus className="w-3.5 h-3.5" /> Add Criterion
                         </button>
@@ -826,7 +826,7 @@ function AdminLibraryContent() {
                             <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate">{rc.name}</span>
                             <div className="flex justify-between items-baseline mt-1.5">
                               <span className="text-sm font-bold text-white">{rc.max_points} pts</span>
-                              <span className="text-[10px] text-blue-400 font-semibold">wt: {rc.weight}</span>
+                              <span className="text-[10px] text-blue-600 font-semibold">wt: {rc.weight}</span>
                             </div>
                           </div>
                         ))}

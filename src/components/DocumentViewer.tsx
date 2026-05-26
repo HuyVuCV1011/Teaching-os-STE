@@ -141,7 +141,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
             {title || 'Course Material'}
           </h4>
           {isLandscape && (
-            <span className="ml-2 text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+            <span className="ml-2 text-[9px] bg-blue-500/10 text-blue-600 border border-blue-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
               Presentation Deck
             </span>
           )}
@@ -183,7 +183,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
       <div className="flex-1 overflow-auto flex items-center justify-center p-6 bg-slate-950/90 relative z-0 custom-scrollbar">
         {loading && (
           <div className="absolute inset-0 flex flex-col justify-center items-center gap-3 text-slate-400 bg-slate-950/80 z-20">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="text-xs font-semibold tracking-wider uppercase text-slate-500">Securing & rendering pages...</span>
           </div>
         )}
@@ -212,7 +212,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
                 onLoadSuccess={onPageLoadSuccess}
                 loading={
                   <div className="flex flex-col items-center justify-center py-20 px-32 gap-3 text-slate-500 font-mono text-xs">
-                    <RotateCw className="w-6 h-6 animate-spin text-blue-500/80" />
+                    <RotateCw className="w-6 h-6 animate-spin text-blue-600/80" />
                     <span>Rendering page {pageNumber}...</span>
                   </div>
                 }
@@ -228,7 +228,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
           <button
             onClick={() => changePage(-1)}
             disabled={pageNumber <= 1}
-            className="p-2 rounded-xl bg-slate-950/60 border border-slate-850 text-slate-450 hover:text-white hover:border-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
+            className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -240,7 +240,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
           <button
             onClick={() => changePage(1)}
             disabled={pageNumber >= numPages}
-            className="p-2 rounded-xl bg-slate-950/60 border border-slate-850 text-slate-450 hover:text-white hover:border-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
+            className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

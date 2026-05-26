@@ -61,10 +61,10 @@ export default function LearnerDashboard({ params }: DashboardProps) {
       <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 p-8 shadow-xl">
         <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
         <div className="relative z-10 space-y-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 border border-blue-500/20 text-blue-400 uppercase tracking-widest">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 border border-blue-500/20 text-blue-600 uppercase tracking-widest">
             Cohort: {classInfo?.class_code || classCode.toUpperCase()}
           </span>
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent">
             My Learning Desk
           </h1>
           <p className="text-slate-405 max-w-xl text-sm leading-relaxed">
@@ -76,13 +76,13 @@ export default function LearnerDashboard({ params }: DashboardProps) {
       {/* Courses Catalog Grid */}
       <div className="space-y-6">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-blue-400" />
+          <BookOpen className="w-5 h-5 text-blue-600" />
           Assigned Programs
         </h2>
 
         {loading ? (
           <div className="flex flex-col justify-center items-center py-20 gap-4 text-slate-500">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="text-xs font-semibold uppercase tracking-widest">Retrieving syllabus...</span>
           </div>
         ) : courses.length === 0 ? (
@@ -104,7 +104,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                     </span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-100 group-hover:text-white transition-colors">
+                    <h3 className="font-bold text-slate-100 group-hover:text-blue-600 transition-colors">
                       {course.title}
                     </h3>
                     <p className="text-xs text-slate-400 mt-2 line-clamp-3 leading-relaxed">
@@ -116,7 +116,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                 <div className="mt-8 pt-4 border-t border-slate-850/60 flex justify-end">
                   <Link
                     href={`/learn/${classCode}/courses/${course.slug}/roadmap`}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-355 transition-colors group"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-400 transition-colors group"
                   >
                     <span>Launch Course</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />

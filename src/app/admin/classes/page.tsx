@@ -289,7 +289,7 @@ function AdminClassesContent() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
-            <Users className="w-8 h-8 text-blue-500" />
+            <Users className="w-8 h-8 text-blue-600" />
             Class Cohort Manager
           </h1>
           <p className="text-slate-400 text-sm mt-1">Configure class access codes, active courses, and release dates.</p>
@@ -406,7 +406,7 @@ function AdminClassesContent() {
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-mono font-semibold text-blue-400 bg-blue-950/40 border border-blue-900/20 px-2 py-0.5 rounded">
+                  <span className="text-xs font-mono font-semibold text-blue-600 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
                     {c.class_code}
                   </span>
                   <div className="flex items-center gap-2">
@@ -461,7 +461,7 @@ function AdminClassesContent() {
               {/* Mapped Courses section */}
               <div className="space-y-4">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  <BookOpen className="w-4 h-4 text-blue-600" />
                   Assigned Syllabi Courses
                 </h4>
 
@@ -607,7 +607,7 @@ function AdminClassesContent() {
                   {classCourses.length > 0 && (
                     <button
                       onClick={() => setShowScheduleForm(!showScheduleForm)}
-                      className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                      className="text-xs text-blue-600 hover:text-blue-400 font-semibold flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" /> Set Schedule
                     </button>
@@ -745,7 +745,7 @@ export default function AdminClasses() {
   return (
     <Suspense fallback={
       <div className="flex justify-center items-center py-20 text-slate-400 text-sm">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     }>
       <AdminClassesContent />

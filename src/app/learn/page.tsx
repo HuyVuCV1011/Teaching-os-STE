@@ -63,7 +63,7 @@ function LearnGatewayContent() {
             <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-500 to-violet-500 flex items-center justify-center shadow-lg shadow-blue-500/20 mb-4">
               <KeyRound className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent">
               Learning Gateway
             </h1>
             <p className="mt-2 text-sm text-slate-400">

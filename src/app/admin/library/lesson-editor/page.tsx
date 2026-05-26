@@ -196,7 +196,7 @@ function LessonEditorInner() {
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         <span className="text-sm">Retrieving lesson workspace...</span>
       </div>
     )
@@ -224,7 +224,7 @@ function LessonEditorInner() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/admin/library?tab=courses')}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all"
+            className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -331,7 +331,7 @@ function LessonEditorInner() {
                       accept=".pdf"
                       required
                       onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                      className="w-full text-xs text-slate-450 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600/10 file:text-blue-400 hover:file:bg-blue-600/20"
+                      className="w-full text-xs text-slate-450 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600/10 file:text-blue-600 hover:file:bg-blue-600/20"
                     />
                   </div>
                 ) : (

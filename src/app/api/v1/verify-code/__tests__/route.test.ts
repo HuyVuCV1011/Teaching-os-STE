@@ -2,15 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // ---------- Hoisted mocks (run before vi.mock factories) ----------
-const { mockFrom, mockSingle, mockSignJWT } = vi.hoisted(() => {
+const { mockFrom, mockSingle, mockIlike, mockEq, mockSignJWT } = vi.hoisted(() => {
   const mockSingle = vi.fn()
-  const mockEq = vi.fn(() => ({ single: mockSingle }))
+  // Support chained .eq().eq() for the enrollment query
+  const mockEq = vi.fn(() => ({ eq: mockEq, single: mockSingle }))
   const mockIlike = vi.fn(() => ({ single: mockSingle }))
   const mockSelect = vi.fn(() => ({ ilike: mockIlike, eq: mockEq }))
   const mockFrom = vi.fn(() => ({ select: mockSelect }))
   const mockSignJWT = vi.fn()
 
-  return { mockFrom, mockSingle, mockSignJWT }
+  return { mockFrom, mockSingle, mockIlike, mockEq, mockSignJWT }
 })
 
 vi.mock('@/lib/supabase', () => ({
@@ -171,7 +172,7 @@ describe('POST /api/v1/verify-code', () => {
       // NextResponse.json().cookies.set() sets a single cookie on the response
       const cookies = res.headers.get('set-cookie')
       expect(cookies).toContain('student_email_STE2024')
-      expect(cookies).toContain('student@school.edu')
+      expect(cookies).toContain('student%40school.edu')
     })
 
     it('normalizes class code to uppercase and trims whitespace', async () => {
@@ -209,7 +210,8 @@ describe('POST /api/v1/verify-code', () => {
 
   describe('error handling', () => {
     it('returns 500 on unexpected errors', async () => {
-      mockSingle.mockRejectedValueOnce(new Error('DB connection failed'))
+      // Mock the first query (class lookup) to throw
+      mockSingle.mockImplementationOnce(() => { throw new Error('DB connection failed') })
 
       const res = await POST(makeRequest({ code: 'STE', email: 's@t.com' }))
       expect(res.status).toBe(500)

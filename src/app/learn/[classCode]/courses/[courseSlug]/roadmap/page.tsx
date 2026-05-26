@@ -55,7 +55,7 @@ function CustomLessonNode({ data }: { data: LessonNodeData }) {
           {data.isLocked ? (
             <Lock className="w-3.5 h-3.5 text-slate-600" />
           ) : (
-            <Unlock className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+            <Unlock className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
           )}
         </div>
       </div>
@@ -237,7 +237,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
       <div className="flex items-center gap-3">
         <Link
           href={`/learn/${classCode}/dashboard`}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all"
+          className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -250,7 +250,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
       <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-950/50 backdrop-blur-xl overflow-hidden relative shadow-2xl">
         {loading ? (
           <div className="absolute inset-0 flex flex-col justify-center items-center gap-4 text-slate-400 bg-slate-950/80 z-30">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="text-sm">Synthesizing learning path...</span>
           </div>
         ) : syllabusNodes.length === 0 ? (

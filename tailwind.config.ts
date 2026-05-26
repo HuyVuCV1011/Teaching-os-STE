@@ -10,6 +10,27 @@ export default {
   theme: {
   	extend: {
   		colors: {
+        slate: {
+          50: '#090d16',
+          100: '#0f172a',
+          200: '#1e293b',
+          300: '#334155',
+          350: '#334155',
+           400: '#1e293b',
+           405: '#1e293b',
+           450: '#334155',
+           500: '#334155',
+           550: '#475569',
+           600: '#475569',
+          650: '#cbd5e1',
+          700: '#cbd5e1',
+          800: '#e2e8f0',
+          805: '#e2e8f0',
+          850: '#f1f5f9',
+          900: '#f8fafc',
+          955: '#ffffff',
+          950: '#ffffff',
+        },
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

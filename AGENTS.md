@@ -135,6 +135,8 @@ If Antigravity is configured with broad machine access, still behave as if acces
 ## UI and Content Rules
 
 - Preserve the portfolio/education brand direction: polished, modern, instructional, and data-oriented.
+- **Light Theme Principle**: The entire platform (showcase, student zone, and admin CMS) is designed with a **bright white/light theme** (defaulting to the `light` HTML class).
+- Maintain the inverted `slate` color family logic (where `bg-slate-950` maps to `#ffffff` and `text-slate-100` maps to dark slate). Avoid introducing new raw dark colors that clash with this style.
 - Use existing components before creating new primitives.
 - Prefer lucide-react icons when an icon is needed.
 - Keep Tailwind classes readable and consistent with nearby code.

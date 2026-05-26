@@ -69,7 +69,7 @@ export default function AdminDashboard() {
       count: stats.coursesCount,
       href: '/admin/library?tab=courses',
       icon: BookOpen,
-      color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/20 text-blue-400',
+      color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/20 text-blue-600',
     },
     {
       title: 'Active Class Cohorts',
@@ -95,7 +95,7 @@ export default function AdminDashboard() {
       <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 p-8 shadow-xl">
         <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
         <div className="relative z-10 space-y-2">
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent">
             Welcome Back, Operator
           </h1>
           <p className="text-slate-400 max-w-xl text-sm">
@@ -122,7 +122,7 @@ export default function AdminDashboard() {
                 {loading ? (
                   <div className="h-9 w-12 bg-slate-800 rounded animate-pulse" />
                 ) : (
-                  <span className="text-3xl font-extrabold text-white">{card.count}</span>
+                  <span className="text-3xl font-extrabold text-slate-100">{card.count}</span>
                 )}
                 <h3 className="font-bold text-slate-200 mt-2">{card.title}</h3>
                 <p className="text-xs text-slate-400 mt-1">{card.description}</p>
@@ -131,7 +131,7 @@ export default function AdminDashboard() {
             <div className="mt-6 pt-4 border-t border-slate-800/20 flex justify-end">
               <Link
                 href={card.href}
-                className="text-xs font-semibold flex items-center gap-1 hover:text-white transition-colors"
+                className="text-xs font-semibold flex items-center gap-1 hover:text-slate-100 transition-colors"
               >
                 <span>Manage</span>
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -146,32 +146,32 @@ export default function AdminDashboard() {
         {/* Core Actions */}
         <div className="lg:col-span-2 border border-slate-800 bg-slate-900/20 rounded-2xl p-6 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-blue-400" />
+            <TrendingUp className="w-4 h-4 text-blue-600" />
             Quick Setup Workflows
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Link
               href="/admin/library?tab=courses&action=new"
-              className="p-4 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-950/40 hover:bg-slate-950/80 transition-all flex items-start gap-3 group"
+              className="p-4 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-800/10 transition-all flex items-start gap-3 group"
             >
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-white">Create New Course</h4>
+                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-slate-100">Create New Course</h4>
                 <p className="text-xs text-slate-500 mt-0.5">Author a course syllabus and add modules.</p>
               </div>
             </Link>
 
             <Link
               href="/admin/classes?action=new"
-              className="p-4 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-950/40 hover:bg-slate-950/80 transition-all flex items-start gap-3 group"
+              className="p-4 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-800/10 transition-all flex items-start gap-3 group"
             >
               <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400 shrink-0">
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-white">Setup Cohort Access</h4>
+                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-slate-100">Setup Cohort Access</h4>
                 <p className="text-xs text-slate-500 mt-0.5">Generate class access codes & set dates.</p>
               </div>
             </Link>

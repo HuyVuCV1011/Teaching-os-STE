@@ -41,7 +41,7 @@ export default function GradingQueue() {
     switch (status) {
       case 'submitted':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 border border-blue-500/20 text-blue-400">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 border border-blue-500/20 text-blue-600">
             Submitted
           </span>
         )
@@ -78,7 +78,7 @@ export default function GradingQueue() {
       <div className="border border-slate-800 bg-slate-900/10 rounded-2xl overflow-hidden shadow-xl">
         {loading ? (
           <div className="flex flex-col justify-center items-center py-24 gap-4 text-slate-455">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               Loading submissions queue...
             </span>

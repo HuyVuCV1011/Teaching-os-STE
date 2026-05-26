@@ -62,7 +62,7 @@ export default async function LessonPage({ params }: PageProps) {
         </div>
         {scheduleData?.visible_after ? (
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300">
-            <Calendar className="w-3.5 h-3.5 text-blue-400" />
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
             <span>Unlocks on {new Date(scheduleData.visible_after).toLocaleDateString()}</span>
           </div>
         ) : (
@@ -70,7 +70,7 @@ export default async function LessonPage({ params }: PageProps) {
         )}
         <Link
           href={`/learn/${classCode}/courses/${courseSlug}/roadmap`}
-          className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1.5 transition-colors pt-4"
+          className="text-xs text-blue-600 hover:text-blue-400 font-semibold flex items-center gap-1.5 transition-colors pt-4"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Return to Roadmap
         </Link>
@@ -120,7 +120,7 @@ export default async function LessonPage({ params }: PageProps) {
       <div className="flex items-center gap-3">
         <Link
           href={`/learn/${classCode}/courses/${courseSlug}/roadmap`}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all"
+          className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -150,7 +150,7 @@ export default async function LessonPage({ params }: PageProps) {
           {pdfMaterial && (
             <div className="space-y-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-400" />
+                <FileText className="w-4 h-4 text-blue-600" />
                 Lesson Guide Document
               </h2>
               <DocumentViewer url={pdfMaterial.signedUrl} title={pdfMaterial.title} />
@@ -174,9 +174,9 @@ export default async function LessonPage({ params }: PageProps) {
                       href={link.storage_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/40 border border-slate-850 hover:border-slate-750 transition-all group"
+                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/40 border border-slate-500 hover:border-slate-400 transition-all group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors">
+                      <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-600 transition-colors">
                         {isRepo ? <Code className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0 flex-1">

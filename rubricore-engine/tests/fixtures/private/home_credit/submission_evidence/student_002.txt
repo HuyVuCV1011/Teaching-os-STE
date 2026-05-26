@@ -1,0 +1,160 @@
+﻿HOME CREDIT BI ANALYST 
+
+
+A. SQL TEST
+
+
+CÂU 1: c) SELECT * FROM view_credit c LEFT JOIN view_person p ON p.id_person = c.id_person
+
+
+CÂU 2: d) SELECT * FROM view_person p LEFT JOIN view_credit c ON p.id_person = c.id_person
+
+
+CÂU 3:  b) SELECT p.* FROM view_person p LEFT JOIN view_credit c ON p.id_person = c.id_person WHERE c.id IS NULL
+
+
+
+
+CÂU 4 a) SELECT p.* FROM view_person p WHERE (SELECT COUNT(c.id) FROM view_credit c WHERE c.id_person = p.id_person) > 1
+
+
+CÂU 5: 
+SELECT 
+    interest,
+    SUM(credit_amount)  AS CREDIT_AMOUNT_SUM,
+    MAX(credit_amount)  AS CREDIT_AMOUNT_MAX,
+    COUNT(id)           AS Accs
+FROM view_credit
+WHERE interest < 0.18
+GROUP BY interest
+ORDER BY interest ASC;
+
+
+
+
+CÂU 6: b) SELECT AVG((SYSDATE - p.date_birth)/365.25) FROM view_person p WHERE p.id_person IN (SELECT id_person FROM view_credit c)
+
+
+CÂU 7: a) SELECT AVG(p.child_num) FROM view_person p
+
+
+B. LOGICAL TEST
+
+
+CÂU 1: TÍNH LƯƠNG TRUNG BÌNH THÁNG
+Đề cho :
+- 2 nhân viên: $11,000/năm
+- 1 nhân viên: $8,000/năm
+- 3 nhân viên còn lại: $14,000/năm (6 - 2 - 1 = 3 người)
+
+
+Tổng lương năm:
+= (2 × 11,000) + (1 × 8,000) + (3 × 14,000)
+= 22,000 + 8,000 + 42,000
+= 72,000 USD/năm
+
+
+Chi phí lương trung bình tháng cho 1 nhân viên:
+= Tổng lương năm ÷ 12 tháng ÷ 6 nhân viên
+= 72,000 ÷ 12 ÷ 6
+= 1,000 USD/tháng/người
+
+
+ĐÁP ÁN: $1,000 USD/tháng/nhân viên
+
+
+
+
+CÂU 2: LOGICAL STATEMENTS
+
+
+
+
+CÂU 3: MEAN & MEDIAN
+Nam: 10 người, tuổi trung bình = 25 → Tổng tuổi nam = 250
+Nữ: 10 người, tuổi trung bình = 20 → Tổng tuổi nữ = 200
+Có 1 cặp song sinh (1 nam, 1 nữ) trong các nhóm.
+
+
+a) Median tuổi nam > Median tuổi nữ → FALSE (Sai)
+
+
+b) Nếu sắp xếp tăng dần và ghép cặp, sẽ có ít nhất 5 cặp mà nam ≥ nữ → TRUE (Đúng)
+Vì tổng tuổi nam (250) > tổng tuổi nữ (200), khi sắp xếp và ghép cặp theo thứ tự, tổng các hiệu (nam - nữ) = 250 - 200 = 50 > 0. Nếu có ít hơn 5 cặp mà nam ≥ nữ (tức là ≥ 6 cặp nữ > nam), thì tổng tuổi nữ sẽ lớn hơn tổng tuổi nam — mâu thuẫn. Do đó phải có ít nhất 5 cặp nam ≥ nữ.
+
+
+
+
+
+
+C. ANALYST TEST
+
+
+
+
+CÂU 1: ANALYTICS 1 – Phân tích xu hướng doanh số
+
+
+a) Tại sao tháng 1 có doanh số cao hơn đáng kể so với các tháng khác?
+→ Tháng 1 (January) là đầu năm mới – đây là thời điểm:
+   - Khách hàng có nhu cầu chi tiêu lớn sau dịp Tết/Giáng sinh (mua sắm, sửa nhà, xe mới)
+   - Nhiều chương trình khuyến mãi đầu năm được tung ra
+   - Nhân viên sales được reset chỉ tiêu năm mới → đẩy mạnh bán hàng
+   - Khách hàng có xu hướng vay tiêu dùng để chi trả cho các khoản trong kỳ nghỉ lễ
+   Đặc biệt với Smartphone và Motorbike, tháng 1/2020 tăng vọt so với 1/2019 có thể liên quan đến kích cầu đầu năm.
+
+
+b) Tại sao doanh số Motorbike tháng 9 thường cao hơn tháng 8 và tháng 10?
+→ Tháng 9 là mùa tựu trường (back-to-school):
+   - Học sinh, sinh viên cần phương tiện đi học → nhu cầu mua xe máy tăng cao
+   - Phụ huynh thường mua xe cho con đầu năm học mới (tháng 9)
+   - Các đại lý xe máy thường có chương trình khuyến mãi mùa khai trường
+   - Tháng 8 (trước khai trường) và tháng 10 (đã ổn định) không có nhu cầu đột biến này
+
+
+c) Tại sao Cash volume tháng 6-7 tăng trong khi các danh mục khác giảm?
+→ Cash Loan (vay tiền mặt) tháng 6-7 có thể tăng vì:
+   - Đây là mùa hè – học sinh nghỉ học, nhiều gia đình cần tiền chi tiêu sinh hoạt hàng ngày
+   - Nhu cầu chi phí học hè, du lịch hè của gia đình tăng
+   - Trong khi Smartphone và Motorbike giảm (không phải thời điểm mua sắm lớn), người dân vẫn cần tiền mặt cho nhu cầu thiết yếu
+   - Cash Loan ít phụ thuộc vào mùa vụ hơn các sản phẩm khác → xu hướng ổn định hơn
+
+
+---
+
+
+CÂU 2: ANALYTICS 2 – Đánh giá Team Leaders
+
+
+a) Team Leader giỏi nhất và kém nhất?
+
+
+GIỎI NHẤT: Internal12 và Internal16
+Lý do:
+- Internal12: Hầu hết các tháng đều đạt ✔ (≥100%), nhiều tháng đạt 107-133%. Chỉ có 2 tháng dưới 100% (91%, 93%) và không có ⚠. Tháng 2021-09 đạt 133% là mức cao nhất nhóm này.
+- Internal16: Liên tục đạt ✔ trong nhiều tháng liên tiếp, chỉ có vài tháng !, không có ⚠. Tháng 2021-09 đạt 141% – cao nhất toàn bảng.
+
+
+KÉM NHẤT: Internal7 và Internal21
+Lý do:
+- Internal7: Có nhiều tháng ⚠ (73%, 70%), số tháng ! nhiều, ít tháng đạt ✔. Dữ liệu thiếu nhiều tháng (mới tham gia hoặc đã nghỉ).
+- Internal21: Liên tục !, có ⚠ 73%, không có tháng nào đạt ✔, dữ liệu cũng thiếu nhiều tháng.
+
+
+b) Kết quả bất thường trong bảng?
+
+
+1. Tháng 2021-08 (cột 12): TẤT CẢ teams đều tăng vọt mạnh (nhiều team đạt 120-148%)
+   → Bất thường vì: Tháng trước (2021-07) nhiều team ở mức thấp (70-81% ⚠), nhưng tháng 8 đột ngột tăng rất cao. Có thể: (a) công ty có chiến dịch đặc biệt, (b) điều chỉnh target xuống thấp, (c) dữ liệu cần kiểm tra lại.
+
+
+2. Tháng 2021-07 (cột 11): Nhiều teams đồng loạt đạt ⚠ (70-81%)
+   → Nhiều team cùng lúc thấp bất thường. Có thể do: (a) target tháng 7 được đặt quá cao, (b) yếu tố thị trường chung ảnh hưởng toàn bộ đội ngũ.
+
+
+3. Tháng 2021-01 (tháng 1/2021): Hầu hết teams đạt tốt (✔ hoặc gần ✔)
+   → Phù hợp với quan sát ở Analytics 1: tháng 1 thường có doanh số cao.
+
+
+4. Internal18 tháng 2021-08: đạt 148% – cao nhất toàn bảng
+   → Đây là con số bất thường cần xác minh – có thể do backlog từ tháng trước được ghi nhận dồn vào tháng 8.
