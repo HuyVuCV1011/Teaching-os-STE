@@ -34,7 +34,7 @@
 
 *   **🌐 Public Showcase Layer**: An elegant portfolio displaying consulting projects, student case studies, process mapping diagrams (React Flow), and visual before/after dashboard comparison sliders.
 *   **🔑 Student Learning Gateway**: A secure area gated by class-code authorization and HTTP-Only cookies, allowing students to access course roadmaps, view materials, and submit assignments securely.
-*   **🛠️ Admin CMS & Grading Terminal**: A centralized management workspace where administrators configure classes, assign syllabi, edit lesson content with Tiptap, and evaluate homework against frozen rubric snapshots.
+*   **🛠️ Admin CMS & Grading Terminal**: A centralized management workspace where administrators configure classes, assign syllabi, author lesson content using a guided stepper wizard, reorder syllabus modules/lessons dynamically, and evaluate homework against frozen rubric snapshots.
 *   **⚡ Multi-Format Materials Pipeline**: Automatically processes PDF, DOCX, CSV, and XLSX deliverables, creating polished web readviews and preview grids.
 
 ---
@@ -61,7 +61,7 @@ graph LR
     Cohort -->|Student Submits Assignment| Grading["⚖️ Evaluation Terminal"]
     Grading -->|Freeze Rubric Snapshot| Publish["📢 Publish Grades"]
 ```
-1.  **Curriculum Design**: Admins create subjects, syllabus courses, modules, and lessons inside `/admin/library`.
+1.  **Curriculum Design**: Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 4-step wizard in the lesson editor.
 2.  **Class Operations**: Admins setup cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes.
 3.  **Rubric Snapshotting**: Captures a frozen criteria snapshot upon saving assignments to prevent grading drift.
 4.  **Assessment**: Submissions land on `/admin/grading` where admins score homework using criteria-based rubrics.

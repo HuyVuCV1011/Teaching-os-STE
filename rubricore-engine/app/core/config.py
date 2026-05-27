@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ollama_timeout_seconds: float = Field(default=120.0, alias="OLLAMA_TIMEOUT_SECONDS")
     supabase_url: str = Field(default="", alias="SUPABASE_URL")
     supabase_service_role_key: str = Field(default="", alias="SUPABASE_SERVICE_ROLE_KEY")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

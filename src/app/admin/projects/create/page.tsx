@@ -296,12 +296,12 @@ export default function CreateProjectPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto text-slate-250">
+    <div className="space-y-8 max-w-6xl mx-auto text-slate-350">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.push('/admin/projects')}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-all"
+          className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -316,16 +316,16 @@ export default function CreateProjectPage() {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Metadata Forms */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="border border-slate-850 bg-slate-900/10 rounded-2xl p-6 space-y-4">
+          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-450 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Project Title
               </label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Data Pipeline Integration Showcase"
-                className="bg-slate-950 border-slate-800 focus:border-blue-500 text-white"
+                className="bg-slate-950 border-slate-700 focus:border-blue-500 text-white"
                 required
               />
             </div>
@@ -339,11 +339,11 @@ export default function CreateProjectPage() {
           </div>
 
           {/* Flow Diagram Workspace */}
-          <div className="border border-slate-850 bg-slate-900/10 rounded-2xl p-6 space-y-4">
-            <label className="block text-xs font-semibold text-slate-450 uppercase tracking-wider">
+          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Process Diagram Workspace
             </label>
-            <div className="border border-slate-800/80 bg-slate-950 rounded-xl overflow-hidden" style={{ height: '400px' }}>
+            <div className="border border-slate-700 bg-slate-950 rounded-xl overflow-hidden" style={{ height: '400px' }}>
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -354,12 +354,12 @@ export default function CreateProjectPage() {
                 nodeTypes={{ customNode: CustomNode }}
                 fitView
               >
-                <Controls className="bg-slate-900 border-slate-850 text-slate-400" />
+                <Controls className="bg-slate-900 border-slate-700 text-slate-400" />
               </ReactFlow>
             </div>
 
-            <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 space-y-3.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+            <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-700 space-y-3.5">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block">
                 {selectedNode ? `Node Properties (${selectedNode.id})` : 'Node Configurator'}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -437,11 +437,11 @@ export default function CreateProjectPage() {
 
         {/* Right Side: Media Asset Controls */}
         <div className="space-y-6">
-          <div className="border border-slate-850 bg-slate-900/10 rounded-2xl p-6 space-y-4">
+          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
             <h3 className="font-bold text-white text-sm">Media Attachments</h3>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 Cover Image Thumbnail (Max 2 for comparison slider)
               </label>
               <Input
@@ -449,12 +449,12 @@ export default function CreateProjectPage() {
                 accept="image/*"
                 multiple
                 onChange={(e) => handleFileChange(e, setThumbnails, 'image/*')}
-                className="bg-slate-950 border-slate-800 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
+                className="bg-slate-950 border-slate-700 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 PDF Document (Max 2 for slider comparison)
               </label>
               <Input
@@ -462,23 +462,23 @@ export default function CreateProjectPage() {
                 accept="application/pdf"
                 multiple
                 onChange={(e) => handleFileChange(e, setFiles, 'application/pdf')}
-                className="bg-slate-950 border-slate-800 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
+                className="bg-slate-950 border-slate-700 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
               />
             </div>
           </div>
 
-          <div className="border border-slate-850 bg-slate-900/10 rounded-2xl p-6 space-y-4">
+          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
             <h3 className="font-bold text-white text-sm">Links & Taxonomy</h3>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 Target Category
               </label>
               <select
                 required
                 value={productOption || ''}
                 onChange={(e) => setProductOption(e.target.value || null)}
-                className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white"
+                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
               >
                 <option value="">Select category</option>
                 <option value="student">Student Project</option>
@@ -487,33 +487,33 @@ export default function CreateProjectPage() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 Interactive Iframe Link
               </label>
               <Input
                 value={iframeLink || ''}
                 onChange={(e) => setIframeLink(e.target.value || null)}
                 placeholder="https://app.powerbi.com/view..."
-                className="bg-slate-950 border-slate-800 text-xs text-white"
+                className="bg-slate-950 border-slate-700 text-xs text-white"
                 type="url"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 YouTube Embed URL
               </label>
               <Input
                 value={youtubeLink || ''}
                 onChange={(e) => setYoutubeLink(e.target.value || null)}
                 placeholder="https://www.youtube.com/embed/..."
-                className="bg-slate-950 border-slate-800 text-xs text-white"
+                className="bg-slate-950 border-slate-700 text-xs text-white"
                 type="url"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                 Technology Icons
               </label>
               <Select

@@ -144,3 +144,102 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
   }
 }
 
+/**
+ * Uploads a file to a Supabase storage bucket using the service-role client to bypass client RLS rules.
+ */
+export async function uploadFileToStorageAction(formData: FormData) {
+  try {
+    const bucket = formData.get('bucket') as string
+    const filePath = formData.get('path') as string
+    const file = formData.get('file') as File
+    const upsertStr = formData.get('upsert') as string
+    const upsert = upsertStr === 'true'
+
+    if (!bucket || !filePath || !file) {
+      return { success: false, error: 'Missing bucket, path, or file in upload request' }
+    }
+
+    const supabaseAdmin = getSupabaseServer(true)
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucket)
+      .upload(filePath, buffer, {
+        upsert,
+        contentType: file.type || 'application/octet-stream'
+      })
+
+    if (error) {
+      throw error
+    }
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error(`Server storage upload to bucket failed:`, error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Deletes files from a Supabase storage bucket using the service-role client to bypass client RLS rules.
+ */
+export async function deleteFileFromStorageAction(bucket: string, paths: string[]) {
+  try {
+    const supabaseAdmin = getSupabaseServer(true)
+    const { data, error } = await supabaseAdmin.storage.from(bucket).remove(paths)
+    if (error) {
+      throw error
+    }
+    return { success: true, data }
+  } catch (error: any) {
+    console.error('Server storage deletion failed:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Updates the student display mode preference for a canonical material inside its metadata.
+ */
+export async function updateMaterialDisplayModeAction(
+  materialId: string,
+  displayMode: 'both' | 'web' | 'original'
+) {
+  try {
+    const supabaseAdmin = getSupabaseServer(true)
+    
+    // 1. Fetch current metadata
+    const { data: material, error: fetchErr } = await supabaseAdmin
+      .from('canonical_materials')
+      .select('metadata')
+      .eq('id', materialId)
+      .single()
+
+    if (fetchErr || !material) {
+      throw new Error(`Material not found: ${fetchErr?.message || 'Unknown error'}`)
+    }
+
+    const updatedMetadata = {
+      ...(material.metadata || {}),
+      display_mode: displayMode
+    }
+
+    // 2. Update metadata in database
+    const { error: updateErr } = await supabaseAdmin
+      .from('canonical_materials')
+      .update({ metadata: updatedMetadata })
+      .eq('id', materialId)
+
+    if (updateErr) {
+      throw updateErr
+    }
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Failed to update material display mode:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+
+

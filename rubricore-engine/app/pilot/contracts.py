@@ -291,3 +291,23 @@ class DemoGradingContextResponse(PilotContract):
     submission_id: str
     rubric_version_id: str
     answer_key_version_id: str | None = None
+
+
+class SolutionGenerationRequest(PilotContract):
+    model_choice: str = "ollama"
+    assignment_text: str
+
+
+class SolutionGenerationResponse(PilotContract):
+    solution_key: str
+
+
+class RubricGenerationRequest(PilotContract):
+    model_choice: str = "ollama"
+    assignment_text: str
+    solution_text: str
+
+
+class RubricGenerationResponse(PilotContract):
+    criteria: list[JsonObject]
+

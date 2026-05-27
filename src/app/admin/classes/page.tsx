@@ -436,7 +436,7 @@ function AdminClassesContent() {
           </div>
 
           {showClassForm && (
-            <form onSubmit={handleCreateClass} className="p-5 rounded-xl border border-slate-800 bg-slate-900/30 space-y-4">
+            <form onSubmit={handleCreateClass} className="p-5 rounded-xl border border-slate-700 bg-slate-900/30 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                   Cohort Name
@@ -447,7 +447,7 @@ function AdminClassesContent() {
                   placeholder="e.g. Data Analytics Cohort A"
                   value={classForm.name}
                   onChange={(e) => setClassForm({ ...classForm, name: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -461,7 +461,7 @@ function AdminClassesContent() {
                   placeholder="e.g. DATA-A-2026"
                   value={classForm.class_code}
                   onChange={(e) => setClassForm({ ...classForm, class_code: e.target.value.toUpperCase().replace(/\s+/g, '-') })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -475,7 +475,7 @@ function AdminClassesContent() {
                     required
                     value={classForm.start_date}
                     onChange={(e) => setClassForm({ ...classForm, start_date: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -487,7 +487,7 @@ function AdminClassesContent() {
                     required
                     value={classForm.end_date}
                     onChange={(e) => setClassForm({ ...classForm, end_date: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -499,7 +499,7 @@ function AdminClassesContent() {
                 <select
                   value={classForm.status}
                   onChange={(e) => setClassForm({ ...classForm, status: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="running">Running</option>
@@ -525,7 +525,7 @@ function AdminClassesContent() {
                 className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
                   selectedClass?.id === c.id
                     ? 'border-blue-500 bg-slate-900/60'
-                    : 'border-slate-800 bg-slate-900/10 hover:bg-slate-900/20'
+                    : 'border-slate-700 bg-slate-900/10 hover:bg-slate-900/20'
                 }`}
               >
                 <div className="flex justify-between items-start">
@@ -533,10 +533,10 @@ function AdminClassesContent() {
                     {c.class_code}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
                       c.status === 'running'
                         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : 'bg-slate-850 border-slate-750 text-slate-400'
+                        : 'bg-slate-850 border-slate-700 text-slate-400'
                     }`}>
                       {c.status}
                     </span>
@@ -553,7 +553,7 @@ function AdminClassesContent() {
                 </div>
 
                 <h4 className="font-bold text-white mt-3 text-sm">{c.name}</h4>
-                <div className="flex gap-4 text-[10px] text-slate-500 mt-2">
+                <div className="flex gap-4 text-xs text-slate-500 mt-2">
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {c.start_date}</span>
                   <span>to</span>
                   <span>{c.end_date}</span>
@@ -566,23 +566,23 @@ function AdminClassesContent() {
         {/* Mapped Courses & Scheduling Panel */}
         <div className="lg:col-span-2 space-y-6">
           {selectedClass ? (
-            <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 space-y-8">
+            <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-8">
               {/* Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b border-slate-700">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
                     Cohort Workspace
                   </span>
                   <h3 className="text-xl font-bold text-white mt-1">{selectedClass.name}</h3>
                 </div>
                 <div className="text-xs text-slate-400 sm:text-right">
                   <span className="block font-semibold font-mono text-slate-200">Code: {selectedClass.class_code}</span>
-                  <span className="block text-[10px] text-slate-500 mt-0.5">LMS Command Center</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">LMS Command Center</span>
                 </div>
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex border-b border-slate-850 gap-6">
+              <div className="flex border-b border-slate-700 gap-6">
                 <button
                   onClick={() => setActiveWorkspaceTab('syllabus')}
                   className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
@@ -630,7 +630,7 @@ function AdminClassesContent() {
                         required
                         value={selectedCourseId}
                         onChange={(e) => setSelectedCourseId(e.target.value)}
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
                       >
                         <option value="">Choose Course to Assign</option>
                         {courses
@@ -650,7 +650,7 @@ function AdminClassesContent() {
                     </form>
 
                     {classCourses.length === 0 ? (
-                      <div className="text-center py-6 border border-dashed border-slate-850 rounded-xl text-slate-500 text-xs">
+                      <div className="text-center py-6 border border-dashed border-slate-700 rounded-xl text-slate-500 text-xs">
                         No courses assigned to this cohort. Assign a course to allow release date setups.
                       </div>
                     ) : (
@@ -658,13 +658,13 @@ function AdminClassesContent() {
                         {classCourses.map((cc) => (
                           <div
                             key={cc.id}
-                            className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-slate-850 hover:border-slate-800 transition-all"
+                            className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-slate-700 hover:border-slate-700 transition-all"
                           >
                             <div className="min-w-0">
                               <span className="block text-xs font-bold text-slate-200 truncate">
                                 {cc.courses?.title}
                               </span>
-                              <span className="block text-[10px] text-slate-500 font-mono mt-0.5">
+                              <span className="block text-xs text-slate-500 font-mono mt-0.5">
                                 slug: {cc.courses?.slug}
                               </span>
                             </div>
@@ -681,7 +681,7 @@ function AdminClassesContent() {
                   </div>
 
                   {/* Whitelisted Student Enrollment */}
-                  <div className="space-y-4 pt-6 border-t border-slate-850">
+                  <div className="space-y-4 pt-6 border-t border-slate-700">
                     <h4 className="text-sm font-bold text-white flex items-center gap-2">
                       <Shield className="w-4 h-4 text-indigo-400" />
                       Whitelisted Student Enrollments
@@ -695,7 +695,7 @@ function AdminClassesContent() {
                           placeholder="Enter student emails (comma separated for bulk: student1@edu, student2@edu)"
                           value={newEmail}
                           onChange={(e) => setNewEmail(e.target.value)}
-                          className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                         />
                         <button
                           type="submit"
@@ -704,7 +704,7 @@ function AdminClassesContent() {
                           Enroll Student(s)
                         </button>
                       </div>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="text-xs text-slate-500">
                         Students must log in with their whitelisted email to enter the gated workspace.
                       </p>
                     </form>
@@ -718,9 +718,9 @@ function AdminClassesContent() {
                             placeholder="Search enrolled student..."
                             value={emailFilter}
                             onChange={(e) => setEmailFilter(e.target.value)}
-                            className="bg-slate-950/60 border border-slate-850 rounded-lg px-3 py-1 text-[11px] text-slate-350 focus:outline-none max-w-xs w-full"
+                            className="bg-slate-950/60 border border-slate-700 rounded-lg px-3 py-1 text-[11px] text-slate-350 focus:outline-none max-w-xs w-full"
                           />
-                          <span className="text-[10px] text-slate-500 font-medium">
+                          <span className="text-xs text-slate-500 font-medium">
                             Total Enrolled: {enrollments.length}
                           </span>
                         </div>
@@ -733,7 +733,7 @@ function AdminClassesContent() {
                             .map((en) => (
                               <div
                                 key={en.id}
-                                className="flex justify-between items-center p-2.5 rounded-lg bg-slate-950/40 border border-slate-850 hover:border-slate-800 transition-all text-xs"
+                                className="flex justify-between items-center p-2.5 rounded-lg bg-slate-950/40 border border-slate-700 hover:border-slate-700 transition-all text-xs"
                               >
                                 <span className="text-slate-300 truncate" title={en.student_email}>
                                   {en.student_email}
@@ -751,14 +751,14 @@ function AdminClassesContent() {
                     )}
 
                     {enrollments.length === 0 && (
-                      <div className="text-center py-6 border border-dashed border-slate-850 rounded-xl text-slate-500 text-xs">
+                      <div className="text-center py-6 border border-dashed border-slate-700 rounded-xl text-slate-500 text-xs">
                         No students whitelisted for this cohort yet.
                       </div>
                     )}
                   </div>
 
                   {/* Lesson release schedules */}
-                  <div className="space-y-4 pt-6 border-t border-slate-850">
+                  <div className="space-y-4 pt-6 border-t border-slate-700">
                     <div className="flex justify-between items-center">
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
                         <Clock className="w-4 h-4 text-violet-400" />
@@ -775,16 +775,16 @@ function AdminClassesContent() {
                     </div>
 
                     {showScheduleForm && (
-                      <form onSubmit={handleAddSchedule} className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
+                      <form onSubmit={handleAddSchedule} className="p-4 rounded-xl border border-slate-700 bg-slate-950/60 space-y-4">
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                             Choose Lesson
                           </label>
                           <select
                             required
                             value={scheduleForm.lesson_id}
                             onChange={(e) => setScheduleForm({ ...scheduleForm, lesson_id: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
                           >
                             <option value="">Select Lesson</option>
                             {lessons
@@ -799,25 +799,25 @@ function AdminClassesContent() {
 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                               Release Date (Visible After)
                             </label>
                             <input
                               type="datetime-local"
                               value={scheduleForm.visible_after}
                               onChange={(e) => setScheduleForm({ ...scheduleForm, visible_after: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                               Due Date (Deliverable Limit)
                             </label>
                             <input
                               type="datetime-local"
                               value={scheduleForm.due_date}
                               onChange={(e) => setScheduleForm({ ...scheduleForm, due_date: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
                             />
                           </div>
                         </div>
@@ -841,7 +841,7 @@ function AdminClassesContent() {
                     )}
 
                     {schedules.length === 0 ? (
-                      <div className="text-center py-8 border border-dashed border-slate-850 rounded-xl text-slate-500 text-xs">
+                      <div className="text-center py-8 border border-dashed border-slate-700 rounded-xl text-slate-500 text-xs">
                         No release schedules set yet. Lessons will be visible to students instantly by default.
                       </div>
                     ) : (
@@ -849,27 +849,27 @@ function AdminClassesContent() {
                         {schedules.map((sch) => (
                           <div
                             key={sch.id}
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-xl bg-slate-950/40 border border-slate-850 hover:border-slate-800 transition-all gap-4"
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-xl bg-slate-950/40 border border-slate-700 hover:border-slate-700 transition-all gap-4"
                           >
                             <div className="min-w-0">
                               <span className="block text-xs font-bold text-slate-200">
                                 {sch.lessons?.title}
                               </span>
-                              <span className="block text-[10px] text-slate-500 mt-0.5">
+                              <span className="block text-xs text-slate-500 mt-0.5">
                                 Module: {sch.lessons?.modules?.title}
                               </span>
                             </div>
 
                             <div className="flex items-center gap-4 shrink-0 justify-between">
-                              <div className="flex gap-3 text-[10px] text-slate-400">
+                              <div className="flex gap-3 text-xs text-slate-400">
                                 {sch.visible_after && (
-                                  <div className="bg-slate-900 border border-slate-850 px-2 py-1 rounded">
+                                  <div className="bg-slate-900 border border-slate-700 px-2 py-1 rounded">
                                     <span className="font-semibold text-emerald-400">Release: </span>
                                     {new Date(sch.visible_after).toLocaleDateString()}
                                   </div>
                                 )}
                                 {sch.due_date && (
-                                  <div className="bg-slate-900 border border-slate-850 px-2 py-1 rounded">
+                                  <div className="bg-slate-900 border border-slate-700 px-2 py-1 rounded">
                                     <span className="font-semibold text-rose-400">Due: </span>
                                     {new Date(sch.due_date).toLocaleDateString()}
                                   </div>
@@ -900,9 +900,9 @@ function AdminClassesContent() {
                   </h4>
 
                   {/* Broadcast Form */}
-                  <form onSubmit={handleCreateAnnouncement} className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
+                  <form onSubmit={handleCreateAnnouncement} className="p-4 rounded-xl border border-slate-700 bg-slate-950/60 space-y-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                         Notice Title
                       </label>
                       <input
@@ -911,11 +911,11 @@ function AdminClassesContent() {
                         placeholder="e.g. Schedule Update, Exam Prep Guide"
                         value={noticeTitle}
                         onChange={(e) => setNoticeTitle(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                         Announcement Body Text
                       </label>
                       <textarea
@@ -924,7 +924,7 @@ function AdminClassesContent() {
                         placeholder="Type the message that will display at the top of the student dashboard..."
                         value={noticeContent}
                         onChange={(e) => setNoticeContent(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
                       />
                     </div>
                     <div className="flex justify-end">
@@ -949,7 +949,7 @@ function AdminClassesContent() {
                       <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                     </div>
                   ) : announcements.length === 0 ? (
-                    <div className="text-center py-8 border border-dashed border-slate-850 rounded-xl text-slate-500 text-xs">
+                    <div className="text-center py-8 border border-dashed border-slate-700 rounded-xl text-slate-500 text-xs">
                       No active announcements. Broadcast one above to show students immediately.
                     </div>
                   ) : (
@@ -957,14 +957,14 @@ function AdminClassesContent() {
                       {announcements.map((ann) => (
                         <div
                           key={ann.id}
-                          className="p-4 rounded-xl bg-slate-950/40 border border-slate-850 flex justify-between gap-4"
+                          className="p-4 rounded-xl bg-slate-950/40 border border-slate-700 flex justify-between gap-4"
                         >
                           <div className="space-y-1">
                             <h5 className="text-xs font-bold text-slate-205">{ann.title}</h5>
                             <p className="text-[11px] text-slate-400 whitespace-pre-wrap leading-relaxed">
                               {ann.content}
                             </p>
-                            <span className="block text-[9px] text-slate-505 font-mono pt-1">
+                            <span className="block text-[10px] text-slate-505 font-mono pt-1">
                               Posted: {new Date(ann.created_at).toLocaleString()}
                             </span>
                           </div>
@@ -1002,30 +1002,30 @@ function AdminClassesContent() {
                     return (
                       <>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-850">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Average Grade</span>
+                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-700">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Average Grade</span>
                             <span className="text-xl font-extrabold text-blue-600 block mt-1">
                               {averageScore}{averageScore !== 'N/A' && '%'}
                             </span>
-                            <span className="text-[9px] text-slate-500 mt-1 block">From {gradedSubmissions.length} published marks</span>
+                            <span className="text-[10px] text-slate-500 mt-1 block">From {gradedSubmissions.length} published marks</span>
                           </div>
 
-                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-850">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Enrolled Students</span>
+                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-700">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Enrolled Students</span>
                             <span className="text-xl font-extrabold text-white block mt-1">{enrolledCount}</span>
-                            <span className="text-[9px] text-slate-500 mt-1 block">Active on whitelist</span>
+                            <span className="text-[10px] text-slate-500 mt-1 block">Active on whitelist</span>
                           </div>
 
-                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-850">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Submission Rate</span>
+                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-700">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Submission Rate</span>
                             <span className="text-xl font-extrabold text-emerald-500 block mt-1">{submissionRate}%</span>
-                            <span className="text-[9px] text-slate-500 mt-1 block">{actualSubmissionsCount} of {totalExpectedSubmissions} deliverables</span>
+                            <span className="text-[10px] text-slate-500 mt-1 block">{actualSubmissionsCount} of {totalExpectedSubmissions} deliverables</span>
                           </div>
 
-                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-850">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Grading Backlog</span>
+                          <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-700">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Grading Backlog</span>
                             <span className="text-xl font-extrabold text-amber-500 block mt-1">{backlogCount}</span>
-                            <span className="text-[9px] text-slate-500 mt-1 block">Needs teacher review</span>
+                            <span className="text-[10px] text-slate-500 mt-1 block">Needs teacher review</span>
                           </div>
                         </div>
 
@@ -1041,15 +1041,15 @@ function AdminClassesContent() {
                               <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                             </div>
                           ) : analyticsSubmissions.length === 0 ? (
-                            <div className="text-center py-8 border border-dashed border-slate-850 rounded-xl text-slate-500 text-xs">
+                            <div className="text-center py-8 border border-dashed border-slate-700 rounded-xl text-slate-500 text-xs">
                               No submissions received yet for this cohort.
                             </div>
                           ) : (
-                            <div className="border border-slate-850 rounded-xl overflow-hidden bg-slate-950/20">
+                            <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-950/20">
                               <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse text-xs">
                                   <thead>
-                                    <tr className="border-b border-slate-850 bg-slate-950/65 text-slate-400 font-bold">
+                                    <tr className="border-b border-slate-700 bg-slate-950/65 text-slate-400 font-bold">
                                       <th className="p-3">Student Email</th>
                                       <th className="p-3">Assignment</th>
                                       <th className="p-3">Submitted</th>
@@ -1062,7 +1062,7 @@ function AdminClassesContent() {
                                     {analyticsSubmissions.map((sub) => {
                                       const grade = sub.grading_results
                                       return (
-                                        <tr key={sub.id} className="border-b border-slate-850/60 hover:bg-slate-900/10">
+                                        <tr key={sub.id} className="border-b border-slate-700 hover:bg-slate-900/10">
                                           <td className="p-3 font-medium text-slate-205 break-all max-w-[200px]">
                                             {sub.student_identifier}
                                           </td>
@@ -1074,7 +1074,7 @@ function AdminClassesContent() {
                                             {grade ? `${grade.total_score}%` : '—'}
                                           </td>
                                           <td className="p-3 text-center">
-                                            <span className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider ${
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
                                               sub.status === 'graded' && grade?.status === 'published'
                                                 ? 'bg-emerald-500/15 border border-emerald-500/25 text-emerald-450'
                                                 : grade?.status === 'draft'
@@ -1087,7 +1087,7 @@ function AdminClassesContent() {
                                           <td className="p-3 text-right">
                                             <a
                                               href={`/admin/grading/${sub.id}`}
-                                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-850 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-white transition-all"
+                                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-850 border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-all"
                                             >
                                               <span>Review</span>
                                               <ExternalLink className="w-3 h-3" />
@@ -1122,7 +1122,7 @@ function AdminClassesContent() {
               )}
             </div>
           ) : (
-            <div className="h-full border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center py-24 text-slate-500 text-sm gap-2">
+            <div className="h-full border border-dashed border-slate-700 rounded-2xl flex flex-col items-center justify-center py-24 text-slate-500 text-sm gap-2">
               <HelpCircle className="w-8 h-8 text-slate-600" />
               <span>Select a class cohort from the list to assign courses, generate lock keys, and schedule calendars.</span>
             </div>

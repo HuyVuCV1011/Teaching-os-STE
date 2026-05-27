@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.ollama import OllamaGradingProvider
+from app.ai.broker import AIBroker
 from app.core.config import get_settings
 from app.db.models import (
     GradingResult,
@@ -51,6 +52,10 @@ from app.pilot.contracts import (
     ReviewActionResponse,
     SubjectPackSummaryResponse,
     StatelessGradingRequest,
+    SolutionGenerationRequest,
+    SolutionGenerationResponse,
+    RubricGenerationRequest,
+    RubricGenerationResponse,
 )
 from app.pilot.db_loaders import (
     load_criterion_result_for_review_action_context,
@@ -111,6 +116,41 @@ def create_app() -> FastAPI:
         request: FixtureManifestRequest,
     ) -> FixtureManifestValidationResponse:
         return validate_fixture_manifest_adapter(request.model_dump(mode="json"))
+
+    @app.post(
+        "/pilot/generate-solution",
+        response_model=SolutionGenerationResponse,
+    )
+    def generate_solution_route(
+        request: SolutionGenerationRequest,
+    ) -> SolutionGenerationResponse:
+        try:
+            solution = AIBroker.generate_solution_key(
+                model_choice=request.model_choice,
+                assignment_text=request.assignment_text,
+            )
+            return SolutionGenerationResponse(solution_key=solution)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
+    @app.post(
+        "/pilot/generate-rubric",
+        response_model=RubricGenerationResponse,
+    )
+    def generate_rubric_route(
+        request: RubricGenerationRequest,
+    ) -> RubricGenerationResponse:
+        try:
+            rubric = AIBroker.generate_rubric(
+                model_choice=request.model_choice,
+                assignment_text=request.assignment_text,
+                solution_text=request.solution_text,
+            )
+            criteria_list = rubric.get("criteria", [])
+            return RubricGenerationResponse(criteria=criteria_list)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
 
     @app.post(
         "/pilot/evaluation/public-baseline",

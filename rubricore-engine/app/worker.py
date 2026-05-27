@@ -302,7 +302,7 @@ def process_grading_run(db, job: Dict[str, Any]) -> None:
         # 6. Fetch Rubric Criteria details
         criteria = db.execute(
             text("""
-                SELECT id, name, description, max_points, weight
+                SELECT id, name, description, max_points, weight, evaluation_hints
                 FROM public.rubric_criteria
                 WHERE rubric_id = (
                   SELECT rubric_id FROM public.assignments WHERE id = :assignment_id
@@ -323,7 +323,8 @@ def process_grading_run(db, job: Dict[str, Any]) -> None:
                     "label": c[1],
                     "description": c[2] or "",
                     "weight": str(c[4] or 1.0),
-                    "max_points": c[3]
+                    "max_points": c[3],
+                    "evaluation_hints": c[5] if len(c) > 5 and isinstance(c[5], dict) else {}
                 } for c in criteria
             ],
             "performance_levels": [
@@ -331,6 +332,7 @@ def process_grading_run(db, job: Dict[str, Any]) -> None:
             ],
             "descriptors": []
         }
+
 
         # Combine student comments + extracted deliverables as LLM evidence
         compiled_evidence_text = (

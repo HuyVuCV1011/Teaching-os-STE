@@ -169,46 +169,74 @@ export default async function LessonPage({ params }: PageProps) {
           </div>
 
           {/* Secure Document Viewer */}
-          {pdfMaterial && (
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-505 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                Lesson Guide Document
-              </h2>
-              <DocumentViewer url={pdfMaterial.signedUrl} title={pdfMaterial.title} />
-            </div>
-          )}
+          {pdfMaterial && (() => {
+            const displayMode = pdfMaterial.metadata?.display_mode || 'both';
+            return (
+              <div className="space-y-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  Lesson Guide Document
+                </h2>
+                {displayMode !== 'original' ? (
+                  <DocumentViewer url={pdfMaterial.signedUrl} title={pdfMaterial.title} />
+                ) : (
+                  <div className="border border-slate-200 bg-white rounded-2xl p-6 md:p-8 shadow-sm text-slate-800 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      {pdfMaterial.title}
+                    </h3>
+                    <a
+                      href={pdfMaterial.signedUrl}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                    >
+                      Download Original PDF
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Word Documents Reading View */}
-          {docxMaterials.map((doc) => (
-            <div key={doc.id} className="space-y-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-505 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                Lesson Guide Document
-              </h2>
-              <div className="border border-slate-200 bg-white rounded-2xl p-6 md:p-8 shadow-sm text-slate-800 space-y-4">
-                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    {doc.title}
-                  </h3>
-                  <a
-                    href={doc.signedUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-xs transition-colors flex items-center gap-1.5"
-                  >
-                    Download Original File
-                  </a>
+          {docxMaterials.map((doc) => {
+            const displayMode = doc.metadata?.display_mode || 'both';
+            return (
+              <div key={doc.id} className="space-y-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  Lesson Guide Document
+                </h2>
+                <div className="border border-slate-200 bg-white rounded-2xl p-6 md:p-8 shadow-sm text-slate-800 space-y-4">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      {doc.title}
+                    </h3>
+                    {displayMode !== 'web' && (
+                      <a
+                        href={doc.signedUrl}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                      >
+                        Download Original File
+                      </a>
+                    )}
+                  </div>
+                  {displayMode !== 'original' && (
+                    <div 
+                      className="prose max-w-none text-slate-700 leading-relaxed text-sm"
+                      dangerouslySetInnerHTML={{ __html: doc.metadata?.viewer_artifact?.viewer_html || '' }}
+                    />
+                  )}
                 </div>
-                <div 
-                  className="prose max-w-none text-slate-700 leading-relaxed text-sm"
-                  dangerouslySetInnerHTML={{ __html: doc.metadata?.viewer_artifact?.viewer_html || '' }}
-                />
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Spreadsheets Tabular View */}
           {tabularMaterials.map((sheet) => {
@@ -218,10 +246,11 @@ export default async function LessonPage({ params }: PageProps) {
             const rowCount = artifact?.row_count || 0
             const colCount = artifact?.col_count || 0
             const sheetNames = artifact?.sheet_names || []
+            const displayMode = sheet.metadata?.display_mode || 'both'
 
             return (
               <div key={sheet.id} className="space-y-4">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-505 flex items-center gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-emerald-600" />
                   Lesson Dataset Preview
                 </h2>
@@ -243,46 +272,52 @@ export default async function LessonPage({ params }: PageProps) {
                         </div>
                       )}
                     </div>
-                    <a
-                      href={sheet.signedUrl}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-semibold text-xs transition-colors flex items-center gap-1.5"
-                    >
-                      Download Spreadsheet
-                    </a>
+                    {displayMode !== 'web' && (
+                      <a
+                        href={sheet.signedUrl}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                      >
+                        Download Spreadsheet
+                      </a>
+                    )}
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-150 rounded-xl">
-                    <table className="min-w-full divide-y divide-slate-150 text-xs">
-                      <thead className="bg-slate-550/10">
-                        <tr>
-                          {headers.map((hdr: string, i: number) => (
-                            <th key={i} className="px-4 py-2 text-left font-semibold text-slate-700 border-r border-slate-150 last:border-0 whitespace-nowrap">
-                              {hdr}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {rows.map((row: any[], i: number) => (
-                          <tr key={i} className="hover:bg-slate-50/50">
-                            {row.map((cell: any, j: number) => (
-                              <td key={j} className="px-4 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
-                                {cell}
-                              </td>
+                  {displayMode !== 'original' && (
+                    <>
+                      <div className="overflow-x-auto border border-slate-150 rounded-xl">
+                        <table className="min-w-full divide-y divide-slate-150 text-xs">
+                          <thead className="bg-slate-550/10">
+                            <tr>
+                              {headers.map((hdr: string, i: number) => (
+                                <th key={i} className="px-4 py-2 text-left font-semibold text-slate-700 border-r border-slate-150 last:border-0 whitespace-nowrap">
+                                  {hdr}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {rows.map((row: any[], i: number) => (
+                              <tr key={i} className="hover:bg-slate-50/50">
+                                {row.map((cell: any, j: number) => (
+                                  <td key={j} className="px-4 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
+                                    {cell}
+                                  </td>
+                                ))}
+                              </tr>
                             ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                          </tbody>
+                        </table>
+                      </div>
 
-                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
-                    <span>Showing first 15 rows of data</span>
-                    <span>Total: {rowCount} rows × {colCount} columns</span>
-                  </div>
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
+                        <span>Showing first 15 rows of data</span>
+                        <span>Total: {rowCount} rows × {colCount} columns</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )

@@ -61,7 +61,7 @@ The system uses the following Supabase PostgreSQL tables:
   - `src/app/page.tsx`: Showcase Landing page.
   - `src/app/projects/`: Individual portfolio pages.
   - `src/app/learn/`: Gateway login (`page.tsx`) and student layout dashboard (`[classCode]/layout.tsx`, `[classCode]/dashboard/page.tsx`).
-  - `src/app/admin/`: Admin layout and dashboard (`layout.tsx`, `page.tsx`), curriculum authoring (`library/page.tsx`), class settings (`classes/page.tsx`), and rubric evaluator (`grading/[submissionId]/page.tsx`).
+  - `src/app/admin/`: Admin layout and dashboard (`layout.tsx`, `page.tsx`), curriculum registry & syllabus mapper (`library/page.tsx`), guided lesson editor stepper (`library/lesson-editor/page.tsx`), class settings (`classes/page.tsx`), and rubric evaluator (`grading/[submissionId]/page.tsx`).
 - **`rubricore-engine/`**: The relocated python grading engine
   - `app/pilot/fastapi_app.py`: Contains the stateless grading bridge endpoint `POST /pilot/grade-submission`.
 - **`src/components/`**: Feature components

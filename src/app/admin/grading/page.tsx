@@ -75,9 +75,9 @@ export default function GradingQueue() {
         </p>
       </div>
 
-      <div className="border border-slate-800 bg-slate-900/10 rounded-2xl overflow-hidden shadow-xl">
+      <div className="border border-slate-700 bg-slate-900/10 rounded-2xl overflow-hidden shadow-xl">
         {loading ? (
-          <div className="flex flex-col justify-center items-center py-24 gap-4 text-slate-455">
+          <div className="flex flex-col justify-center items-center py-24 gap-4 text-slate-500">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
               Loading submissions queue...
@@ -92,7 +92,7 @@ export default function GradingQueue() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs text-slate-350">
               <thead>
-                <tr className="border-b border-slate-805 bg-slate-900/40 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <tr className="border-b border-slate-700 bg-slate-900/40 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <th className="px-6 py-4">Student</th>
                   <th className="px-6 py-4">Cohort / Access Code</th>
                   <th className="px-6 py-4">Assignment Topic</th>
@@ -101,10 +101,10 @@ export default function GradingQueue() {
                   <th className="px-6 py-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850 bg-slate-950/20">
+              <tbody className="divide-y divide-slate-700 bg-slate-950/20">
                 {submissions.map((sub) => (
                   <tr key={sub.id} className="hover:bg-slate-900/10 transition-colors">
-                    <td className="px-6 py-4.5 font-semibold text-slate-205 flex items-center gap-2">
+                    <td className="px-6 py-4.5 font-semibold text-slate-200 flex items-center gap-2">
                       <User className="w-3.5 h-3.5 text-slate-500" />
                       <span>{sub.student_identifier}</span>
                     </td>

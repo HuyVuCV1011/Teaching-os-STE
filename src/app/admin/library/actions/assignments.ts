@@ -2,6 +2,8 @@
 
 import { getSupabaseServer } from '@/lib/supabase'
 
+const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
+
 export interface AssignmentInput {
   id?: string
   lessonId: string
@@ -14,36 +16,100 @@ export interface AssignmentInput {
   autoPublishGrades: boolean
   gracePeriodHours: number
   penaltyPercentPerDay: number
+  // Fields for solution upload and AI rubric configuration
+  solutionStoragePath?: string | null
+  promptFilePath?: string | null
+  aiModelUsed?: string
+  customCriteria?: Array<{
+    key: string
+    label: string
+    description: string
+    max_points: number
+    weight: number
+    evaluation_hints?: {
+      rule_type: string
+      expected_value: string | null
+    }
+  }> | null
 }
 
 export async function saveAssignmentAction(input: AssignmentInput) {
   const supabase = getSupabaseServer(true)
   try {
-    let rubricSnapshotId: string | null = null
+    let activeRubricId = input.rubricId
 
-    if (input.rubricId) {
-      // 1. Fetch live rubric criteria
-      const { data: criteria, error: critErr } = await supabase
-        .from('rubric_criteria')
-        .select('id, name, description, max_points, weight')
-        .eq('rubric_id', input.rubricId)
+    // 1. If custom criteria are passed, we either create a new rubric or update criteria in-place
+    if (input.customCriteria && input.customCriteria.length > 0) {
+      if (!activeRubricId) {
+        // Create new Rubric row
+        const { data: newRubric, error: rubErr } = await supabase
+          .from('rubrics')
+          .insert([
+            {
+              title: `${input.title} Rubric`,
+              description: `Generated rubric matrix for assignment: ${input.title}`
+            }
+          ])
+          .select('id')
+          .single()
 
-      if (critErr) {
-        throw new Error(`Failed to fetch rubric criteria: ${critErr.message}`)
+        if (rubErr || !newRubric) {
+          throw new Error(`Failed to create custom rubric: ${rubErr?.message || 'No data returned'}`)
+        }
+        activeRubricId = newRubric.id
+      } else {
+        // Clear existing criteria to prevent duplicates on overwrite
+        const { error: deleteErr } = await supabase
+          .from('rubric_criteria')
+          .delete()
+          .eq('rubric_id', activeRubricId)
+
+        if (deleteErr) {
+          throw new Error(`Failed to reset existing criteria: ${deleteErr.message}`)
+        }
       }
 
-      // 2. Create the snapshot payload
+      // Insert new criteria rows
+      const criteriaRows = input.customCriteria.map((c) => ({
+        rubric_id: activeRubricId,
+        name: c.label,
+        description: c.description || '',
+        max_points: c.max_points,
+        weight: c.weight,
+        evaluation_hints: c.evaluation_hints || { rule_type: 'none', expected_value: null }
+      }))
+
+      const { error: insertErr } = await supabase
+        .from('rubric_criteria')
+        .insert(criteriaRows)
+
+      if (insertErr) {
+        throw new Error(`Failed to insert criteria: ${insertErr.message}`)
+      }
+    }
+
+    // 2. Generate Rubric Snapshot
+    let rubricSnapshotId: string | null = null
+    if (activeRubricId) {
+      const { data: criteria, error: critErr } = await supabase
+        .from('rubric_criteria')
+        .select('id, name, description, max_points, weight, evaluation_hints')
+        .eq('rubric_id', activeRubricId)
+
+      if (critErr) {
+        throw new Error(`Failed to fetch criteria for snapshot: ${critErr.message}`)
+      }
+
       const snapshotPayload = {
-        rubric_id: input.rubricId,
+        rubric_id: activeRubricId,
         criteria: criteria || []
       }
 
-      // 3. Insert snapshot into rubric_snapshots
       const { data: snapshotData, error: snapErr } = await supabase
         .from('rubric_snapshots')
         .insert([
           {
-            rubric_id: input.rubricId,
+            rubric_id: activeRubricId,
             snapshot: snapshotPayload
           }
         ])
@@ -51,22 +117,26 @@ export async function saveAssignmentAction(input: AssignmentInput) {
         .single()
 
       if (snapErr || !snapshotData) {
-        throw new Error(`Failed to create rubric snapshot: ${snapErr?.message || 'No data returned'}`)
+        throw new Error(`Failed to save snapshot: ${snapErr?.message || 'No data'}`)
       }
 
       rubricSnapshotId = snapshotData.id
     }
 
+    // 3. Save Assignment
     const payload: any = {
       lesson_id: input.lessonId,
       title: input.title,
       instructions: input.instructions,
-      rubric_id: input.rubricId || null,
+      rubric_id: activeRubricId || null,
       max_score: input.maxScore,
       max_files: input.maxFiles,
       max_total_size_mb: input.maxTotalSizeMb,
       auto_publish_grades: input.autoPublishGrades,
       rubric_snapshot_id: rubricSnapshotId,
+      solution_storage_path: input.solutionStoragePath || null,
+      prompt_file_path: input.promptFilePath || null,
+      ai_model_used: input.aiModelUsed || 'ollama',
       late_policy: {
         grace_period_hours: input.gracePeriodHours,
         penalty_percent_per_day: input.penaltyPercentPerDay
@@ -82,7 +152,7 @@ export async function saveAssignmentAction(input: AssignmentInput) {
         .select()
 
       if (error) throw error
-      return { success: true, data }
+      return { success: true, data, rubricId: activeRubricId }
     } else {
       // Insert
       const { data, error } = await supabase
@@ -91,7 +161,7 @@ export async function saveAssignmentAction(input: AssignmentInput) {
         .select()
 
       if (error) throw error
-      return { success: true, data }
+      return { success: true, data, rubricId: activeRubricId }
     }
   } catch (error: any) {
     console.error('Failed to save assignment:', error)
@@ -111,6 +181,56 @@ export async function deleteAssignmentAction(id: string) {
     return { success: true }
   } catch (error: any) {
     console.error('Failed to delete assignment:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Proxies calling the Python RubriCore engine
+export async function generateSolutionAction(assignmentText: str, modelChoice: string = 'ollama') {
+  try {
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-solution`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_choice: modelChoice,
+        assignment_text: assignmentText,
+      }),
+    })
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Solution generation endpoint failed')
+    }
+
+    const data = await res.json()
+    return { success: true, solutionKey: data.solution_key }
+  } catch (error: any) {
+    console.error('Failed to generate solution:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function generateRubricAction(assignmentText: str, solutionText: str, modelChoice: string = 'ollama') {
+  try {
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-rubric`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_choice: modelChoice,
+        assignment_text: assignmentText,
+        solution_text: solutionText,
+      }),
+    })
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Rubric generation endpoint failed')
+    }
+
+    const data = await res.json()
+    return { success: true, criteria: data.criteria }
+  } catch (error: any) {
+    console.error('Failed to generate rubric:', error)
     return { success: false, error: error.message }
   }
 }

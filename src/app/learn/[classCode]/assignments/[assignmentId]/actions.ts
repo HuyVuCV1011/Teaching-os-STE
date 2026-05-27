@@ -356,3 +356,37 @@ export async function triggerRubricoreGradingAction(submissionId: string) {
 
   return { success: true, runId: run.id }
 }
+
+/**
+ * Secures a temporary signed URL for the student to download the assignment instructions.
+ */
+export async function getAssignmentPromptSignedUrlAction(classCode: string, assignmentId: string) {
+  const session = await getVerifiedStudentSession(classCode)
+  if (!session.success) {
+    return { success: false, error: 'Authentication failed' }
+  }
+
+  const supabase = getSupabaseServer(true)
+  try {
+    const { data: assignment, error } = await supabase
+      .from('assignments')
+      .select('prompt_file_path')
+      .eq('id', assignmentId)
+      .single()
+
+    if (error || !assignment?.prompt_file_path) {
+      return { success: false, error: 'Assignment prompt file not found' }
+    }
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('teaching-materials')
+      .createSignedUrl(assignment.prompt_file_path, 3600) // 1 hour
+
+    if (signedError) throw signedError
+
+    return { success: true, signedUrl: signedData.signedURL || signedData.publicUrl }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+

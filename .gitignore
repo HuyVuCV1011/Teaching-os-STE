@@ -66,3 +66,13 @@ docs/specs/AGENTS.md
 *.db
 *.sqlite
 *.sqlite3
+
+# Agent run instructions
+run_guide.md
+
+# Local agent dependencies and tools
+.agents/
+skills-lock.json
+
+# Local machine-specific user simulation tests
+src/__tests__/simulate_real_user.test.ts

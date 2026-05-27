@@ -8,7 +8,8 @@ import { calculateFileHash } from '@/lib/hash'
 import {
   triggerRubricoreGradingAction,
   fetchStudentSubmissionAction,
-  submitAssignmentAction
+  submitAssignmentAction,
+  getAssignmentPromptSignedUrlAction
 } from './actions'
 import {
   ArrowLeft,
@@ -47,6 +48,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
 
   // Data states
   const [assignment, setAssignment] = useState<any>(null)
+  const [promptDownloadUrl, setPromptDownloadUrl] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<any>(null)
   const [existingSubmission, setExistingSubmission] = useState<any>(null)
   const [gradingResult, setGradingResult] = useState<any>(null)
@@ -126,6 +128,14 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
       .single()
 
     setAssignment(assignmentData)
+
+    if (assignmentData?.prompt_file_path) {
+      getAssignmentPromptSignedUrlAction(classCode, assignmentId).then((res) => {
+        if (res.success && res.signedUrl) {
+          setPromptDownloadUrl(res.signedUrl)
+        }
+      })
+    }
 
     // 2. Fetch class schedules for due_date
     if (assignmentData) {
@@ -335,6 +345,27 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
               {assignment?.instructions}
             </div>
+
+            {promptDownloadUrl && (
+              <div className="p-4 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-500" />
+                  <div className="space-y-0.5">
+                    <span className="block text-xs font-bold text-slate-200">Assignment File Attachment</span>
+                    <span className="block text-[10px] text-slate-400">Download instructions/requirements document</span>
+                  </div>
+                </div>
+                <a
+                  href={promptDownloadUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
+                >
+                  Download File
+                </a>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-4 pt-6 border-t border-slate-800/60 text-xs">
               <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">

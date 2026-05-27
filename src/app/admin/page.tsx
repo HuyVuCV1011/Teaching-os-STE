@@ -61,7 +61,7 @@ export default function AdminDashboard() {
       count: stats.subjectsCount,
       href: '/admin/library?tab=subjects',
       icon: FolderOpen,
-      color: 'from-cyan-500/10 to-blue-500/10 border-cyan-500/20 text-cyan-400',
+      color: 'from-cyan-500/10 to-blue-500/10 border-cyan-500/20 text-cyan-700',
     },
     {
       title: 'Course Catalog',
@@ -69,7 +69,7 @@ export default function AdminDashboard() {
       count: stats.coursesCount,
       href: '/admin/library?tab=courses',
       icon: BookOpen,
-      color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/20 text-blue-600',
+      color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/20 text-blue-700',
     },
     {
       title: 'Active Class Cohorts',
@@ -77,7 +77,7 @@ export default function AdminDashboard() {
       count: stats.classesCount,
       href: '/admin/classes',
       icon: Users,
-      color: 'from-violet-500/10 to-purple-500/10 border-violet-500/20 text-violet-400',
+      color: 'from-violet-500/10 to-purple-500/10 border-violet-500/20 text-violet-700',
     },
     {
       title: 'Ungraded Submissions',
@@ -85,14 +85,14 @@ export default function AdminDashboard() {
       count: stats.submissionsPending,
       href: '/admin/grading',
       icon: GraduationCap,
-      color: 'from-amber-500/10 to-orange-500/10 border-amber-500/20 text-amber-400',
+      color: 'from-amber-500/10 to-orange-500/10 border-amber-500/20 text-amber-700',
     },
   ]
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 p-8 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 p-8 shadow-xl">
         <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
         <div className="relative z-10 space-y-2">
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent">
@@ -144,7 +144,7 @@ export default function AdminDashboard() {
       {/* Admin Quick Action Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Core Actions */}
-        <div className="lg:col-span-2 border border-slate-800 bg-slate-900/20 rounded-2xl p-6 space-y-6">
+        <div className="lg:col-span-2 border border-slate-700 bg-slate-900/20 rounded-2xl p-6 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-blue-600" />
             Quick Setup Workflows
@@ -179,7 +179,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* System Logs / Info */}
-        <div className="border border-slate-800 bg-slate-900/20 rounded-2xl p-6 space-y-4">
+        <div className="border border-slate-700 bg-slate-900/20 rounded-2xl p-6 space-y-4">
           <h2 className="text-lg font-bold text-white">System Status</h2>
           <div className="space-y-3.5">
             <div className="flex justify-between items-center text-xs">

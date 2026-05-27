@@ -31,10 +31,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-purple-500/5 blur-[100px] pointer-events-none" />
 
       {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-900/40 backdrop-blur-xl flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20">
+      <aside className="w-64 border-r border-slate-700 bg-slate-900/40 backdrop-blur-xl flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20">
         <div>
           {/* Header/Logo */}
-          <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800/80">
+          <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-700">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/10">
               <ShieldCheck className="w-4 h-4 text-white" />
             </div>
@@ -78,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         {/* Footer/Profile */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-900/20">
+        <div className="p-4 border-t border-slate-700 bg-slate-900/20">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-slate-700">
               AD
@@ -94,7 +94,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen relative z-10">
         {/* Top Header Bar */}
-        <header className="h-16 border-b border-slate-800/60 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
+        <header className="h-16 border-b border-slate-700 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-500">System Mode:</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">

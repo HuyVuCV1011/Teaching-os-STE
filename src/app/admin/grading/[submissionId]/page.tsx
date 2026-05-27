@@ -319,29 +319,29 @@ export default function GradingPage({ params }: GradingPageProps) {
               )}
               {lateInfo?.isLate && (
                 <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-2 text-xs mt-2">
-                  <div className="font-bold flex items-center gap-1.5 text-rose-550">
+                  <div className="font-bold flex items-center gap-1.5 text-rose-600">
                     <AlertCircle className="w-4 h-4 text-rose-500" />
                     <span>Late Submission Detected</span>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Submitted {lateInfo.hoursLate.toFixed(1)} hours after deadline.
                     {lateInfo.inGracePeriod ? (
-                      <span className="block text-emerald-450 mt-1 font-semibold">
+                      <span className="block text-emerald-600 mt-1 font-semibold">
                         Within grace period ({submission?.assignments?.late_policy?.grace_period_hours} hours). No penalty.
                       </span>
                     ) : (
-                      <span className="block text-rose-400 mt-1 font-semibold font-mono">
+                      <span className="block text-rose-600 mt-1 font-semibold font-mono">
                         Overdue by {lateInfo.daysLate} day(s). Standard policy applies -{lateInfo.deductionPercent}% late deduction.
                       </span>
                     )}
                   </p>
                   {!lateInfo.inGracePeriod && (
-                    <label className="flex items-center gap-2 pt-2 border-t border-slate-800 text-[10px] text-slate-350 cursor-pointer select-none">
+                    <label className="flex items-center gap-2 pt-2 border-t border-slate-700 text-xs text-slate-350 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={applyLatePenalty}
                         onChange={(e) => setApplyLatePenalty(e.target.checked)}
-                        className="rounded border-slate-800 bg-slate-950 accent-blue-550 cursor-pointer"
+                        className="rounded border-slate-700 bg-slate-950 accent-blue-500 cursor-pointer"
                       />
                       <span>Enforce late penalty deduction</span>
                     </label>
@@ -351,19 +351,19 @@ export default function GradingPage({ params }: GradingPageProps) {
             </div>
 
             {submission?.submitted_text && (
-              <div className="pt-4 border-t border-slate-805/85">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <div className="pt-4 border-t border-slate-700">
+                <span className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
                   Submission Commentary
                 </span>
-                <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl text-slate-300 text-xs whitespace-pre-line leading-relaxed">
+                <div className="p-4 bg-slate-950/60 border border-slate-700 rounded-xl text-slate-200 text-xs whitespace-pre-line leading-relaxed">
                   {submission.submitted_text}
                 </div>
               </div>
             )}
           </div>
 
-          <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-4 shadow-xl">
-            <h3 className="font-bold text-white text-sm pb-2 border-b border-slate-800 flex items-center gap-2">
+          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-4 shadow-xl">
+            <h3 className="font-bold text-white text-sm pb-2 border-b border-slate-700 flex items-center gap-2">
               <FileText className="w-4 h-4 text-slate-400" /> Uploaded Deliverables
             </h3>
 
@@ -373,7 +373,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                 return (
                   <div
                     key={idx}
-                    className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-slate-850 hover:border-slate-800 transition-all"
+                    className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-slate-700 hover:border-slate-600 transition-all"
                   >
                     <span className="text-xs font-semibold text-slate-200 truncate pr-4">{fileName}</span>
                     {/* Add download trigger or standard anchor */}
@@ -381,7 +381,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                       href={`${process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zuwsvvpzivukrfegqgsp.supabase.co'}/storage/v1/object/sign/student-submissions/${path}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] font-semibold text-blue-600 hover:text-blue-400 flex items-center gap-1 shrink-0"
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-500 flex items-center gap-1 shrink-0"
                     >
                       <FileDown className="w-3.5 h-3.5" />
                       <span>Download</span>
@@ -398,8 +398,8 @@ export default function GradingPage({ params }: GradingPageProps) {
 
         {/* Right: Rubric Matrix Panel */}
         <div className="space-y-6">
-          <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-6 shadow-xl">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-6 shadow-xl">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-700">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-600" /> Rubric Matrix
               </h3>
@@ -415,7 +415,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                         {(clientTotalScore * (1 - lateInfo.deductionPercent / 100)).toFixed(2)} pts
                       </span>
                     </span>
-                    <span className="text-[8px] text-rose-400 font-bold uppercase tracking-wider block mt-0.5">
+                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider block mt-0.5">
                       (-{lateInfo.deductionPercent}% late deduction applied)
                     </span>
                   </span>
@@ -439,17 +439,17 @@ export default function GradingPage({ params }: GradingPageProps) {
                   )
 
                   return (
-                    <div key={c.id} className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-850/80">
+                    <div key={c.id} className="space-y-3 bg-slate-955 p-4 rounded-xl border border-slate-700">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-bold text-slate-200 text-xs">{c.name}</h4>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{c.description || 'No description.'}</p>
+                          <h4 className="font-bold text-slate-100 text-xs">{c.name}</h4>
+                          <p className="text-xs text-slate-400 mt-0.5">{c.description || 'No description.'}</p>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-bold text-white">
+                          <span className="text-xs font-bold text-slate-100">
                             {(scores[c.id] || 0).toFixed(1)} / {c.max_points} pts
                           </span>
-                          <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
+                          <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">
                             wt: {c.weight}
                           </span>
                         </div>
@@ -457,19 +457,19 @@ export default function GradingPage({ params }: GradingPageProps) {
 
                       {/* AI Suggestion Box */}
                       {suggestion && (
-                        <div className="p-3 bg-blue-600/5 border border-blue-500/10 rounded-xl space-y-1.5 text-xs">
+                        <div className="p-3 bg-blue-600/5 border border-blue-500/20 rounded-xl space-y-1.5 text-xs">
                           <div className="flex justify-between items-center">
-                            <span className="font-semibold text-blue-400">
+                            <span className="font-semibold text-blue-700">
                               AI Suggested Score: {parseFloat(suggestion.suggested_score).toFixed(1)} pts
                             </span>
                             {suggestion.confidence !== undefined && (
-                              <span className="text-[10px] bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full font-bold">
+                              <span className="text-[10px] bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full font-bold">
                                 Confidence: {Math.round(parseFloat(suggestion.confidence) * 100)}%
                               </span>
                             )}
                           </div>
                           {suggestion.suggested_feedback && (
-                            <p className="text-[11px] text-slate-400 italic">"{suggestion.suggested_feedback}"</p>
+                            <p className="text-[11px] text-slate-500 italic">"{suggestion.suggested_feedback}"</p>
                           )}
                           <button
                             type="button"
@@ -477,7 +477,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                               setScores(prev => ({ ...prev, [c.id]: parseFloat(suggestion.suggested_score) }))
                               setFeedbacks(prev => ({ ...prev, [c.id]: suggestion.suggested_feedback || '' }))
                             }}
-                            className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-1 cursor-pointer bg-transparent border-0 p-0"
+                            className="text-[10px] font-bold text-blue-700 hover:text-blue-500 flex items-center gap-1 mt-1 cursor-pointer bg-transparent border-0 p-0"
                           >
                             Accept AI Suggestion
                           </button>
@@ -495,7 +495,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                           onChange={(e) =>
                             setScores({ ...scores, [c.id]: parseFloat(e.target.value) })
                           }
-                          className="flex-1 accent-blue-550 h-1.5 bg-slate-900 rounded-lg cursor-pointer"
+                          className="flex-1 accent-blue-600 h-1.5 bg-slate-900 rounded-lg cursor-pointer"
                         />
                         <input
                           type="number"
@@ -506,7 +506,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                           onChange={(e) =>
                             setScores({ ...scores, [c.id]: Math.min(c.max_points, Math.max(0, parseFloat(e.target.value) || 0)) })
                           }
-                          className="w-14 bg-slate-955 border border-slate-850 rounded px-1 py-0.5 text-center text-xs font-mono font-semibold focus:outline-none"
+                          className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center text-xs font-mono font-semibold focus:outline-none text-slate-100"
                         />
                       </div>
 
@@ -519,14 +519,14 @@ export default function GradingPage({ params }: GradingPageProps) {
                           onChange={(e) =>
                             setFeedbacks({ ...feedbacks, [c.id]: e.target.value })
                           }
-                          className="w-full bg-slate-950/60 border border-slate-850 rounded px-2.5 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-blue-500/50"
+                          className="w-full bg-slate-950/60 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50"
                         />
                       </div>
 
                       {/* Override Reason Box */}
                       {isOverridden && (
                         <div className="space-y-1 mt-1.5">
-                          <label className="block text-[9px] font-bold text-amber-500 uppercase tracking-widest">
+                          <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest">
                             Override Reason Required
                           </label>
                           <input
@@ -537,7 +537,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                             onChange={(e) =>
                               setOverrideReasons({ ...overrideReasons, [c.id]: e.target.value })
                             }
-                            className="w-full bg-slate-950/60 border border-amber-500/20 rounded px-2.5 py-1 text-[11px] text-amber-300 focus:outline-none focus:border-amber-500/50"
+                            className="w-full bg-slate-950/60 border border-amber-500/30 rounded px-2.5 py-1 text-xs text-amber-700 focus:outline-none focus:border-amber-500/50"
                           />
                         </div>
                       )}
@@ -548,15 +548,15 @@ export default function GradingPage({ params }: GradingPageProps) {
             )}
 
             {/* Overall Feedback */}
-            <div className="pt-4 border-t border-slate-800 space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <div className="pt-4 border-t border-slate-700 space-y-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Overall Feedback Comments
               </label>
               <textarea
                 value={overallFeedback}
                 onChange={(e) => setOverallFeedback(e.target.value)}
                 placeholder="Write total summary evaluation notes..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-550 h-28"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-550 h-28"
               />
             </div>
           </div>
