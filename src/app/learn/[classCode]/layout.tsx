@@ -57,6 +57,11 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
       href: `/learn/${classCode}/dashboard`,
       icon: Map,
     },
+    {
+      name: 'My Marks & Grades',
+      href: `/learn/${classCode}/grades`,
+      icon: GraduationCap,
+    },
   ]
 
   const handleLogout = () => {

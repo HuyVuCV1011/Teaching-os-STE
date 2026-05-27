@@ -4,6 +4,13 @@ import { getSupabaseServer } from '@/lib/supabase'
 const GRADING_SECRET_TOKEN = process.env.GRADING_SECRET_TOKEN || 'a1b2c3d4e5f6_development_token'
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production' && (!process.env.GRADING_SECRET_TOKEN || process.env.GRADING_SECRET_TOKEN === 'a1b2c3d4e5f6_development_token')) {
+    console.error('CRITICAL: GRADING_SECRET_TOKEN is unset or using fallback key in production!')
+    return NextResponse.json(
+      { error: 'Internal Configuration Error' },
+      { status: 500 }
+    )
+  }
   const supabase = getSupabaseServer(true)
   try {
     const body = await request.json()
@@ -51,7 +58,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 3. Upsert Grading Result (keep in 'draft' status)
+    // Query assignments to see if auto_publish_grades is true
+    const { data: submissionData, error: subQueryError } = await supabase
+      .from('submissions')
+      .select('*, assignments(auto_publish_grades)')
+      .eq('id', submission_id)
+      .single()
+
+    if (subQueryError || !submissionData) {
+      return NextResponse.json(
+        { error: 'Bad Request: Submission or assignment not found' },
+        { status: 404 }
+      )
+    }
+
+    const autoPublish = submissionData.assignments?.auto_publish_grades || false
+    const targetStatus = autoPublish ? 'published' : 'draft'
+    const publishedAtVal = autoPublish ? new Date().toISOString() : null
+
+    // 3. Upsert Grading Result
     let resultId: string
     if (existingResult) {
       resultId = existingResult.id
@@ -59,7 +84,8 @@ export async function POST(request: NextRequest) {
         .from('grading_results')
         .update({
           overall_feedback: overall_feedback || 'Automated score callback received.',
-          status: 'draft',
+          status: targetStatus,
+          published_at: publishedAtVal,
         })
         .eq('id', resultId)
 
@@ -71,7 +97,8 @@ export async function POST(request: NextRequest) {
           {
             submission_id,
             overall_feedback: overall_feedback || 'Automated score callback received.',
-            status: 'draft',
+            status: targetStatus,
+            published_at: publishedAtVal,
           },
         ])
         .select()
@@ -104,15 +131,16 @@ export async function POST(request: NextRequest) {
       if (scoreUpsertError) throw scoreUpsertError
     }
 
-    // 5. Update submission status to grading_in_progress
+    // 5. Update submission status
+    const submissionStatus = autoPublish ? 'graded' : 'grading_in_progress'
     await supabase
       .from('submissions')
-      .update({ status: 'grading_in_progress' })
+      .update({ status: submissionStatus })
       .eq('id', submission_id)
 
     return NextResponse.json({
       success: true,
-      message: 'Grading callback processed successfully. Result saved as draft.',
+      message: `Grading callback processed successfully. Result saved as ${targetStatus}.`,
       gradingResultId: resultId,
     })
   } catch (error: any) {

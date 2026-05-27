@@ -34,7 +34,10 @@ function AdminAssignmentsContent() {
     title: '',
     instructions: '',
     rubric_id: '',
-    max_score: 100
+    max_score: 100,
+    auto_publish_grades: false,
+    grace_period_hours: 0,
+    penalty_percent_per_day: 0
   })
 
   const [showForm, setShowForm] = useState(initialAction === 'new')
@@ -91,7 +94,12 @@ function AdminAssignmentsContent() {
         title: form.title,
         instructions: form.instructions,
         max_score: form.max_score,
-        rubric_id: form.rubric_id || null
+        rubric_id: form.rubric_id || null,
+        auto_publish_grades: form.auto_publish_grades,
+        late_policy: {
+          grace_period_hours: form.grace_period_hours,
+          penalty_percent_per_day: form.penalty_percent_per_day
+        }
       }
 
       if (form.id) {
@@ -118,7 +126,10 @@ function AdminAssignmentsContent() {
         title: '',
         instructions: '',
         rubric_id: '',
-        max_score: 100
+        max_score: 100,
+        auto_publish_grades: false,
+        grace_period_hours: 0,
+        penalty_percent_per_day: 0
       })
       setShowForm(false)
       setSelectedAssignment(null)
@@ -130,13 +141,17 @@ function AdminAssignmentsContent() {
 
   // Edit Assignment
   const handleEdit = (assignment: any) => {
+    const policy = assignment.late_policy || {}
     setForm({
       id: assignment.id,
       lesson_id: assignment.lesson_id,
       title: assignment.title,
       instructions: assignment.instructions,
       rubric_id: assignment.rubric_id || '',
-      max_score: assignment.max_score
+      max_score: assignment.max_score,
+      auto_publish_grades: assignment.auto_publish_grades || false,
+      grace_period_hours: policy.grace_period_hours || 0,
+      penalty_percent_per_day: policy.penalty_percent_per_day || 0
     })
     setShowForm(true)
     setSelectedAssignment(assignment)
@@ -185,7 +200,17 @@ function AdminAssignmentsContent() {
 
         <button
           onClick={() => {
-            setForm({ id: '', lesson_id: '', title: '', instructions: '', rubric_id: '', max_score: 100 })
+            setForm({
+              id: '',
+              lesson_id: '',
+              title: '',
+              instructions: '',
+              rubric_id: '',
+              max_score: 100,
+              auto_publish_grades: false,
+              grace_period_hours: 0,
+              penalty_percent_per_day: 0
+            })
             setSelectedAssignment(null)
             setShowForm(!showForm)
           }}
@@ -369,6 +394,49 @@ function AdminAssignmentsContent() {
                   </div>
                 </div>
 
+                {/* Auto-Publish & Late Policies */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/40 p-4 rounded-xl border border-slate-850">
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      id="auto_publish_grades"
+                      type="checkbox"
+                      checked={form.auto_publish_grades}
+                      onChange={(e) => setForm({ ...form, auto_publish_grades: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-800 text-blue-600 bg-slate-950 focus:ring-blue-500/50"
+                    />
+                    <label htmlFor="auto_publish_grades" className="text-xs font-semibold text-slate-350 select-none cursor-pointer">
+                      Auto-Publish AI Grades
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Grace Period (Hours)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.grace_period_hours}
+                      onChange={(e) => setForm({ ...form, grace_period_hours: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Daily Penalty Deduction (%)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={form.penalty_percent_per_day}
+                      onChange={(e) => setForm({ ...form, penalty_percent_per_day: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
                 {/* Instructions */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -445,6 +513,35 @@ function AdminAssignmentsContent() {
                   </p>
                 </div>
               )}
+
+              {/* Policy & Visibility Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={`p-4 rounded-xl border text-xs space-y-1.5 ${
+                  selectedAssignment.auto_publish_grades
+                    ? 'border-emerald-500/10 bg-emerald-500/5 text-slate-300'
+                    : 'border-slate-800 bg-slate-900/40 text-slate-400'
+                }`}>
+                  <h5 className={`font-bold ${selectedAssignment.auto_publish_grades ? 'text-emerald-450' : 'text-slate-350'}`}>
+                    {selectedAssignment.auto_publish_grades ? 'Auto-Publish Active' : 'Manual Review Mode'}
+                  </h5>
+                  <p className="text-[11px] text-slate-500">
+                    {selectedAssignment.auto_publish_grades
+                      ? 'AI feedback and grades are automatically released to the student.'
+                      : 'AI suggestions will save as drafts awaiting manual teacher verification.'}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 text-xs space-y-1.5 text-slate-400">
+                  <h5 className="font-bold text-slate-350">
+                    Late Submission Policy
+                  </h5>
+                  <p className="text-[11px] text-slate-500">
+                    {selectedAssignment.late_policy?.penalty_percent_per_day > 0
+                      ? `Grace Period: ${selectedAssignment.late_policy.grace_period_hours} hours. Penalty: -${selectedAssignment.late_policy.penalty_percent_per_day}% per day late.`
+                      : 'No automated penalty configured. Delay information will be flagged for manual grading.'}
+                  </p>
+                </div>
+              </div>
 
               {/* Edit button trigger */}
               <div className="flex justify-end pt-4 border-t border-slate-800">

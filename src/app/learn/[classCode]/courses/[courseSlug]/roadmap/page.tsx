@@ -12,12 +12,20 @@ import ReactFlow, {
 } from 'reactflow'
 import dagre from 'dagre'
 import { supabase } from '@/lib/supabase'
-import { Lock, Unlock, Loader2, ArrowLeft } from 'lucide-react'
+import { Lock, Unlock, Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
 import 'reactflow/dist/style.css'
+
+function getCookie(name: string): string {
+  if (typeof document === 'undefined') return ''
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
+  return match ? decodeURIComponent(match[2]) : ''
+}
 
 interface LessonNodeData {
   title: string
   isLocked: boolean
+  isCompleted?: boolean
+  hasAssignment?: boolean
   onClick: () => void
   orderIndex: string
   visibleAfter: string | null
@@ -31,7 +39,9 @@ function CustomLessonNode({ data }: { data: LessonNodeData }) {
       className={`px-4 py-3.5 rounded-xl border backdrop-blur-md transition-all duration-200 text-left min-w-[200px] shadow-lg ${
         data.isLocked
           ? 'bg-slate-900/40 border-slate-900/60 text-slate-500 cursor-not-allowed opacity-60'
-          : 'bg-slate-900 border-slate-800 text-slate-200 hover:border-blue-500 cursor-pointer hover:shadow-blue-500/5'
+          : data.isCompleted
+          ? 'bg-slate-900 border-emerald-500/40 text-slate-200 hover:border-emerald-500 cursor-pointer shadow-emerald-500/5'
+          : 'bg-slate-900 border-slate-800 text-slate-200 hover:border-blue-500 cursor-pointer hover:shadow-blue-550/5'
       }`}
     >
       <Handle type="target" position={Position.Left} className="opacity-0" />
@@ -49,11 +59,18 @@ function CustomLessonNode({ data }: { data: LessonNodeData }) {
               Unlocks: {new Date(data.visibleAfter).toLocaleDateString()}
             </span>
           )}
+          {!data.isLocked && data.hasAssignment && (
+            <span className="inline-flex items-center gap-1 text-[8px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded font-semibold mt-1">
+              Task Mapped
+            </span>
+          )}
         </div>
 
         <div className="shrink-0 mt-0.5">
           {data.isLocked ? (
             <Lock className="w-3.5 h-3.5 text-slate-600" />
+          ) : data.isCompleted ? (
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-450 animate-pulse" />
           ) : (
             <Unlock className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
           )}
@@ -156,6 +173,35 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           scheduleMap.set(sched.lesson_id, sched)
         })
 
+        // Fetch lesson progress for checkmark nodes
+        const savedEmail = getCookie(`student_email_${classCode}`)
+        const completedLessonIds = new Set<string>()
+        if (savedEmail) {
+          const { data: progressData } = await supabase
+            .from('student_lesson_progress')
+            .select('lesson_id')
+            .eq('class_id', classData.id)
+            .eq('student_email', savedEmail.trim().toLowerCase())
+          
+          progressData?.forEach(p => completedLessonIds.add(p.lesson_id))
+        }
+
+        // Fetch assignments indicators
+        const allLessonIds: string[] = []
+        modulesData?.forEach((mod: any) => {
+          mod.lessons?.forEach((l: any) => allLessonIds.push(l.id))
+        })
+
+        const lessonsWithAssignments = new Set<string>()
+        if (allLessonIds.length > 0) {
+          const { data: assignmentsData } = await supabase
+            .from('assignments')
+            .select('lesson_id')
+            .in('lesson_id', allLessonIds)
+
+          assignmentsData?.forEach(a => lessonsWithAssignments.add(a.lesson_id))
+        }
+
         const rawNodes: Node[] = []
         const rawEdges: Edge[] = []
         const now = new Date()
@@ -180,6 +226,9 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
               }
             }
 
+            const isCompleted = completedLessonIds.has(lesson.id)
+            const hasAssignment = lessonsWithAssignments.has(lesson.id)
+
             const nodeId = `lesson-${lesson.id}`
             rawNodes.push({
               id: nodeId,
@@ -187,6 +236,8 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
               data: {
                 title: lesson.title,
                 isLocked,
+                isCompleted,
+                hasAssignment,
                 visibleAfter: visibleAfterStr,
                 orderIndex: `${mod.order_index}.${lesson.order_index}`,
                 onClick: () => {

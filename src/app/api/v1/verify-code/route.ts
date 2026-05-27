@@ -5,6 +5,13 @@ import { signJWT } from '@/lib/jwt'
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_secret_key_1234567890'
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'fallback_development_secret_key_1234567890')) {
+    console.error('CRITICAL: JWT_SECRET is unset or using fallback key in production!')
+    return NextResponse.json(
+      { error: 'Internal Configuration Error' },
+      { status: 500 }
+    )
+  }
   try {
     const { code, email } = await request.json()
 

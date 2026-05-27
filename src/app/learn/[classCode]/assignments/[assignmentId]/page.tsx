@@ -46,6 +46,9 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
   const [schedule, setSchedule] = useState<any>(null)
   const [existingSubmission, setExistingSubmission] = useState<any>(null)
   const [gradingResult, setGradingResult] = useState<any>(null)
+  const [gradingRun, setGradingRun] = useState<any>(null)
+  const [polling, setPolling] = useState(false)
+  const [pollingMessage, setPollingMessage] = useState('')
 
   // Student inputs
   const [email, setEmail] = useState('')
@@ -56,68 +59,134 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
     fetchAssignmentData()
   }, [assignmentId, classCode])
 
+  // Poll for grading runs
+  useEffect(() => {
+    if (!polling || !existingSubmission?.id) return
+
+    let isMounted = true
+    const intervalId = setInterval(async () => {
+      try {
+        const { data: runData } = await supabase
+          .from('grading_runs')
+          .select('*')
+          .eq('submission_id', existingSubmission.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (isMounted && runData && runData.length > 0) {
+          const latestRun = runData[0]
+          setGradingRun(latestRun)
+          
+          if (latestRun.status === 'succeeded' || latestRun.status === 'failed' || latestRun.status === 'cancelled') {
+            setPolling(false)
+            // Trigger data reload
+            fetchAssignmentDataSilent()
+          } else {
+            setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
+          }
+        }
+      } catch (err) {
+        console.error('Error polling grading run:', err)
+      }
+    }, 3000)
+
+    return () => {
+      isMounted = false
+      clearInterval(intervalId)
+    }
+  }, [polling, existingSubmission?.id])
+
   async function fetchAssignmentData() {
     setLoading(true)
     try {
-      // 1. Fetch assignment details
-      const { data: assignmentData } = await supabase
-        .from('assignments')
-        .select('*, lessons(title)')
-        .eq('id', assignmentId)
+      await fetchAssignmentDataInner()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function fetchAssignmentDataSilent() {
+    try {
+      await fetchAssignmentDataInner()
+    } catch (err) {
+      console.error('Silent reload failed:', err)
+    }
+  }
+
+  async function fetchAssignmentDataInner() {
+    // 1. Fetch assignment details
+    const { data: assignmentData } = await supabase
+      .from('assignments')
+      .select('*, lessons(title)')
+      .eq('id', assignmentId)
+      .single()
+
+    setAssignment(assignmentData)
+
+    let resolvedClassId = null
+    // 2. Fetch class schedules for due_date
+    if (assignmentData) {
+      const { data: classData } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('class_code', classCode.toUpperCase())
         .single()
 
-      setAssignment(assignmentData)
-
-      let resolvedClassId = null
-      // 2. Fetch class schedules for due_date
-      if (assignmentData) {
-        const { data: classData } = await supabase
-          .from('classes')
-          .select('id')
-          .eq('class_code', classCode.toUpperCase())
+      if (classData) {
+        resolvedClassId = classData.id
+        const { data: scheduleData } = await supabase
+          .from('class_schedules')
+          .select('*')
+          .eq('class_id', classData.id)
+          .eq('lesson_id', assignmentData.lesson_id)
           .single()
 
-        if (classData) {
-          resolvedClassId = classData.id
-          const { data: scheduleData } = await supabase
-            .from('class_schedules')
-            .select('*')
-            .eq('class_id', classData.id)
-            .eq('lesson_id', assignmentData.lesson_id)
-            .single()
-
-          setSchedule(scheduleData)
-        }
+        setSchedule(scheduleData)
       }
+    }
 
-      // Automatically check/load student's submission from cookie
-      const savedEmail = getCookie(`student_email_${classCode}`)
-      if (savedEmail) {
-        const trimmedEmail = savedEmail.trim().toLowerCase()
-        setEmail(trimmedEmail)
+    // Automatically check/load student's submission from cookie
+    const savedEmail = getCookie(`student_email_${classCode}`)
+    if (savedEmail) {
+      const trimmedEmail = savedEmail.trim().toLowerCase()
+      setEmail(trimmedEmail)
 
-        if (resolvedClassId) {
-          const { data: subData } = await supabase
-            .from('submissions')
-            .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*)))')
-            .eq('class_id', resolvedClassId)
-            .eq('assignment_id', assignmentId)
-            .eq('student_identifier', trimmedEmail)
+      if (resolvedClassId) {
+        const { data: subData } = await supabase
+          .from('submissions')
+          .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*)))')
+          .eq('class_id', resolvedClassId)
+          .eq('assignment_id', assignmentId)
+          .eq('student_identifier', trimmedEmail)
+          .limit(1)
+
+        if (subData && subData.length > 0) {
+          const sub = subData[0]
+          setExistingSubmission(sub)
+          if (sub.grading_results && sub.grading_results.status === 'published') {
+            setGradingResult(sub.grading_results)
+          }
+
+          // Fetch latest grading run
+          const { data: runData } = await supabase
+            .from('grading_runs')
+            .select('*')
+            .eq('submission_id', sub.id)
+            .order('created_at', { ascending: false })
             .limit(1)
 
-          if (subData && subData.length > 0) {
-            const sub = subData[0]
-            setExistingSubmission(sub)
-            if (sub.grading_results && sub.grading_results.status === 'published') {
-              setGradingResult(sub.grading_results)
+          if (runData && runData.length > 0) {
+            const latestRun = runData[0]
+            setGradingRun(latestRun)
+            if (latestRun.status === 'queued' || latestRun.status === 'running') {
+              setPolling(true)
+              setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
+            } else {
+              setPolling(false)
             }
           }
         }
       }
-    } catch (err) {
-      console.error('Failed to load assignment details:', err)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -281,9 +350,15 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
 
       setSuccess(true)
       if (newSub) {
-        triggerRubricoreGradingAction(newSub.id).catch((err) => {
+        try {
+          const res = await triggerRubricoreGradingAction(newSub.id)
+          if (res.success) {
+            setPolling(true)
+            setPollingMessage('Waiting in grading queue...')
+          }
+        } catch (err) {
           console.error("Async grading trigger failed:", err)
-        })
+        }
       }
       handleCheckSubmission()
     } catch (err: any) {
@@ -419,24 +494,53 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             </div>
 
             {existingSubmission ? (
-              <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 space-y-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span className="font-bold">Task successfully submitted!</span>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Submitted at: {new Date(existingSubmission.submitted_at).toLocaleString()}
-                </p>
-                <div className="mt-2 space-y-1">
-                  <span className="block font-bold text-slate-500 uppercase tracking-widest text-[9px] mb-1">
-                    Uploaded Files
-                  </span>
-                  {existingSubmission.submitted_files.map((file: string, i: number) => (
-                    <span key={i} className="block text-[10px] text-slate-350 truncate">
-                      - {file.split('/').pop()}
-                    </span>
-                  ))}
-                </div>
+              <div className="space-y-4">
+                {polling ? (
+                  <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-400 space-y-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-550" />
+                      <span className="font-bold">{pollingMessage}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      The automated grading system is currently parsing and scoring your deliverables. This page will update automatically.
+                    </p>
+                  </div>
+                ) : gradingRun?.status === 'failed' ? (
+                  <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-400 space-y-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                      <span className="font-bold">Automated Ingestion Alert</span>
+                    </div>
+                    <p className="text-[10px] text-slate-450">
+                      The system could not parse the uploaded documents automatically (e.g. empty scan or unsupported format). A teacher has been notified for manual review.
+                    </p>
+                    {gradingRun.error_message && (
+                      <pre className="text-[9px] font-mono p-2 bg-slate-950 border border-slate-850 text-slate-500 rounded overflow-x-auto whitespace-pre-wrap max-h-24">
+                        {gradingRun.error_message}
+                      </pre>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 space-y-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span className="font-bold">Task successfully submitted!</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Submitted at: {new Date(existingSubmission.submitted_at).toLocaleString()}
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      <span className="block font-bold text-slate-500 uppercase tracking-widest text-[9px] mb-1">
+                        Uploaded Files
+                      </span>
+                      {existingSubmission.submitted_files.map((file: string, i: number) => (
+                        <span key={i} className="block text-[10px] text-slate-350 truncate">
+                          - {file.split('/').pop()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               email.trim() && (

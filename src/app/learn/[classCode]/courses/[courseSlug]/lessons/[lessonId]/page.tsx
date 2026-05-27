@@ -1,8 +1,11 @@
 import React from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { supabase } from '@/lib/supabase'
 import DocumentViewer from '@/components/DocumentViewer'
+import LessonCompletionButton from '@/components/LessonCompletionButton'
+import LessonDiscussion from '@/components/LessonDiscussion'
 import { ArrowLeft, Lock, Calendar, FileText, Globe, Code } from 'lucide-react'
 
 interface PageProps {
@@ -18,6 +21,9 @@ export default async function LessonPage({ params }: PageProps) {
   const classCode = resolvedParams.classCode
   const courseSlug = resolvedParams.courseSlug
   const lessonId = resolvedParams.lessonId
+
+  const cookieStore = await cookies()
+  const studentEmail = cookieStore.get(`student_email_${classCode}`)?.value || ''
 
   // 1. Fetch Class ID matching code
   const { data: classData } = await supabase
@@ -94,10 +100,16 @@ export default async function LessonPage({ params }: PageProps) {
     .select('*')
     .eq('lesson_id', lessonId)
 
-  // 5. Generate signed URLs for private PDF assets (valid for 300s)
+  // Fetch assignments attached to this lesson
+  const { data: assignmentsData } = await supabase
+    .from('assignments')
+    .select('id, title, instructions')
+    .eq('lesson_id', lessonId)
+
+  // 5. Generate signed URLs for private assets (valid for 300s)
   const preparedMaterials = await Promise.all(
     (materialsData || []).map(async (m) => {
-      if (m.type === 'pdf') {
+      if (['pdf', 'docx', 'csv', 'xlsx'].includes(m.type)) {
         const { data, error } = await supabase.storage
           .from('teaching-materials')
           .createSignedUrl(m.storage_url, 300)
@@ -112,24 +124,34 @@ export default async function LessonPage({ params }: PageProps) {
   )
 
   const pdfMaterial = preparedMaterials.find((m) => m.type === 'pdf')
-  const links = preparedMaterials.filter((m) => m.type !== 'pdf')
+  const docxMaterials = preparedMaterials.filter((m) => m.type === 'docx')
+  const tabularMaterials = preparedMaterials.filter((m) => ['csv', 'xlsx'].includes(m.type))
+  const links = preparedMaterials.filter((m) => !['pdf', 'docx', 'csv', 'xlsx'].includes(m.type))
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
       {/* Header breadcrumbs */}
-      <div className="flex items-center gap-3">
-        <Link
-          href={`/learn/${classCode}/courses/${courseSlug}/roadmap`}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <div>
-          <span className="text-xs text-slate-500 font-semibold">
-            {lessonData.modules?.courses?.title} / {lessonData.modules?.title}
-          </span>
-          <h1 className="text-2xl font-bold text-white mt-0.5">{lessonData.title}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/learn/${classCode}/courses/${courseSlug}/roadmap`}
+            className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <span className="text-xs text-slate-500 font-semibold">
+              {lessonData.modules?.courses?.title} / {lessonData.modules?.title}
+            </span>
+            <h1 className="text-2xl font-bold text-white mt-0.5">{lessonData.title}</h1>
+          </div>
         </div>
+
+        <LessonCompletionButton
+          classId={classData.id}
+          lessonId={lessonId}
+          studentEmail={studentEmail}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -149,17 +171,159 @@ export default async function LessonPage({ params }: PageProps) {
           {/* Secure Document Viewer */}
           {pdfMaterial && (
             <div className="space-y-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-505 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-600" />
                 Lesson Guide Document
               </h2>
               <DocumentViewer url={pdfMaterial.signedUrl} title={pdfMaterial.title} />
             </div>
           )}
+
+          {/* Word Documents Reading View */}
+          {docxMaterials.map((doc) => (
+            <div key={doc.id} className="space-y-4">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-505 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-600" />
+                Lesson Guide Document
+              </h2>
+              <div className="border border-slate-200 bg-white rounded-2xl p-6 md:p-8 shadow-sm text-slate-800 space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    {doc.title}
+                  </h3>
+                  <a
+                    href={doc.signedUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                  >
+                    Download Original File
+                  </a>
+                </div>
+                <div 
+                  className="prose max-w-none text-slate-700 leading-relaxed text-sm"
+                  dangerouslySetInnerHTML={{ __html: doc.metadata?.viewer_artifact?.viewer_html || '' }}
+                />
+              </div>
+            </div>
+          ))}
+
+          {/* Spreadsheets Tabular View */}
+          {tabularMaterials.map((sheet) => {
+            const artifact = sheet.metadata?.viewer_artifact
+            const headers = artifact?.headers || []
+            const rows = artifact?.rows || []
+            const rowCount = artifact?.row_count || 0
+            const colCount = artifact?.col_count || 0
+            const sheetNames = artifact?.sheet_names || []
+
+            return (
+              <div key={sheet.id} className="space-y-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-505 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-600" />
+                  Lesson Dataset Preview
+                </h2>
+                <div className="border border-slate-200 bg-white rounded-2xl p-6 shadow-sm text-slate-800 space-y-4">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-emerald-600" />
+                        {sheet.title}
+                      </h3>
+                      {sheetNames.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                          <span className="font-semibold">Sheets:</span>
+                          {sheetNames.map((sheetName: string, i: number) => (
+                            <span key={i} className={`px-1.5 py-0.5 rounded ${i === 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 font-semibold' : 'bg-slate-50 border border-slate-100'}`}>
+                              {sheetName}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <a
+                      href={sheet.signedUrl}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                    >
+                      Download Spreadsheet
+                    </a>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-150 rounded-xl">
+                    <table className="min-w-full divide-y divide-slate-150 text-xs">
+                      <thead className="bg-slate-550/10">
+                        <tr>
+                          {headers.map((hdr: string, i: number) => (
+                            <th key={i} className="px-4 py-2 text-left font-semibold text-slate-700 border-r border-slate-150 last:border-0 whitespace-nowrap">
+                              {hdr}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {rows.map((row: any[], i: number) => (
+                          <tr key={i} className="hover:bg-slate-50/50">
+                            {row.map((cell: any, j: number) => (
+                              <td key={j} className="px-4 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
+                    <span>Showing first 15 rows of data</span>
+                    <span>Total: {rowCount} rows × {colCount} columns</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Discussion comments feed */}
+          <LessonDiscussion
+            classId={classData.id}
+            lessonId={lessonId}
+            studentEmail={studentEmail}
+          />
         </div>
 
         {/* Mapped external resources */}
         <div className="space-y-6">
+          {/* Assignments CTA Card */}
+          {assignmentsData && assignmentsData.length > 0 && (
+            <div className="border border-indigo-550/20 bg-slate-900/10 rounded-2xl p-6 space-y-4 shadow-xl">
+              <h3 className="font-bold text-white text-sm pb-2 border-b border-slate-800 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-indigo-400" />
+                Lesson Deliverables
+              </h3>
+              <div className="space-y-4">
+                {assignmentsData.map((assign) => (
+                  <div key={assign.id} className="space-y-1.5 p-3 rounded-xl bg-slate-950/30 border border-slate-850">
+                    <h4 className="text-xs font-bold text-slate-200">{assign.title}</h4>
+                    <p className="text-[10px] text-slate-400 line-clamp-2">
+                      {assign.instructions}
+                    </p>
+                    <Link
+                      href={`/learn/${classCode}/assignments/${assign.id}`}
+                      className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors mt-2"
+                    >
+                      Submit Deliverables
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 space-y-4 shadow-xl">
             <h3 className="font-bold text-white text-sm pb-2 border-b border-slate-800">Resources & Repositories</h3>
             {links.length === 0 ? (

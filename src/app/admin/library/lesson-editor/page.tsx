@@ -37,7 +37,7 @@ function LessonEditorInner() {
   const [materials, setMaterials] = useState<any[]>([])
   const [materialForm, setMaterialForm] = useState({
     title: '',
-    type: 'pdf' as 'pdf' | 'code_repo' | 'flow_diagram' | 'link',
+    type: 'pdf' as 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link',
     linkUrl: '',
   })
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -114,9 +114,11 @@ function LessonEditorInner() {
       let finalStorageUrl = ''
       let calculatedHash: string | undefined = undefined
 
-      if (materialForm.type === 'pdf') {
+      const isFileType = ['pdf', 'docx', 'csv', 'xlsx'].includes(materialForm.type)
+
+      if (isFileType) {
         if (!uploadFile) {
-          alert('Please select a PDF file to upload')
+          alert(`Please select a ${materialForm.type.toUpperCase()} file to upload`)
           setUploading(false)
           return
         }
@@ -316,19 +318,26 @@ function LessonEditorInner() {
                     className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
                   >
                     <option value="pdf">PDF File upload</option>
+                    <option value="docx">Word Document (.docx)</option>
+                    <option value="csv">CSV Spreadsheet (.csv)</option>
+                    <option value="xlsx">Excel Spreadsheet (.xlsx)</option>
                     <option value="link">General Web Link</option>
                     <option value="code_repo">Code Repository</option>
                   </select>
                 </div>
 
-                {materialForm.type === 'pdf' ? (
+                {['pdf', 'docx', 'csv', 'xlsx'].includes(materialForm.type) ? (
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                      Choose PDF File
+                      Choose {materialForm.type.toUpperCase()} File
                     </label>
                     <input
                       type="file"
-                      accept=".pdf"
+                      accept={
+                        materialForm.type === 'pdf' ? '.pdf' :
+                        materialForm.type === 'docx' ? '.docx' :
+                        materialForm.type === 'xlsx' ? '.xlsx' : '.csv'
+                      }
                       required
                       onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                       className="w-full text-xs text-slate-450 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-600/10 file:text-blue-600 hover:file:bg-blue-600/20"

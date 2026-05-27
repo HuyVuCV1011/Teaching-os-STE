@@ -32,6 +32,7 @@ import {
   MailCheck,
   Menu,
   X,
+  Loader2,
 } from 'lucide-react'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -84,6 +85,43 @@ const nodeIconMap: {
   MailCheck,
 }
 
+interface LazyPlaceholderProps {
+  pageIndex: number
+  onVisible: (index: number) => void
+  children: React.ReactNode
+}
+
+function LazyPlaceholder({ pageIndex, onVisible, children }: LazyPlaceholderProps) {
+  const ref = useRef<HTMLDivElement>(null)
+  
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          onVisible(pageIndex)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    
+    if (ref.current) {
+      observer.observe(ref.current)
+    }
+    
+    return () => observer.disconnect()
+  }, [pageIndex, onVisible])
+  
+  return (
+    <div 
+      ref={ref} 
+      className="w-full mb-6 min-h-[400px] flex items-center justify-center bg-slate-900/5 border border-slate-200/50 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden"
+    >
+      {children}
+    </div>
+  )
+}
+
 const ProjectIdPage = () => {
   const { projectId } = useParams<{ projectId: string }>()
   const [project, setProject] = useState<Project | null>(null)
@@ -96,6 +134,7 @@ const ProjectIdPage = () => {
     first: [],
     second: [],
   })
+  const [visiblePages, setVisiblePages] = useState<Record<number, boolean>>({})
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -449,7 +488,7 @@ const ProjectIdPage = () => {
                     {numPages[fileIndex] &&
                       Array.from(
                         { length: numPages[fileIndex] },
-                        (_, pageIndex) => (
+                        (_, pageIndex) => visiblePages[pageIndex] && (
                           <Page
                             key={pageIndex}
                             pageNumber={pageIndex + 1}
@@ -481,7 +520,13 @@ const ProjectIdPage = () => {
                 </summary>
                 <div className="p-4">
                   {Array.from({ length: maxPages }, (_, pageIndex) => (
-                    <div key={pageIndex} className="w-full mb-4">
+                    <LazyPlaceholder
+                      key={pageIndex}
+                      pageIndex={pageIndex}
+                      onVisible={(index) => {
+                        setVisiblePages((prev) => ({ ...prev, [index]: true }))
+                      }}
+                    >
                       {project.files.length === 1 ? (
                         pageImages.first[pageIndex] ? (
                           <Image
@@ -493,7 +538,10 @@ const ProjectIdPage = () => {
                             unoptimized
                           />
                         ) : (
-                          <p>Đang tải trang {pageIndex + 1}...</p>
+                          <div className="flex flex-col items-center gap-2 text-slate-500 text-xs py-10">
+                            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                            <span>Đang tải trang {pageIndex + 1}...</span>
+                          </div>
                         )
                       ) : pageImages.first[pageIndex] &&
                         pageImages.second[pageIndex] ? (
@@ -524,9 +572,12 @@ const ProjectIdPage = () => {
                           />
                         </ImgComparisonSlider>
                       ) : (
-                        <p>Đang tải trang {pageIndex + 1}...</p>
+                        <div className="flex flex-col items-center gap-2 text-slate-500 text-xs py-10">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                          <span>Đang tải trang {pageIndex + 1}...</span>
+                        </div>
                       )}
-                    </div>
+                    </LazyPlaceholder>
                   ))}
                 </div>
               </details>

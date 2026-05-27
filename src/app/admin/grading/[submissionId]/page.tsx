@@ -37,6 +37,8 @@ export default function GradingPage({ params }: GradingPageProps) {
   const [rubric, setRubric] = useState<any>(null)
   const [criteria, setCriteria] = useState<any[]>([])
   const [suggestions, setSuggestions] = useState<any[]>([])
+  const [dueDate, setDueDate] = useState<string | null>(null)
+  const [applyLatePenalty, setApplyLatePenalty] = useState(true)
 
   // Grading states
   const [scores, setScores] = useState<Record<string, number>>({}) // criterion_id -> score
@@ -61,6 +63,19 @@ export default function GradingPage({ params }: GradingPageProps) {
 
       if (!subData) throw new Error('Submission not found')
       setSubmission(subData)
+
+      // Query due date from schedules
+      if (subData?.class_id && subData?.assignments?.lesson_id) {
+        const { data: sched } = await supabase
+          .from('class_schedules')
+          .select('due_date')
+          .eq('class_id', subData.class_id)
+          .eq('lesson_id', subData.assignments.lesson_id)
+          .maybeSingle()
+        if (sched?.due_date) {
+          setDueDate(sched.due_date)
+        }
+      }
 
       const rubricData = subData.assignments?.rubrics
       setRubric(rubricData)
@@ -119,6 +134,45 @@ export default function GradingPage({ params }: GradingPageProps) {
     return total + scores[cid] * parseFloat(criterion.weight)
   }, 0)
 
+  // Late calculations
+  const calculateLateStatus = () => {
+    if (!dueDate || !submission?.submitted_at) return null
+    const submittedAt = new Date(submission.submitted_at)
+    const limitDate = new Date(dueDate)
+    
+    if (submittedAt <= limitDate) return null
+    
+    const diffMs = submittedAt.getTime() - limitDate.getTime()
+    const diffHours = diffMs / (1000 * 60 * 60)
+    
+    const policy = submission.assignments?.late_policy || {}
+    const gracePeriod = policy.grace_period_hours || 0
+    const penaltyPerDay = policy.penalty_percent_per_day || 0
+    
+    if (diffHours <= gracePeriod) {
+      return {
+        isLate: true,
+        hoursLate: diffHours,
+        inGracePeriod: true,
+        deductionPercent: 0
+      }
+    }
+    
+    const hoursAfterGrace = diffHours - gracePeriod
+    const daysLate = Math.ceil(hoursAfterGrace / 24)
+    const deductionPercent = daysLate * penaltyPerDay
+    
+    return {
+      isLate: true,
+      hoursLate: diffHours,
+      inGracePeriod: false,
+      daysLate,
+      deductionPercent
+    }
+  }
+
+  const lateInfo = calculateLateStatus()
+
   const handleSaveGrade = async (publish: boolean) => {
     setSaving(publish ? false : true)
     setPublishing(publish ? true : false)
@@ -139,12 +193,16 @@ export default function GradingPage({ params }: GradingPageProps) {
         }
       })
 
+      const finalScore = (lateInfo && lateInfo.deductionPercent > 0 && applyLatePenalty)
+        ? clientTotalScore * (1 - lateInfo.deductionPercent / 100)
+        : clientTotalScore
+
       const result = await saveGradingResultAction({
         submissionId,
         gradingResultId,
         overallFeedback,
         publish,
-        clientTotalScore,
+        clientTotalScore: finalScore,
         scores: rubricScoresData,
       })
 
@@ -233,6 +291,45 @@ export default function GradingPage({ params }: GradingPageProps) {
                   {new Date(submission?.submitted_at).toLocaleString()}
                 </span>
               </div>
+              {dueDate && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Cohort Due Date</span>
+                  <span className="font-semibold text-slate-200">
+                    {new Date(dueDate).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {lateInfo?.isLate && (
+                <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-2 text-xs mt-2">
+                  <div className="font-bold flex items-center gap-1.5 text-rose-550">
+                    <AlertCircle className="w-4 h-4 text-rose-500" />
+                    <span>Late Submission Detected</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Submitted {lateInfo.hoursLate.toFixed(1)} hours after deadline.
+                    {lateInfo.inGracePeriod ? (
+                      <span className="block text-emerald-450 mt-1 font-semibold">
+                        Within grace period ({submission?.assignments?.late_policy?.grace_period_hours} hours). No penalty.
+                      </span>
+                    ) : (
+                      <span className="block text-rose-400 mt-1 font-semibold font-mono">
+                        Overdue by {lateInfo.daysLate} day(s). Standard policy applies -{lateInfo.deductionPercent}% late deduction.
+                      </span>
+                    )}
+                  </p>
+                  {!lateInfo.inGracePeriod && (
+                    <label className="flex items-center gap-2 pt-2 border-t border-slate-800 text-[10px] text-slate-350 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={applyLatePenalty}
+                        onChange={(e) => setApplyLatePenalty(e.target.checked)}
+                        className="rounded border-slate-800 bg-slate-950 accent-blue-550 cursor-pointer"
+                      />
+                      <span>Enforce late penalty deduction</span>
+                    </label>
+                  )}
+                </div>
+              )}
             </div>
 
             {submission?.submitted_text && (
@@ -288,9 +385,27 @@ export default function GradingPage({ params }: GradingPageProps) {
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-600" /> Rubric Matrix
               </h3>
-              <div className="text-xs">
+              <div className="text-xs text-right">
                 <span className="text-slate-500">Weighted Score:</span>{' '}
-                <span className="text-md font-extrabold text-blue-600">{clientTotalScore.toFixed(2)} pts</span>
+                {lateInfo && lateInfo.deductionPercent > 0 && applyLatePenalty ? (
+                  <span className="inline-flex flex-col items-end">
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs line-through text-slate-500">
+                        {clientTotalScore.toFixed(2)} pts
+                      </span>
+                      <span className="text-md font-extrabold text-rose-500">
+                        {(clientTotalScore * (1 - lateInfo.deductionPercent / 100)).toFixed(2)} pts
+                      </span>
+                    </span>
+                    <span className="text-[8px] text-rose-400 font-bold uppercase tracking-wider block mt-0.5">
+                      (-{lateInfo.deductionPercent}% late deduction applied)
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-md font-extrabold text-blue-600">
+                    {clientTotalScore.toFixed(2)} pts
+                  </span>
+                )}
               </div>
             </div>
 

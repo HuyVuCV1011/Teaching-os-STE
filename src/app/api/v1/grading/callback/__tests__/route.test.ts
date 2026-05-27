@@ -15,6 +15,19 @@ const { mockFrom, mockSingle, mockSelect, mockEq, mockUpsert } = vi.hoisted(() =
   const mockUpdateWithEq = vi.fn(() => ({ eq: mockEqResolve }))
   const mockSubUpdate = vi.fn(() => ({ eq: mockEqResolve }))
 
+  const mockSubSelect = vi.fn(() => ({
+    eq: vi.fn(() => ({
+      single: vi.fn().mockResolvedValue({
+        data: {
+          assignments: {
+            auto_publish_grades: false
+          }
+        },
+        error: null
+      })
+    }))
+  }))
+
   const mockFrom = vi.fn((table: string) => {
     if (table === 'grading_results') {
       return { select: mockSelectFrom, insert: mockInsert, update: mockUpdateWithEq }
@@ -23,7 +36,7 @@ const { mockFrom, mockSingle, mockSelect, mockEq, mockUpsert } = vi.hoisted(() =
       return { upsert: mockUpsert }
     }
     if (table === 'submissions') {
-      return { update: mockSubUpdate }
+      return { select: mockSubSelect, update: mockSubUpdate }
     }
     return { select: vi.fn(), insert: vi.fn(), update: vi.fn() }
   })

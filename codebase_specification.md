@@ -37,7 +37,7 @@ The system uses the following Supabase PostgreSQL tables:
 - **`courses`**: Syllabi containing slug, title, subject ID, version pointer, and status (`draft`, `review`, `published`, `archived`).
 - **`modules`**: Chapters inside a course, ordered by an `order_index`.
 - **`lessons`**: Sub-chapters/lessons inside a module, containing rich HTML/markdown content from Tiptap.
-- **`canonical_materials`**: Assets attached to lessons. Can be of type `pdf`, `code_repo`, `flow_diagram`, or `link`. Stores file paths or React Flow JSON maps.
+- **`canonical_materials`**: Assets attached to lessons. Can be of type `pdf`, `docx`, `csv`, `xlsx`, `code_repo`, `flow_diagram`, or `link`. Stores file paths, React Flow JSON maps, or parsed document artifact preview metadata.
 
 ### B. Class Cohorts & Schedules
 - **`classes`**: Cohorts linking to a course, containing unique class codes (e.g. `DATA-2026`), status, start date, and end date.
