@@ -40,38 +40,6 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
   const [error, setError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Disable text select, context menu, and copy commands
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Block Ctrl+C, Ctrl+U, Cmd+C, Cmd+S, Ctrl+S, Cmd+P, Ctrl+P (printing)
-      if (
-        (e.metaKey && e.key === 'c') ||
-        (e.ctrlKey && e.key === 'c') ||
-        (e.metaKey && e.key === 's') ||
-        (e.ctrlKey && e.key === 's') ||
-        (e.metaKey && e.key === 'u') ||
-        (e.ctrlKey && e.key === 'u') ||
-        (e.metaKey && e.key === 'p') ||
-        (e.ctrlKey && e.key === 'p')
-      ) {
-        e.preventDefault()
-      }
-    }
-
-    const preventDefaultAction = (e: Event) => {
-      e.preventDefault()
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    document.addEventListener('copy', preventDefaultAction)
-    document.addEventListener('selectstart', preventDefaultAction)
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.removeEventListener('copy', preventDefaultAction)
-      document.removeEventListener('selectstart', preventDefaultAction)
-    }
-  }, [])
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages)
@@ -121,10 +89,9 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
   return (
     <div
       ref={containerRef}
-      className={`w-full flex flex-col border border-slate-800 bg-slate-950 overflow-hidden relative select-none shadow-2xl transition-all duration-300 rounded-2xl ${
+      className={`w-full flex flex-col border border-slate-800 bg-slate-950 overflow-hidden relative shadow-2xl transition-all duration-300 rounded-2xl ${
         isFullscreen ? 'h-screen w-screen z-50 rounded-none' : 'h-[720px]'
       }`}
-      onContextMenu={(e) => e.preventDefault()}
     >
       {/* Protect Watermark overlay */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-10 opacity-[0.02]">
@@ -196,7 +163,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
         )}
 
         {url ? (
-          <div className="shadow-2xl border border-slate-900 rounded bg-slate-900 overflow-hidden select-none max-w-full">
+          <div className="shadow-2xl border border-slate-900 rounded bg-slate-900 overflow-hidden max-w-full">
             <Document
               file={url}
               onLoadSuccess={onDocumentLoadSuccess}
@@ -207,8 +174,8 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
               <Page
                 pageNumber={pageNumber}
                 scale={scale}
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
                 onLoadSuccess={onPageLoadSuccess}
                 loading={
                   <div className="flex flex-col items-center justify-center py-20 px-32 gap-3 text-slate-500 font-mono text-xs">

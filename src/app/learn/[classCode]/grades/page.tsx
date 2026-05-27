@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, use } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchStudentGradesAction } from '../assignments/[assignmentId]/actions'
 import {
   GraduationCap,
   Calendar,
@@ -57,111 +57,15 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
   async function loadGradesData() {
     setLoading(true)
     try {
-      // 1. Fetch Class details
-      const { data: classData, error: classErr } = await supabase
-        .from('classes')
-        .select('id, course_id')
-        .eq('class_code', classCode.toUpperCase())
-        .single()
-
-      if (classErr || !classData) throw classErr || new Error('Class not found')
-
-      const classId = classData.id
-      const courseIds = [classData.course_id].filter(Boolean)
-
-      // Also get any other courses mapped via class_courses
-      const { data: mappedCourses } = await supabase
-        .from('class_courses')
-        .select('course_id')
-        .eq('class_id', classId)
-
-      if (mappedCourses) {
-        mappedCourses.forEach((c: any) => {
-          if (c.course_id && !courseIds.includes(c.course_id)) {
-            courseIds.push(c.course_id)
-          }
-        })
-      }
-
-      if (courseIds.length === 0) {
-        setGradesData([])
-        setLoading(false)
-        return
-      }
-
-      // 2. Fetch all modules and lessons under these courses
-      const { data: lessonsData } = await supabase
-        .from('lessons')
-        .select('id, title, module_id, modules(title, course_id)')
-        .in('modules.course_id', courseIds)
-
-      const filteredLessons = (lessonsData || []).filter((l: any) => l.modules)
-      const lessonIds = filteredLessons.map((l: any) => l.id)
-
-      if (lessonIds.length === 0) {
-        setGradesData([])
-        setLoading(false)
-        return
-      }
-
-      // 3. Fetch schedules to check due dates
-      const { data: schedulesData } = await supabase
-        .from('class_schedules')
-        .select('*')
-        .eq('class_id', classId)
-        .in('lesson_id', lessonIds)
-
-      const scheduleMap = new Map<string, any>()
-      schedulesData?.forEach(s => scheduleMap.set(s.lesson_id, s))
-
-      // 4. Fetch assignments associated with these lessons
-      const { data: assignmentsData } = await supabase
-        .from('assignments')
-        .select('*')
-        .in('lesson_id', lessonIds)
-
-      if (!assignmentsData || assignmentsData.length === 0) {
-        setGradesData([])
-        setLoading(false)
-        return
-      }
-
-      // 5. Fetch submissions by this student
-      const { data: submissionsData } = await supabase
-        .from('submissions')
-        .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*)))')
-        .eq('class_id', classId)
-        .eq('student_identifier', studentEmail)
-
-      const submissionMap = new Map<string, any>()
-      submissionsData?.forEach(sub => {
-        submissionMap.set(sub.assignment_id, sub)
-      })
-
-      // 6. Synthesize grade list
-      const rows = assignmentsData.map(assign => {
-        const matchingLesson = filteredLessons.find(l => l.id === assign.lesson_id)
-        const matchingSchedule = scheduleMap.get(assign.lesson_id)
-        const matchingSub = submissionMap.get(assign.id)
-        
-        let gradingResult = null
-        if (matchingSub?.grading_results && matchingSub.grading_results.status === 'published') {
-          gradingResult = matchingSub.grading_results
+      const res = await fetchStudentGradesAction(classCode)
+      if (res.success && res.grades) {
+        setGradesData(res.grades)
+        if (res.email) {
+          setStudentEmail(res.email)
         }
-
-        return {
-          id: assign.id,
-          title: assign.title,
-          lessonTitle: matchingLesson?.title || 'Unknown lesson',
-          moduleTitle: matchingLesson?.modules?.title || 'Unknown module',
-          dueDate: matchingSchedule?.due_date || null,
-          maxScore: assign.max_score,
-          submission: matchingSub || null,
-          grade: gradingResult || null
-        }
-      })
-
-      setGradesData(rows)
+      } else {
+        console.error('Failed to load secure student grades:', res.error)
+      }
     } catch (err) {
       console.error('Failed to load student grade statistics:', err)
     } finally {

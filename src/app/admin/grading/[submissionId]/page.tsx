@@ -79,12 +79,30 @@ export default function GradingPage({ params }: GradingPageProps) {
 
       const rubricData = subData.assignments?.rubrics
       setRubric(rubricData)
-      setCriteria(rubricData?.rubric_criteria || [])
+
+      let rubricCriteria = []
+      const snapshotId = subData.rubric_snapshot_id || subData.assignments?.rubric_snapshot_id
+      if (snapshotId) {
+        const { data: snapshotData } = await supabase
+          .from('rubric_snapshots')
+          .select('*')
+          .eq('id', snapshotId)
+          .single()
+        
+        if (snapshotData && snapshotData.snapshot?.criteria) {
+          rubricCriteria = snapshotData.snapshot.criteria
+        }
+      }
+
+      if (rubricCriteria.length === 0) {
+        rubricCriteria = rubricData?.rubric_criteria || []
+      }
+      setCriteria(rubricCriteria)
 
       // Initialize scores map with default 0 or rubric_criteria default max
       const initialScores: Record<string, number> = {}
       const initialFeedbacks: Record<string, string> = {}
-      rubricData?.rubric_criteria?.forEach((c: any) => {
+      rubricCriteria.forEach((c: any) => {
         initialScores[c.id] = c.max_points
         initialFeedbacks[c.id] = ''
       })

@@ -27,6 +27,7 @@ interface LessonNodeData {
   isCompleted?: boolean
   hasAssignment?: boolean
   onClick: () => void
+  onSubmitClick?: () => void
   orderIndex: string
   visibleAfter: string | null
 }
@@ -60,9 +61,15 @@ function CustomLessonNode({ data }: { data: LessonNodeData }) {
             </span>
           )}
           {!data.isLocked && data.hasAssignment && (
-            <span className="inline-flex items-center gap-1 text-[8px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded font-semibold mt-1">
-              Task Mapped
-            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                data.onSubmitClick?.()
+              }}
+              className="inline-flex items-center gap-1 text-[8px] bg-indigo-500/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/20 px-1.5 py-0.5 rounded font-semibold mt-1 transition-all cursor-pointer"
+            >
+              Submit Task
+            </button>
           )}
         </div>
 
@@ -186,20 +193,20 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           progressData?.forEach(p => completedLessonIds.add(p.lesson_id))
         }
 
-        // Fetch assignments indicators
+        // Fetch assignments indicators and map them by lesson ID
         const allLessonIds: string[] = []
         modulesData?.forEach((mod: any) => {
           mod.lessons?.forEach((l: any) => allLessonIds.push(l.id))
         })
 
-        const lessonsWithAssignments = new Set<string>()
+        const lessonAssignmentMap = new Map<string, string>()
         if (allLessonIds.length > 0) {
           const { data: assignmentsData } = await supabase
             .from('assignments')
-            .select('lesson_id')
+            .select('id, lesson_id')
             .in('lesson_id', allLessonIds)
 
-          assignmentsData?.forEach(a => lessonsWithAssignments.add(a.lesson_id))
+          assignmentsData?.forEach(a => lessonAssignmentMap.set(a.lesson_id, a.id))
         }
 
         const rawNodes: Node[] = []
@@ -227,7 +234,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
             }
 
             const isCompleted = completedLessonIds.has(lesson.id)
-            const hasAssignment = lessonsWithAssignments.has(lesson.id)
+            const hasAssignment = lessonAssignmentMap.has(lesson.id)
 
             const nodeId = `lesson-${lesson.id}`
             rawNodes.push({
@@ -242,6 +249,12 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
                 orderIndex: `${mod.order_index}.${lesson.order_index}`,
                 onClick: () => {
                   router.push(`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`)
+                },
+                onSubmitClick: () => {
+                  const assignmentId = lessonAssignmentMap.get(lesson.id)
+                  if (assignmentId) {
+                    router.push(`/learn/${classCode}/assignments/${assignmentId}`)
+                  }
                 },
               },
               position: { x: 0, y: 0 },

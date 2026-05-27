@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { calculateFileHash } from '@/lib/hash'
-import { triggerRubricoreGradingAction } from './actions'
+import {
+  triggerRubricoreGradingAction,
+  fetchStudentSubmissionAction,
+  submitAssignmentAction
+} from './actions'
 import {
   ArrowLeft,
   FileText,
@@ -123,7 +127,6 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
 
     setAssignment(assignmentData)
 
-    let resolvedClassId = null
     // 2. Fetch class schedules for due_date
     if (assignmentData) {
       const { data: classData } = await supabase
@@ -133,95 +136,60 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         .single()
 
       if (classData) {
-        resolvedClassId = classData.id
         const { data: scheduleData } = await supabase
           .from('class_schedules')
           .select('*')
           .eq('class_id', classData.id)
           .eq('lesson_id', assignmentData.lesson_id)
-          .single()
+          .maybeSingle()
 
         setSchedule(scheduleData)
       }
     }
 
-    // Automatically check/load student's submission from cookie
-    const savedEmail = getCookie(`student_email_${classCode}`)
-    if (savedEmail) {
-      const trimmedEmail = savedEmail.trim().toLowerCase()
-      setEmail(trimmedEmail)
+    // Securely check/load student's submission from HTTP-Only cookie session
+    const res = await fetchStudentSubmissionAction(classCode, assignmentId)
+    if (res.success) {
+      setEmail(res.email || '')
+      if (res.submission) {
+        setExistingSubmission(res.submission)
+        if (res.submission.grading_results && res.submission.grading_results.status === 'published') {
+          setGradingResult(res.submission.grading_results)
+        }
 
-      if (resolvedClassId) {
-        const { data: subData } = await supabase
-          .from('submissions')
-          .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*)))')
-          .eq('class_id', resolvedClassId)
-          .eq('assignment_id', assignmentId)
-          .eq('student_identifier', trimmedEmail)
+        // Fetch latest grading run
+        const { data: runData } = await supabase
+          .from('grading_runs')
+          .select('*')
+          .eq('submission_id', res.submission.id)
+          .order('created_at', { ascending: false })
           .limit(1)
 
-        if (subData && subData.length > 0) {
-          const sub = subData[0]
-          setExistingSubmission(sub)
-          if (sub.grading_results && sub.grading_results.status === 'published') {
-            setGradingResult(sub.grading_results)
+        if (runData && runData.length > 0) {
+          const latestRun = runData[0]
+          setGradingRun(latestRun)
+          if (latestRun.status === 'queued' || latestRun.status === 'running') {
+            setPolling(true)
+            setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
+          } else {
+            setPolling(false)
           }
-
-          // Fetch latest grading run
-          const { data: runData } = await supabase
-            .from('grading_runs')
-            .select('*')
-            .eq('submission_id', sub.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-
-          if (runData && runData.length > 0) {
-            const latestRun = runData[0]
-            setGradingRun(latestRun)
-            if (latestRun.status === 'queued' || latestRun.status === 'running') {
-              setPolling(true)
-              setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
-            } else {
-              setPolling(false)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Lookup existing submission matching email (fallback/manual)
-  const handleCheckSubmission = async () => {
-    if (!email.trim()) return
-    setLoading(true)
-    setError(null)
-    try {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('id')
-        .eq('class_code', classCode.toUpperCase())
-        .single()
-
-      if (!classData) throw new Error('Class not found')
-
-      const { data: subData, error: subError } = await supabase
-        .from('submissions')
-        .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*)))')
-        .eq('class_id', classData.id)
-        .eq('assignment_id', assignmentId)
-        .eq('student_identifier', email.trim().toLowerCase())
-        .limit(1)
-
-      if (subData && subData.length > 0) {
-        const sub = subData[0]
-        setExistingSubmission(sub)
-        if (sub.grading_results && sub.grading_results.status === 'published') {
-          setGradingResult(sub.grading_results)
         }
       } else {
         setExistingSubmission(null)
         setGradingResult(null)
       }
+    } else {
+      setError(res.error || 'Failed to authenticate student session.')
+    }
+  }
+
+  // Lookup existing submission matching email (fallback/manual)
+  const handleCheckSubmission = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await fetchAssignmentDataInner()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -233,16 +201,19 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
     const selectedFiles = Array.from(e.target.files || [])
     setError(null)
 
-    // Validation: Max 3 files
-    if (files.length + selectedFiles.length > 3) {
-      setError('You are permitted to upload a maximum of 3 files per submission.')
+    const maxFiles = assignment?.max_files ?? 3
+    const maxSizeMb = assignment?.max_total_size_mb ?? 50
+
+    // Validation: Max files
+    if (files.length + selectedFiles.length > maxFiles) {
+      setError(`You are permitted to upload a maximum of ${maxFiles} files per submission.`)
       return
     }
 
-    // Validation: Total size limit 50MB
+    // Validation: Total size limit
     const totalSize = [...files, ...selectedFiles].reduce((acc, f) => acc + f.size, 0)
-    if (totalSize > 50 * 1024 * 1024) {
-      setError('The total upload size exceeds the 50MB payload limit.')
+    if (totalSize > maxSizeMb * 1024 * 1024) {
+      setError(`The total upload size exceeds the ${maxSizeMb}MB payload limit.`)
       return
     }
 
@@ -260,28 +231,9 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
     setSubmitting(true)
     setError(null)
 
+    const uploadedUrls: string[] = []
+
     try {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('id')
-        .eq('class_code', classCode.toUpperCase())
-        .single()
-
-      if (!classData) throw new Error('Class not found')
-
-      // Calculate if late
-      const now = new Date()
-      let isLate = false
-      if (schedule?.due_date) {
-        const dueDate = new Date(schedule.due_date)
-        if (now > dueDate) {
-          isLate = true
-        }
-      }
-
-      // 1. Upload files to private student-submissions bucket and record metadata
-      const fileMetadataList: any[] = []
-      const uploadedUrls: string[] = []
       // Compute email hash using Web Crypto SHA-256 for folder path
       const emailBuffer = new TextEncoder().encode(email.trim().toLowerCase())
       const emailHashBuffer = await crypto.subtle.digest('SHA-256', emailBuffer)
@@ -290,6 +242,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         .join('')
         .slice(0, 10)
 
+      // Upload files to Supabase Storage
       for (const file of files) {
         const hash = await calculateFileHash(file)
         const pathName = `classes/${classCode}/${assignmentId}/${emailHashHex}/${hash}_${file.name}`
@@ -303,64 +256,41 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         }
 
         uploadedUrls.push(pathName)
-        fileMetadataList.push({
-          storage_bucket: 'student-submissions',
-          storage_path: pathName,
-          original_filename: file.name,
-          content_type: file.type,
-          size_bytes: file.size,
-          sha256: hash,
-          processing_status: 'pending'
-        })
       }
 
-      // 2. Insert record to submissions table
-      const nextAttempt = existingSubmission ? (existingSubmission.attempt_number + 1) : 1
-      const { data: newSub, error: subError } = await supabase
-        .from('submissions')
-        .insert([
-          {
-            class_id: classData.id,
-            assignment_id: assignmentId,
-            student_identifier: email.trim().toLowerCase(),
-            submitted_text: text,
-            submitted_files: uploadedUrls,
-            status: 'submitted',
-            attempt_number: nextAttempt,
-            is_late: isLate,
-          },
-        ])
-        .select()
-        .single()
+      // Prepare files list metadata for the backend insertion
+      const fileData = files.map((file) => ({
+        name: file.name,
+        size: file.size,
+        type: file.type
+      }))
 
-      if (subError) throw subError
+      // Call secure transactional server action
+      const submitRes = await submitAssignmentAction({
+        classCode,
+        assignmentId,
+        text,
+        files: fileData,
+        uploadedUrls
+      })
 
-      // 3. Insert metadata records to submission_files
-      if (fileMetadataList.length > 0 && newSub) {
-        const filesToInsert = fileMetadataList.map(meta => ({
-          ...meta,
-          submission_id: newSub.id
-        }))
-        const { error: filesInsertError } = await supabase
-          .from('submission_files')
-          .insert(filesToInsert)
-
-        if (filesInsertError) throw filesInsertError
+      if (!submitRes.success) {
+        // Rollback uploaded files
+        for (const pathName of uploadedUrls) {
+          await supabase.storage.from('student-submissions').remove([pathName])
+        }
+        throw new Error(submitRes.error)
       }
 
       setSuccess(true)
-      if (newSub) {
-        try {
-          const res = await triggerRubricoreGradingAction(newSub.id)
-          if (res.success) {
-            setPolling(true)
-            setPollingMessage('Waiting in grading queue...')
-          }
-        } catch (err) {
-          console.error("Async grading trigger failed:", err)
-        }
+      
+      // Setup polling for the new submission
+      if (submitRes.submissionId) {
+        setPolling(true)
+        setPollingMessage('Waiting in grading queue...')
       }
-      handleCheckSubmission()
+      
+      await fetchAssignmentDataInner()
     } catch (err: any) {
       setError(err.message || 'Submission failed')
     } finally {
@@ -561,7 +491,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
                   {/* Drag-and-Drop files */}
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                      Upload Files (Max 3, Total 50MB)
+                      Upload Files (Max {assignment?.max_files ?? 3}, Total {assignment?.max_total_size_mb ?? 50}MB)
                     </label>
                     <label className="border border-dashed border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-950/80 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
                       <Upload className="w-6 h-6 text-slate-500 mb-2" />

@@ -62,4 +62,7 @@ docs/specs/AGENTS.md
 /.node
 /scratch/
 
-
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
