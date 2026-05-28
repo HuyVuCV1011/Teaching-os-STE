@@ -14,6 +14,8 @@ import ReactFlow, {
   Edge,
   MarkerType,
   Connection,
+  ReactFlowProvider,
+  useReactFlow,
 } from 'reactflow'
 import dagre from 'dagre'
 import 'reactflow/dist/style.css'
@@ -60,7 +62,7 @@ interface ProductOption {
   label: string
 }
 
-export default function CreateProjectPage() {
+function CreateProjectPageContent() {
   const router = useRouter()
   const [title, setTitle] = useState<string>('')
   const [description, setDescription] = useState<string>('')
@@ -80,6 +82,32 @@ export default function CreateProjectPage() {
     description: '',
     icon: 'FileSpreadsheet',
   })
+
+  const reactFlowInstance = useReactFlow()
+
+  const onPaneDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const paneBounds = event.currentTarget.getBoundingClientRect()
+      const position = reactFlowInstance.project({
+        x: event.clientX - paneBounds.left,
+        y: event.clientY - paneBounds.top,
+      })
+      const newNodeId = `node-${nodes.length + 1}`
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'customNode',
+        data: {
+          type: nodeConfig.type || 'source',
+          label: nodeConfig.label || 'Nút Mới',
+          description: nodeConfig.description || '',
+          icon: nodeIconOptions.find((opt) => opt.value === nodeConfig.icon)?.icon || FileSpreadsheet,
+        },
+        position,
+      }
+      setNodes((nds) => [...nds, newNode])
+    },
+    [reactFlowInstance, nodes.length, nodeConfig, setNodes]
+  )
 
   const iconOptions: IconOption[] = [
     { value: 'power-bi', label: 'Power BI', icon: '/images/tools/power-bi.svg' },
@@ -351,6 +379,7 @@ export default function CreateProjectPage() {
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onNodeClick={onNodeClick}
+                onPaneDoubleClick={onPaneDoubleClick}
                 nodeTypes={{ customNode: CustomNode }}
                 fitView
               >
@@ -556,5 +585,13 @@ export default function CreateProjectPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function CreateProjectPage() {
+  return (
+    <ReactFlowProvider>
+      <CreateProjectPageContent />
+    </ReactFlowProvider>
   )
 }

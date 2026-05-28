@@ -39,15 +39,17 @@ The system uses the following Supabase PostgreSQL tables:
 - **`lessons`**: Sub-chapters/lessons inside a module, containing rich HTML/markdown content from Tiptap.
 - **`canonical_materials`**: Assets attached to lessons. Can be of type `pdf`, `docx`, `csv`, `xlsx`, `code_repo`, `flow_diagram`, or `link`. Stores file paths, React Flow JSON maps, or parsed document artifact preview metadata.
 
-### B. Class Cohorts & Schedules
+### B. Class Cohorts, Schedules & Students
 - **`classes`**: Cohorts linking to a course, containing unique class codes (e.g. `DATA-2026`), status, start date, and end date.
 - **`class_schedules`**: Maps lesson schedules to cohorts, gating content by `visible_after` and `due_date` timestamps.
+- **`students`**: Dedicated student registry storing unique email records, names, and creation timestamps.
+- **`class_enrollments`**: Whitelisted student emails mapping them to classes, linking directly to the `students` registry via a `student_id` foreign key.
 
 ### C. Assessments, Submissions & Grading
 - **`rubrics`**: Evaluation rubrics.
 - **`rubric_criteria`**: Metrics inside a rubric with specific `max_points` and weighting.
 - **`assignments`**: Learning tasks attached to lessons, linked to a specific rubric.
-- **`submissions`**: Student uploads, containing student email, submitted text, files, and status indicators.
+- **`submissions`**: Student uploads, containing student email, submitted text, files, status indicators, and a `student_id` foreign key linking back to the `students` registry.
 - **`grading_results`**: Final evaluation scores, grader ID, overall feedback, and status (`draft`, `published`).
 - **`rubric_scores`**: Breakdowns of final criteria scores, supporting override reasons when teachers adjust AI suggestions.
 - **`grading_runs`**: Logs of automated evaluation runs triggered through the RubriCore engine.

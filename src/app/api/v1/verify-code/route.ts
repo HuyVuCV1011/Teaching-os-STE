@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     // Verify student whitelist enrollment
     const { data: enrollment, error: enrollmentError } = await supabase
       .from('class_enrollments')
-      .select('id')
+      .select('id, student_id')
       .eq('class_id', classData.id)
       .eq('student_email', trimmedEmail)
       .single()
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       class_id: classData.id,
       class_code: classData.class_code,
       student_email: trimmedEmail,
+      student_id: enrollment.student_id,
       role: 'student',
     }
 

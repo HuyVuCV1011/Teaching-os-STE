@@ -14,6 +14,8 @@ import ReactFlow, {
   Edge,
   MarkerType,
   Connection,
+  ReactFlowProvider,
+  useReactFlow,
 } from 'reactflow'
 import dagre from 'dagre'
 import 'reactflow/dist/style.css'
@@ -78,7 +80,7 @@ interface FlowEdge {
   label?: string
 }
 
-export default function EditProjectPage() {
+function EditProjectPageContent() {
   const router = useRouter()
   const params = useParams()
   const projectId = params.projectId as string
@@ -103,6 +105,33 @@ export default function EditProjectPage() {
     description: '',
     icon: 'FileSpreadsheet',
   })
+
+  const reactFlowInstance = useReactFlow()
+
+  const onPaneDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const paneBounds = event.currentTarget.getBoundingClientRect()
+      const position = reactFlowInstance.project({
+        x: event.clientX - paneBounds.left,
+        y: event.clientY - paneBounds.top,
+      })
+      const newNodeId = `node-${nodes.length + 1}`
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'customNode',
+        data: {
+          type: nodeConfig.type || 'source',
+          label: nodeConfig.label || 'Nút Mới',
+          description: nodeConfig.description || '',
+          icon: nodeIconOptions.find((opt) => opt.value === nodeConfig.icon)?.icon || FileSpreadsheet,
+        },
+        position,
+      }
+      setNodes((nds) => [...nds, newNode])
+    },
+    [reactFlowInstance, nodes.length, nodeConfig, setNodes]
+  )
+
   const [loading, setLoading] = useState(true)
 
   const iconOptions: IconOption[] = [
@@ -460,7 +489,7 @@ export default function EditProjectPage() {
             <label className="block text-xs font-semibold text-slate-450 uppercase tracking-wider">
               Process Diagram Workspace
             </label>
-            <div className="border border-slate-800/80 bg-slate-950 rounded-xl overflow-hidden" style={{ height: '400px' }}>
+            <div className="border border-slate-700 bg-slate-950 rounded-xl overflow-hidden" style={{ height: '400px' }}>
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -468,10 +497,11 @@ export default function EditProjectPage() {
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onNodeClick={onNodeClick}
+                onPaneDoubleClick={onPaneDoubleClick}
                 nodeTypes={{ customNode: CustomNode }}
                 fitView
               >
-                <Controls className="bg-slate-900 border-slate-850 text-slate-400" />
+                <Controls className="bg-slate-900 border-slate-700 text-slate-400" />
               </ReactFlow>
             </div>
 
@@ -684,5 +714,13 @@ export default function EditProjectPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function EditProjectPage() {
+  return (
+    <ReactFlowProvider>
+      <EditProjectPageContent />
+    </ReactFlowProvider>
   )
 }

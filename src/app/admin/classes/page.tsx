@@ -56,6 +56,14 @@ function AdminClassesContent() {
   })
   const [showScheduleForm, setShowScheduleForm] = useState(false)
 
+  // Bulk Scheduling State
+  const [bulkForm, setBulkForm] = useState({
+    start_date: '',
+    interval_days: '7',
+    due_offset_days: '5',
+  })
+  const [showBulkForm, setShowBulkForm] = useState(false)
+
   // Whitelist State
   const [enrollments, setEnrollments] = useState<any[]>([])
   const [newEmail, setNewEmail] = useState('')
@@ -245,6 +253,10 @@ function AdminClassesContent() {
   // Select Cohort and Fetch details
   const handleSelectClass = async (cohort: any) => {
     setSelectedClass(cohort)
+    setBulkForm((prev) => ({
+      ...prev,
+      start_date: cohort.start_date ? `${cohort.start_date}T00:00` : '',
+    }))
     setLoading(true)
     try {
       // 1. Fetch mapped courses for this cohort
@@ -403,6 +415,66 @@ function AdminClassesContent() {
       handleSelectClass(selectedClass)
     } catch (err: any) {
       alert(`Failed to delete schedule: ${err.message}`)
+    }
+  }
+
+  const handleBulkSchedule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedClass || lessons.length === 0) return
+
+    if (!confirm(`This will generate/overwrite release schedules for all ${lessons.length} lessons in the mapped course(s). Continue?`)) return
+
+    try {
+      const sortedLessons = [...lessons].sort((a, b) => {
+        const aModuleOrder = a.modules?.order_index ?? 0
+        const bModuleOrder = b.modules?.order_index ?? 0
+        if (aModuleOrder !== bModuleOrder) {
+          return aModuleOrder - bModuleOrder
+        }
+        return (a.order_index ?? 0) - (b.order_index ?? 0)
+      })
+
+      const baseDate = bulkForm.start_date ? new Date(bulkForm.start_date) : new Date(selectedClass.start_date)
+      const interval = parseInt(bulkForm.interval_days) || 7
+      const offset = parseInt(bulkForm.due_offset_days) || 5
+
+      const scheduleInserts = sortedLessons.map((l, index) => {
+        const releaseDate = new Date(baseDate)
+        releaseDate.setDate(releaseDate.getDate() + index * interval)
+
+        const dueDate = new Date(releaseDate)
+        dueDate.setDate(dueDate.getDate() + offset)
+
+        return {
+          class_id: selectedClass.id,
+          lesson_id: l.id,
+          visible_after: releaseDate.toISOString(),
+          due_date: dueDate.toISOString(),
+        }
+      })
+
+      // 1. Delete all existing schedules for these lessons in this class to avoid duplicates
+      const lessonIds = sortedLessons.map((l) => l.id)
+      const { error: deleteError } = await supabase
+        .from('class_schedules')
+        .delete()
+        .eq('class_id', selectedClass.id)
+        .in('lesson_id', lessonIds)
+
+      if (deleteError) throw deleteError
+
+      // 2. Insert new schedules
+      const { error: insertError } = await supabase
+        .from('class_schedules')
+        .insert(scheduleInserts)
+
+      if (insertError) throw insertError
+
+      alert(`Successfully generated release schedule for ${sortedLessons.length} lessons!`)
+      setShowBulkForm(false)
+      handleSelectClass(selectedClass)
+    } catch (err: any) {
+      alert(`Bulk scheduling failed: ${err.message}`)
     }
   }
 
@@ -765,14 +837,94 @@ function AdminClassesContent() {
                         Lesson Release Schedules
                       </h4>
                       {classCourses.length > 0 && (
-                        <button
-                          onClick={() => setShowScheduleForm(!showScheduleForm)}
-                          className="text-xs text-blue-600 hover:text-blue-400 font-semibold flex items-center gap-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Set Schedule
-                        </button>
+                        <div className="flex gap-4">
+                          <button
+                            onClick={() => {
+                              setShowScheduleForm(!showScheduleForm)
+                              setShowBulkForm(false)
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-400 font-semibold flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Set Schedule
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowBulkForm(!showBulkForm)
+                              setShowScheduleForm(false)
+                            }}
+                            className="text-xs text-violet-600 hover:text-violet-400 font-semibold flex items-center gap-1"
+                          >
+                            <Calendar className="w-3.5 h-3.5" /> Bulk Schedule
+                          </button>
+                        </div>
                       )}
                     </div>
+
+                    {showBulkForm && (
+                      <form onSubmit={handleBulkSchedule} className="p-4 rounded-xl border border-slate-700 bg-slate-950/60 space-y-4">
+                        <div className="text-xs text-slate-400 font-medium">
+                          Automatically generate weekly or relative release dates for all lessons in this cohort.
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                            Syllabus Start Date (Lesson 1)
+                          </label>
+                          <input
+                            type="datetime-local"
+                            required
+                            value={bulkForm.start_date}
+                            onChange={(e) => setBulkForm({ ...bulkForm, start_date: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              Release Interval (Days)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={bulkForm.interval_days}
+                              onChange={(e) => setBulkForm({ ...bulkForm, interval_days: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              Due Date Offset (Days)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={bulkForm.due_offset_days}
+                              onChange={(e) => setBulkForm({ ...bulkForm, due_offset_days: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowBulkForm(false)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs"
+                          >
+                            Bulk Generate
+                          </button>
+                        </div>
+                      </form>
+                    )}
 
                     {showScheduleForm && (
                       <form onSubmit={handleAddSchedule} className="p-4 rounded-xl border border-slate-700 bg-slate-950/60 space-y-4">
