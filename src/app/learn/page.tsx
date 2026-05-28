@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { KeyRound, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
@@ -14,6 +14,13 @@ function LearnGatewayContent() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const reason = searchParams.get('reason')
+    if (reason === 'expired') {
+      setError('Your session has expired. Please enter your email and class code again.')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

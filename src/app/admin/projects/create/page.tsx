@@ -62,6 +62,46 @@ interface ProductOption {
   label: string
 }
 
+function hasCycle(nodes: any[], edges: any[]): boolean {
+  const adj: Record<string, string[]> = {}
+  for (const node of nodes) {
+    adj[node.id] = []
+  }
+  for (const edge of edges) {
+    if (adj[edge.source]) {
+      adj[edge.source].push(edge.target)
+    }
+  }
+
+  const visited: Record<string, boolean> = {}
+  const recStack: Record<string, boolean> = {}
+
+  function dfs(nodeId: string): boolean {
+    if (!visited[nodeId]) {
+      visited[nodeId] = true
+      recStack[nodeId] = true
+
+      const neighbors = adj[nodeId] || []
+      for (const neighbor of neighbors) {
+        if (!visited[neighbor] && dfs(neighbor)) {
+          return true
+        } else if (recStack[neighbor]) {
+          return true
+        }
+      }
+    }
+    recStack[nodeId] = false
+    return false
+  }
+
+  for (const node of nodes) {
+    if (!visited[node.id] && dfs(node.id)) {
+      return true
+    }
+  }
+  return false
+}
+
 function CreateProjectPageContent() {
   const router = useRouter()
   const [title, setTitle] = useState<string>('')
@@ -279,6 +319,13 @@ function CreateProjectPageContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (hasCycle(nodes, edges)) {
+      if (!confirm('Warning: The process diagram contains circular loops (cycles). This may cause layout engine issues. Save anyway?')) {
+        return
+      }
+    }
+
     const projectId = crypto.randomUUID()
 
     try {

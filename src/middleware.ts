@@ -20,11 +20,14 @@ export async function middleware(request: NextRequest) {
     // Check student lightweight session cookie
     const cookieName = `class_session_${classCode}`
     const cookie = request.cookies.get(cookieName)
+    let isExpired = false
 
     if (cookie) {
       const payload = await verifyJWT(cookie.value, JWT_SECRET)
       if (payload && payload.class_code === classCode) {
         return NextResponse.next()
+      } else {
+        isExpired = true
       }
     }
 
@@ -66,6 +69,9 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/learn'
     url.searchParams.set('redirect', pathname)
+    if (isExpired) {
+      url.searchParams.set('reason', 'expired')
+    }
     return NextResponse.redirect(url)
   }
 

@@ -67,6 +67,31 @@ class GeminiProvider:
             logger.error(f"Gemini API invocation failed: {e}")
             raise GeminiProviderError(f"Failed to query Gemini API: {e}") from e
 
+    def evaluate(self, request_payload: dict[str, Any]) -> dict[str, Any]:
+        from app.ai.ollama import _messages_for_grading, _normalize_local_grading_payload
+        
+        messages = _messages_for_grading(request_payload)
+        system_instruction = messages[0]["content"]
+        user_prompt = messages[1]["content"]
+        
+        raw_output = self.generate(system_instruction, user_prompt)
+        
+        # Clean markdown code block wraps if any
+        cleaned = raw_output.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+            
+        try:
+            parsed = json.loads(cleaned.strip())
+        except Exception as e:
+            raise GeminiProviderError(f"Gemini output was not valid JSON: {raw_output}") from e
+            
+        return _normalize_local_grading_payload(parsed, request_payload)
+
 
 class AIBroker:
     """

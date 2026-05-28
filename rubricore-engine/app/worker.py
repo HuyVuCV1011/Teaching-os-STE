@@ -350,7 +350,7 @@ def process_grading_run(db, job: Dict[str, Any]) -> None:
             }
         ]
 
-        # 8. Query local Ollama directly in memory
+        # 8. Query AI provider via Broker (Gemini if key is present, otherwise Ollama)
         request_payload = {
             "submission_id": submission_id,
             "rubric_version_id": "worker-rubric",
@@ -360,8 +360,10 @@ def process_grading_run(db, job: Dict[str, Any]) -> None:
             "output_schema_version": "phase-1-grading-output-v1",
         }
 
-        logger.info("Executing Ollama AI provider evaluation workflow...")
-        provider = OllamaGradingProvider.from_settings(settings)
+        from app.ai.broker import AIBroker
+        model_choice = "gemini" if settings.gemini_api_key else "ollama"
+        logger.info(f"Executing AI provider evaluation workflow ({model_choice})...")
+        provider = AIBroker.get_provider(model_choice)
         result = provider.evaluate(request_payload)
 
         # 9. Save suggestions to public.rubric_score_suggestions
