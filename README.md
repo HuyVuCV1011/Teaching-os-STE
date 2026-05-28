@@ -81,14 +81,15 @@ The RubriCore background worker evaluates submissions against rubrics using eith
     *   If active, the worker will automatically route requests through the Gemini API.
 *   **Local Ollama (Offline Default)**:
     *   Run grades locally using open-source models for 100% privacy and zero cost.
-    *   Start Ollama and pull the default model:
+    *   **Model-Agnostic Support**: The Ollama integration is fully model-agnostic. You can run local models like **DeepSeek-R1** (excellent for logical reasoning and code grading), **Llama 3.3**, or **Qwen 2.5** by pulling them in Ollama and updating the configuration:
         ```bash
-        ollama pull llama3.2:1b
+        # Pull your desired model
+        ollama pull deepseek-r1
         ```
-    *   Configure settings in `rubricore-engine/.env` if you wish to change the defaults:
+    *   Configure settings in `rubricore-engine/.env`:
         ```env
         OLLAMA_BASE_URL=http://localhost:11434
-        OLLAMA_MODEL=llama3.2:1b
+        OLLAMA_MODEL=deepseek-r1 # Swap to the model pulled above
         ```
 
 ---
