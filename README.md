@@ -68,6 +68,31 @@ graph LR
 
 ---
 
+## 🤖 AI Grading & Model Configurations
+
+The RubriCore background worker evaluates submissions against rubrics using either local models or cloud-based APIs:
+
+*   **Google Gemini API (Recommended)**:
+    *   Provides extremely fast, high-accuracy grading utilizing the `gemini-1.5-flash` model.
+    *   To use, add your Gemini API Key in `rubricore-engine/.env`:
+        ```env
+        GEMINI_API_KEY=your_gemini_api_key_here
+        ```
+    *   If active, the worker will automatically route requests through the Gemini API.
+*   **Local Ollama (Offline Default)**:
+    *   Run grades locally using open-source models for 100% privacy and zero cost.
+    *   Start Ollama and pull the default model:
+        ```bash
+        ollama pull llama3.2:1b
+        ```
+    *   Configure settings in `rubricore-engine/.env` if you wish to change the defaults:
+        ```env
+        OLLAMA_BASE_URL=http://localhost:11434
+        OLLAMA_MODEL=llama3.2:1b
+        ```
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Configure Secrets
