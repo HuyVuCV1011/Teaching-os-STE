@@ -384,7 +384,7 @@ export async function getAssignmentPromptSignedUrlAction(classCode: string, assi
 
     if (signedError) throw signedError
 
-    return { success: true, signedUrl: signedData.signedURL || signedData.publicUrl }
+    return { success: true, signedUrl: signedData.signedUrl || signedData.signedURL || signedData.publicUrl || null }
   } catch (err: any) {
     return { success: false, error: err.message }
   }

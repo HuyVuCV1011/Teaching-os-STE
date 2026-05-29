@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import RichTextEditor from '@/components/RichTextEditor'
+import DocumentViewer from '@/components/DocumentViewer'
 import { calculateFileHash } from '@/lib/hash'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import {
@@ -99,6 +100,25 @@ const GRID_LAYOUTS = [
       <div className="bg-blue-600/50 rounded-sm"></div>
       <div className="bg-blue-600/50 rounded-sm"></div>
     </div>
+  )},
+  { id: 'asymmetric-2-1', name: 'Main + Sidebar (2:1)', cols: 'grid-cols-3', cells: 2, icon: (
+    <div className="grid grid-cols-3 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
+      <div className="bg-blue-600/50 rounded-sm col-span-2"></div>
+      <div className="bg-blue-600/50 rounded-sm"></div>
+    </div>
+  )},
+  { id: 'asymmetric-1-2', name: 'Sidebar + Main (1:2)', cols: 'grid-cols-3', cells: 2, icon: (
+    <div className="grid grid-cols-3 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
+      <div className="bg-blue-600/50 rounded-sm"></div>
+      <div className="bg-blue-600/50 rounded-sm col-span-2"></div>
+    </div>
+  )},
+  { id: 'asymmetric-2-1-1', name: 'Main + 2 Stacked', cols: 'grid-cols-4', cells: 3, icon: (
+    <div className="grid grid-cols-4 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
+      <div className="bg-blue-600/50 rounded-sm col-span-2"></div>
+      <div className="bg-blue-600/50 rounded-sm"></div>
+      <div className="bg-blue-600/50 rounded-sm"></div>
+    </div>
   )}
 ]
 
@@ -107,8 +127,29 @@ const getGridColsClass = (layout: string) => {
     case '1-col': return 'grid-cols-1'
     case '2-cols': return 'grid-cols-1 sm:grid-cols-2'
     case '3-cols': return 'grid-cols-1 md:grid-cols-3'
+    case 'asymmetric-2-1': return 'grid-cols-1 md:grid-cols-3'
+    case 'asymmetric-1-2': return 'grid-cols-1 md:grid-cols-3'
+    case 'asymmetric-2-1-1': return 'grid-cols-1 md:grid-cols-4'
     default: return 'grid-cols-1'
   }
+}
+
+const getCellSpanClass = (layout: string, colIdx: number) => {
+  if (layout === 'asymmetric-2-1') {
+    return colIdx === 0 ? 'md:col-span-2' : 'md:col-span-1'
+  }
+  if (layout === 'asymmetric-1-2') {
+    return colIdx === 0 ? 'md:col-span-1' : 'md:col-span-2'
+  }
+  if (layout === 'asymmetric-2-1-1') {
+    return colIdx === 0 ? 'md:col-span-2' : 'md:col-span-1'
+  }
+  return ''
+}
+
+const getLayoutCellCount = (layout: string) => {
+  const lay = GRID_LAYOUTS.find(l => l.id === layout)
+  return lay ? lay.cells : 1
 }
 
 function renderSimpleMarkdown(md: string): string {
@@ -131,7 +172,7 @@ function renderSimpleMarkdown(md: string): string {
     // Links [Text](URL)
     .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-500 underline transition-colors">$1</a>')
     // Bullet lists - or *
-    .replace(/^[-*]\s+(.*?)$/gm, '<div class="flex items-start gap-1.5 my-1 text-slate-650"><span class="text-blue-500 font-bold shrink-0">•</span><span class="flex-1">$1</span></div>')
+    .replace(/^[-*]\s+(.*?)$/gm, '<div class="flex items-start gap-1.5 my-1 text-slate-200"><span class="text-blue-500 font-bold shrink-0">•</span><span class="flex-1">$1</span></div>')
     // Line breaks
     .replace(/\n/g, '<br />')
   return html
@@ -189,6 +230,7 @@ function LessonEditorInner() {
   // Student view preview
   const [showStudentPreview, setShowStudentPreview] = useState(false)
   const [previewSignedUrls, setPreviewSignedUrls] = useState<Record<string, string>>({})
+  const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({})
   const [previewUrlStatus, setPreviewUrlStatus] = useState({
     loading: false,
     startedAt: 0,
@@ -472,8 +514,14 @@ function LessonEditorInner() {
                 <DocumentViewer url={previewSignedUrls[m.id]} title={m.title} />
               </div>
             ) : (
-              <div className="flex-1 border border-slate-800 bg-slate-950/10 rounded-2xl text-center text-slate-400 text-xs flex items-center justify-center min-h-[400px]">
-                Failed to load PDF secure preview URL. Close and re-open preview.
+              <div className="flex-1 border border-slate-800 bg-slate-950/10 rounded-2xl text-center text-slate-400 text-xs flex flex-col items-center justify-center p-6 gap-2 min-h-[400px]">
+                <span className="font-semibold text-slate-200">Failed to load PDF secure preview URL.</span>
+                {previewErrors[m.id] && (
+                  <span className="text-[10px] text-rose-500 bg-slate-900 border border-slate-850 px-2.5 py-1 rounded max-w-xs break-words">
+                    {previewErrors[m.id]}
+                  </span>
+                )}
+                <span className="text-slate-450 text-[10px] mt-1">Close and re-open preview to retry.</span>
               </div>
             )}
           </div>
@@ -500,7 +548,7 @@ function LessonEditorInner() {
               )}
             </div>
             <div 
-              className="prose max-w-none text-slate-700 leading-relaxed text-xs flex-1 overflow-y-auto"
+              className="prose max-w-none text-slate-200 leading-relaxed text-xs flex-1 overflow-y-auto"
               dangerouslySetInnerHTML={{ __html: m.metadata?.viewer_artifact?.viewer_html || '<p class="text-slate-450 italic">No HTML preview available.</p>' }}
             />
           </div>
@@ -529,10 +577,10 @@ function LessonEditorInner() {
             {m.metadata?.viewer_artifact?.rows && m.metadata?.viewer_artifact?.rows.length > 0 ? (
               <div className="overflow-x-auto border border-slate-200 rounded-xl flex-1 overflow-y-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-xs">
-                  <thead className="bg-slate-50 sticky top-0 z-10">
+                  <thead className="bg-slate-900 sticky top-0 z-10">
                     <tr>
                       {(m.metadata.viewer_artifact.headers || []).map((hdr: string, i: number) => (
-                        <th key={i} className="px-3 py-2 text-left font-bold text-slate-100 border-r border-slate-200 last:border-0 whitespace-nowrap bg-slate-50">
+                        <th key={i} className="px-3 py-2 text-left font-bold text-slate-100 border-r border-slate-200 last:border-0 whitespace-nowrap bg-slate-900">
                           {hdr}
                         </th>
                       ))}
@@ -542,7 +590,7 @@ function LessonEditorInner() {
                     {(m.metadata.viewer_artifact.rows || []).slice(0, 5).map((row: any[], i: number) => (
                       <tr key={i} className="hover:bg-slate-850 transition-colors">
                         {row.map((cell: any, j: number) => (
-                          <td key={j} className="px-3 py-2 text-slate-700 border-r border-slate-200 last:border-0 whitespace-nowrap">
+                          <td key={j} className="px-3 py-2 text-slate-200 border-r border-slate-200 last:border-0 whitespace-nowrap">
                             {cell}
                           </td>
                         ))}
@@ -568,7 +616,7 @@ function LessonEditorInner() {
           
           let cardClasses = "border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col transition-all duration-300"
           let titleColor = "text-slate-100"
-          let textColor = "text-slate-700"
+          let textColor = "text-slate-200"
           
           if (template === 'dark') {
             cardClasses = "border border-slate-950 bg-slate-100 rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col transition-all duration-300"
@@ -599,7 +647,7 @@ function LessonEditorInner() {
                       ...prev,
                       [m.id]: e.target.value as 'default' | 'dark' | 'accent'
                     }))}
-                    className="px-2 py-1 rounded border border-slate-300 bg-white text-slate-700 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                    className="px-2 py-1 rounded border border-slate-300 bg-white text-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                   >
                     <option value="default">Default</option>
                     <option value="dark">Dark</option>
@@ -656,19 +704,73 @@ function LessonEditorInner() {
     setPreviewUrlStatus({ loading: true, startedAt: Date.now(), elapsed: '0.0s' })
     setShowStudentPreview(true)
     const urls: Record<string, string> = {}
+    const errors: Record<string, string> = {}
     
+    // Clear old state
+    setPreviewSignedUrls({})
+    setPreviewErrors({})
+
+    // Gather all materials from both materials array and cellMaterials layout
+    const uniqueMaterialsMap = new Map<string, any>()
+    for (const m of materials) {
+      if (m && m.id) {
+        uniqueMaterialsMap.set(m.id, m)
+      }
+    }
+    if (cellMaterials) {
+      Object.values(cellMaterials).forEach((colList) => {
+        if (Array.isArray(colList)) {
+          colList.forEach((m) => {
+            if (m && m.id && !uniqueMaterialsMap.has(m.id)) {
+              uniqueMaterialsMap.set(m.id, m)
+            }
+          })
+        }
+      })
+    }
+    const allMaterials = Array.from(uniqueMaterialsMap.values())
+
+    console.log('[handleOpenStudentPreview] Total materials gathered for signed URL check:', allMaterials.length)
+
     try {
-      for (const m of materials) {
+      for (const m of allMaterials) {
         if (['pdf', 'docx', 'csv', 'xlsx'].includes(m.type)) {
+          console.log(`[handleOpenStudentPreview] Processing material: ID=${m.id}, Title="${m.title}", Type=${m.type}, storage_url="${m.storage_url}"`)
+          
+          if (!m.storage_url) {
+            const errMsg = 'Material missing storage URL path'
+            console.error(`[handleOpenStudentPreview] Error: ${errMsg}`)
+            errors[m.id] = errMsg
+            continue
+          }
+
           const result = await getSignedUrlAction('teaching-materials', m.storage_url, 300)
+          
+          console.log(`[handleOpenStudentPreview] getSignedUrlAction result for ${m.id}: success=${result.success}, signedUrl=${result.signedUrl ? 'FOUND' : 'MISSING'}, error=${result.error || 'none'}`)
+
           if (result.success && result.signedUrl) {
             urls[m.id] = result.signedUrl
+          } else {
+            const errorMsg = result.error || 'No signed URL returned from storage'
+            errors[m.id] = errorMsg
           }
         }
       }
+
+      // Check if any PDF has a null/missing signed URL and mark an error
+      for (const m of allMaterials) {
+        if (m.type === 'pdf' && !urls[m.id]) {
+          if (!errors[m.id]) {
+            errors[m.id] = 'Signed URL is empty or failed to generate'
+          }
+          console.error(`[handleOpenStudentPreview] PDF material ${m.id} ("${m.title}") failed secure URL generation: ${errors[m.id]}`)
+        }
+      }
+
       setPreviewSignedUrls(urls)
-    } catch (err) {
-      console.error('Failed to pre-fetch signed URLs for preview:', err)
+      setPreviewErrors(errors)
+    } catch (err: any) {
+      console.error('[handleOpenStudentPreview] Unexpected error pre-fetching signed URLs:', err)
     } finally {
       setPreviewUrlStatus(prev => ({ ...prev, loading: false }))
     }
@@ -1109,6 +1211,16 @@ function LessonEditorInner() {
           throw new Error('Assignment title and guidelines are required.')
         }
 
+        if (
+          assignmentForm.maxScore < 0 ||
+          assignmentForm.maxFiles < 0 ||
+          assignmentForm.maxTotalSizeMb < 0 ||
+          assignmentForm.gracePeriodHours < 0 ||
+          assignmentForm.penaltyPercentPerDay < 0
+        ) {
+          throw new Error('Assignment parameters (Max Score, Max Files, Max Size, Grace Hours, Late Penalty) cannot be negative.')
+        }
+
         // 2a. Upload Assignment Prompt File if selected
         if (promptFile) {
           const hash = await calculateFileHash(promptFile)
@@ -1242,12 +1354,12 @@ function LessonEditorInner() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/admin/library?tab=courses')}
-            className="p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all"
+            className="p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-all"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-xl font-extrabold text-white flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-100 flex items-center gap-2">
               <BookOpen className="w-6 h-6 text-blue-600" />
               Session Composer Workspace
             </h1>
@@ -1265,21 +1377,14 @@ function LessonEditorInner() {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none hover:border-slate-700 transition-colors"
+              className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none hover:border-slate-700 transition-colors"
             >
               <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
               <option value="ollama">Ollama (llama3.2)</option>
             </select>
           </div>
 
-          <button
-            onClick={handleSaveComposer}
-            disabled={saving}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg transition-all"
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            Save Session Draft
-          </button>
+
         </div>
       </div>
 
@@ -1332,7 +1437,7 @@ function LessonEditorInner() {
                       required
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <div className="shrink-0 flex flex-col gap-1.5">
@@ -1433,7 +1538,7 @@ function LessonEditorInner() {
                               placeholder="e.g. Lab Guide"
                               value={materialForm.title}
                               onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                             />
                           </div>
 
@@ -1447,7 +1552,7 @@ function LessonEditorInner() {
                               placeholder="e.g. Required reading before lecture"
                               value={materialForm.note}
                               onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                             />
                           </div>
 
@@ -1471,11 +1576,11 @@ function LessonEditorInner() {
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             />
                             <Upload className="w-8 h-8 text-slate-500 mb-2" />
-                            <p className="text-xs font-semibold text-white">
+                            <p className="text-xs font-semibold text-slate-100">
                               Drag and drop your file here, or click to browse
                             </p>
                             {uploadFile && (
-                              <span className="block text-[10px] text-emerald-400 font-semibold mt-2">
+                              <span className="block text-[10px] text-emerald-600 font-semibold mt-2">
                                 Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
                               </span>
                             )}
@@ -1521,7 +1626,7 @@ function LessonEditorInner() {
                               placeholder="e.g. Project Repository"
                               value={materialForm.title}
                               onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                             />
                           </div>
                           
@@ -1535,7 +1640,7 @@ function LessonEditorInner() {
                               placeholder="https://github.com/..."
                               value={materialForm.linkUrl}
                               onChange={(e) => setMaterialForm({ ...materialForm, linkUrl: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                             />
                           </div>
 
@@ -1549,7 +1654,7 @@ function LessonEditorInner() {
                               placeholder="e.g. Link to codebase"
                               value={materialForm.note}
                               onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                             />
                           </div>
 
@@ -1591,7 +1696,7 @@ function LessonEditorInner() {
                           placeholder="e.g. Lesson Lecture Note"
                           value={materialForm.title}
                           onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                         />
                       </div>
 
@@ -1605,7 +1710,7 @@ function LessonEditorInner() {
                           placeholder="e.g. Lecture overview notes"
                           value={materialForm.note}
                           onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                         />
                       </div>
 
@@ -1649,7 +1754,7 @@ function LessonEditorInner() {
               <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-4">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-700">
                   <div>
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
                       Currently Mapped Resources
                     </h3>
                     <p className="text-[10px] text-slate-400 mt-0.5">
@@ -1667,7 +1772,7 @@ function LessonEditorInner() {
                 </div>
                 
                 {materials.length === 0 ? (
-                  <div className="text-center py-10 border border-slate-750 border-dashed rounded-xl bg-slate-950/10 text-slate-555 text-xs">
+                  <div className="text-center py-10 border border-slate-750 border-dashed rounded-xl bg-slate-950/10 text-slate-400 text-xs">
                     No mapped resources. Add files or links above to populate the roadmap materials.
                   </div>
                 ) : (
@@ -1761,7 +1866,7 @@ function LessonEditorInner() {
                           Columns Builder Arena
                         </h4>
                         <div className={`grid gap-4 ${getGridColsClass(gridLayout)}`}>
-                          {Array.from({ length: gridLayout === '3-cols' ? 3 : gridLayout === '2-cols' ? 2 : 1 }).map((_, colIdx) => {
+                          {Array.from({ length: getLayoutCellCount(gridLayout) }).map((_, colIdx) => {
                             const colMaterialsList = Array.isArray(cellMaterials[colIdx]) ? cellMaterials[colIdx] : []
                             
                             return (
@@ -1769,7 +1874,7 @@ function LessonEditorInner() {
                                 key={colIdx}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => handleDropToColumn(e, colIdx)}
-                                className="border border-dashed border-slate-800 bg-slate-950/10 rounded-2xl p-4 flex flex-col gap-3 min-h-[300px] transition-all relative"
+                                className={`border border-dashed border-slate-800 bg-slate-950/10 rounded-2xl p-4 flex flex-col gap-3 min-h-[300px] transition-all relative ${getCellSpanClass(gridLayout, colIdx)}`}
                               >
                                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded w-fit">
                                   Column {colIdx + 1}
@@ -1811,7 +1916,7 @@ function LessonEditorInner() {
                                     })
                                   ) : (
                                     <div className="flex-1 flex flex-col justify-center items-center text-center py-10">
-                                      <Upload className="w-4 h-4 text-slate-650 mb-1.5 animate-pulse" />
+                                      <Upload className="w-4 h-4 text-slate-400 mb-1.5 animate-pulse" />
                                       <span className="block text-[10px] text-slate-500">Drop handouts here</span>
                                     </div>
                                   )}
@@ -1831,20 +1936,47 @@ function LessonEditorInner() {
           {currentStep === 2 && (
             <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
               <div className="flex justify-between items-center pb-3 border-b border-slate-700">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
                   Assignment Parameters
                 </h3>
                 <div className="flex items-center gap-2">
-                  <input
-                    id="has_assignment_toggle"
-                    type="checkbox"
-                    checked={hasAssignment}
-                    onChange={(e) => setHasAssignment(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-700 text-blue-600 bg-slate-900 focus:ring-blue-500/50 cursor-pointer"
-                  />
-                  <label htmlFor="has_assignment_toggle" className="text-xs font-semibold text-slate-350 cursor-pointer">
+                  <span className="text-xs font-semibold text-slate-350 mr-2">
                     Enable assignment for this lesson
-                  </label>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      id="asg_has_assignment_yes"
+                      onClick={() => setHasAssignment(true)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        hasAssignment
+                          ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
+                          : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-350'
+                      }`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      id="asg_has_assignment_no"
+                      onClick={() => {
+                        if (assignmentId) {
+                          const confirmed = window.confirm(
+                            'Disabling the assignment will delete it, along with its custom rubrics and solution keys, from the database upon saving. Are you sure you want to disable it?'
+                          )
+                          if (!confirmed) return
+                        }
+                        setHasAssignment(false)
+                      }}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        !hasAssignment
+                          ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
+                          : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-355'
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1860,7 +1992,7 @@ function LessonEditorInner() {
                         required
                         value={assignmentForm.title}
                         onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1870,25 +2002,30 @@ function LessonEditorInner() {
                       <input
                         type="number"
                         required
+                        min="0"
                         value={assignmentForm.maxScore}
-                        onChange={(e) => setAssignmentForm({ ...assignmentForm, maxScore: parseInt(e.target.value) || 100 })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setAssignmentForm({
+                            ...assignmentForm,
+                            maxScore: val === '' ? 100 : Math.max(0, parseFloat(val) || 0)
+                          })
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Guidelines & Instructions *
                     </label>
-                    <textarea
-                      rows={5}
-                      required
-                      placeholder="Specify task guidelines, question statements, expected formats..."
-                      value={assignmentForm.instructions}
-                      onChange={(e) => setAssignmentForm({ ...assignmentForm, instructions: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none resize-none font-sans leading-relaxed"
-                    />
+                    <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-955/20">
+                      <RichTextEditor
+                        content={assignmentForm.instructions}
+                        onChange={(c) => setAssignmentForm({ ...assignmentForm, instructions: c })}
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-4 text-xs">
@@ -1898,9 +2035,16 @@ function LessonEditorInner() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         value={assignmentForm.maxFiles}
-                        onChange={(e) => setAssignmentForm({ ...assignmentForm, maxFiles: parseInt(e.target.value) || 3 })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setAssignmentForm({
+                            ...assignmentForm,
+                            maxFiles: val === '' ? 3 : Math.max(0, parseInt(val) || 0)
+                          })
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1909,9 +2053,16 @@ function LessonEditorInner() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         value={assignmentForm.maxTotalSizeMb}
-                        onChange={(e) => setAssignmentForm({ ...assignmentForm, maxTotalSizeMb: parseInt(e.target.value) || 50 })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setAssignmentForm({
+                            ...assignmentForm,
+                            maxTotalSizeMb: val === '' ? 50 : Math.max(0, parseInt(val) || 0)
+                          })
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1920,9 +2071,16 @@ function LessonEditorInner() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         value={assignmentForm.gracePeriodHours}
-                        onChange={(e) => setAssignmentForm({ ...assignmentForm, gracePeriodHours: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none"
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setAssignmentForm({
+                            ...assignmentForm,
+                            gracePeriodHours: val === '' ? 0 : Math.max(0, parseInt(val) || 0)
+                          })
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -1933,23 +2091,53 @@ function LessonEditorInner() {
                     </label>
                     <input
                       type="number"
+                      step="any"
+                      min="0"
                       value={assignmentForm.penaltyPercentPerDay}
-                      onChange={(e) => setAssignmentForm({ ...assignmentForm, penaltyPercentPerDay: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none"
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setAssignmentForm({
+                          ...assignmentForm,
+                          penaltyPercentPerDay: val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
+                        })
+                      }}
+                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
                     />
+                    <p className="mt-1.5 text-[10px] text-slate-500 italic leading-relaxed">
+                      Note: Assignment due dates are configured per cohort under Class Schedules. Grace Hours and Late Penalty settings configured here will apply relative to those deadlines.
+                    </p>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2">
-                    <input
-                      id="asg_auto_pub"
-                      type="checkbox"
-                      checked={assignmentForm.autoPublishGrades}
-                      onChange={(e) => setAssignmentForm({ ...assignmentForm, autoPublishGrades: e.target.checked })}
-                      className="w-4 h-4 rounded border-slate-700 text-blue-600 bg-slate-900 focus:ring-blue-500/50 cursor-pointer"
-                    />
-                    <label htmlFor="asg_auto_pub" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer select-none">
+                  <div className="shrink-0 flex flex-col gap-1.5 pt-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Auto-Publish Grades
                     </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        type="button"
+                        id="asg_auto_publish_yes"
+                        onClick={() => setAssignmentForm({ ...assignmentForm, autoPublishGrades: true })}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          assignmentForm.autoPublishGrades
+                            ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
+                            : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-350'
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        id="asg_auto_publish_no"
+                        onClick={() => setAssignmentForm({ ...assignmentForm, autoPublishGrades: false })}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          !assignmentForm.autoPublishGrades
+                            ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
+                            : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-350'
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
                   </div>
 
                   {/* Assignment Prompt File Upload Option */}
@@ -1957,7 +2145,7 @@ function LessonEditorInner() {
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Upload Assignment Prompt File (Optional PDF/DOCX task sheet)
                     </label>
-                    <div className="border border-dashed border-slate-700 bg-slate-950/20 p-5 rounded-xl text-center space-y-2">
+                    <div className="border border-dashed border-slate-700 bg-slate-955/20 p-5 rounded-xl text-center space-y-2">
                       <Upload className="w-6 h-6 text-slate-500 mx-auto" />
                       <input
                         type="file"
@@ -1965,7 +2153,7 @@ function LessonEditorInner() {
                         className="text-xs text-slate-400 mx-auto block max-w-xs cursor-pointer"
                       />
                       {promptStoragePath && (
-                        <span className="block text-[10px] text-emerald-400 font-medium">
+                        <span className="block text-[10px] text-emerald-600 font-medium">
                           Current uploaded prompt: {promptStoragePath.split('/').pop()}
                         </span>
                       )}
@@ -1974,7 +2162,7 @@ function LessonEditorInner() {
                 </div>
               ) : (
                 <div className="text-center py-16 text-slate-500 text-xs">
-                  This session does not have any assignment. Toggle checkbox above to include one.
+                  This lesson does not have any assignment. Enable it above to configure.
                 </div>
               )}
             </div>
@@ -1984,7 +2172,7 @@ function LessonEditorInner() {
           {currentStep === 3 && (
             <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
               <div className="flex justify-between items-center pb-3 border-b border-slate-700">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
                   Assignment Solution Key
                 </h3>
                 <div className="flex gap-2">
@@ -2020,7 +2208,7 @@ function LessonEditorInner() {
                       className="text-xs text-slate-400 mx-auto block max-w-xs"
                     />
                     {solutionStoragePath && (
-                      <span className="block text-[10px] text-emerald-400">
+                      <span className="block text-[10px] text-emerald-600">
                         Current file path: {solutionStoragePath}
                       </span>
                     )}
@@ -2037,7 +2225,7 @@ function LessonEditorInner() {
                       disabled={generatingSolution}
                       className="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1"
                     >
-                      {generatingSolution ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-indigo-400" />}
+                      {generatingSolution ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-indigo-600" />}
                       <span>Generate Solution</span>
                     </button>
                   </div>
@@ -2058,7 +2246,7 @@ function LessonEditorInner() {
           {currentStep === 4 && (
             <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
               <div className="flex justify-between items-center pb-3 border-b border-slate-700">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
                   AI Rubric Matrix Setup
                 </h3>
                 <div className="flex gap-2">
@@ -2073,7 +2261,7 @@ function LessonEditorInner() {
                   <button
                     type="button"
                     onClick={() => setCriteriaList([...criteriaList, { key: `custom-${Date.now()}`, label: 'New Metric', description: '', max_points: 10, weight: 1.0, evaluation_hints: { rule_type: 'none', expected_value: null } }])}
-                    className="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300 flex items-center gap-1"
+                    className="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-350 flex items-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Metric</span>
@@ -2102,7 +2290,7 @@ function LessonEditorInner() {
                               updated[idx].label = e.target.value
                               setCriteriaList(updated)
                             }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100"
                           />
                         </div>
                         <div>
@@ -2117,7 +2305,7 @@ function LessonEditorInner() {
                               updated[idx].max_points = parseInt(e.target.value) || 10
                               setCriteriaList(updated)
                             }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100"
                           />
                         </div>
                       </div>
@@ -2135,7 +2323,7 @@ function LessonEditorInner() {
                               updated[idx].description = e.target.value
                               setCriteriaList(updated)
                             }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100"
                           />
                         </div>
                         <div>
@@ -2151,7 +2339,7 @@ function LessonEditorInner() {
                               updated[idx].weight = parseFloat(e.target.value) || 1.0
                               setCriteriaList(updated)
                             }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100"
                           />
                         </div>
                       </div>
@@ -2172,7 +2360,7 @@ function LessonEditorInner() {
                               }
                               setCriteriaList(updated)
                             }}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white focus:outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 focus:outline-none"
                           >
                             <option value="none">LLM Evaluation (none)</option>
                             <option value="exact">Exact Text Match</option>
@@ -2193,7 +2381,7 @@ function LessonEditorInner() {
                               setCriteriaList(updated)
                             }}
                             placeholder={crit.evaluation_hints?.rule_type === 'regex' ? 'e.g. /pandas/i' : 'e.g. B'}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white disabled:opacity-40"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100 disabled:opacity-40"
                           />
                         </div>
                       </div>
@@ -2210,7 +2398,7 @@ function LessonEditorInner() {
 
                   {/* Sandbox testing widget */}
                   <div className="p-5 rounded-2xl border border-indigo-900 bg-indigo-950/20 space-y-3">
-                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-indigo-850 uppercase tracking-widest flex items-center gap-1.5">
                       <CodeIcon className="w-4 h-4" /> Regex sandbox matcher
                     </h4>
                     <div className="grid grid-cols-3 gap-3 text-xs">
@@ -2219,7 +2407,7 @@ function LessonEditorInner() {
                         <select
                           value={sandboxCriterionIdx}
                           onChange={(e) => setSandboxCriterionIdx(parseInt(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-white"
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100"
                         >
                           {criteriaList.map((c, i) => (
                             <option key={i} value={i}>
@@ -2236,17 +2424,17 @@ function LessonEditorInner() {
                             placeholder="Type test student output..."
                             value={sandboxInput}
                             onChange={(e) => setSandboxInput(e.target.value)}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-1 text-white"
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-1 text-slate-100"
                           />
                           <div className="flex items-center shrink-0">
                             {getSandboxResult() === null ? (
                               <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">No rule</span>
                             ) : getSandboxResult() ? (
-                              <span className="px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold flex items-center gap-1">
+                              <span className="px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-semibold flex items-center gap-1">
                                 <CheckCircle className="w-3 h-3" /> MATCH
                               </span>
                             ) : (
-                              <span className="px-2.5 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-450 text-[10px] font-semibold flex items-center gap-1">
+                              <span className="px-2.5 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-600 text-[10px] font-semibold flex items-center gap-1">
                                 <XCircle className="w-3 h-3" /> FAIL
                               </span>
                             )}
@@ -2266,7 +2454,7 @@ function LessonEditorInner() {
               type="button"
               disabled={currentStep === 1}
               onClick={handlePrevStep}
-              className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-400 hover:text-white font-semibold text-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             >
               ← Back
             </button>
@@ -2276,7 +2464,7 @@ function LessonEditorInner() {
                 type="button"
                 onClick={handleSaveComposer}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-350 hover:text-white font-semibold text-xs transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-350 hover:text-slate-200 font-semibold text-xs transition-all"
               >
                 {saving ? 'Saving...' : 'Save Draft'}
               </button>
@@ -2295,7 +2483,7 @@ function LessonEditorInner() {
         <div className="space-y-6">
           {/* Syllabus Outline Context Card */}
           <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-widest pb-2.5 border-b border-slate-700">
+            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-widest pb-2.5 border-b border-slate-700">
               Syllabus Registry Context
             </h3>
             {lesson && (
@@ -2320,12 +2508,12 @@ function LessonEditorInner() {
 
       {/* Verify & Configure Modal */}
       {verifyMaterial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/80 backdrop-blur-sm">
           <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
               <div>
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
                   <FileText className="w-4 h-4 text-blue-500" />
                   Verify Handout: {verifyMaterial.title}
                 </h3>
@@ -2335,7 +2523,7 @@ function LessonEditorInner() {
               </div>
               <button
                 onClick={() => setVerifyMaterial(null)}
-                className="text-slate-400 hover:text-white text-xs transition-colors p-1"
+                className="text-slate-400 hover:text-slate-200 text-xs transition-colors p-1"
                 type="button"
               >
                 ✕
@@ -2349,11 +2537,11 @@ function LessonEditorInner() {
                   Parsed Content Preview (Server Extraction)
                 </span>
                 
-                <div className="bg-slate-950 border border-slate-700 rounded-xl p-4 min-h-[150px] max-h-[300px] overflow-y-auto text-xs leading-relaxed">
+                <div className="bg-slate-955 border border-slate-700 rounded-xl p-4 min-h-[150px] max-h-[300px] overflow-y-auto text-xs leading-relaxed">
                   {verifyMaterial.type === 'docx' ? (
                     verifyMaterial.metadata?.viewer_artifact?.viewer_html ? (
                       <div 
-                        className="prose prose-invert max-w-none text-slate-300 text-xs"
+                        className="prose max-w-none text-slate-200 text-xs"
                         dangerouslySetInnerHTML={{ __html: verifyMaterial.metadata.viewer_artifact.viewer_html }}
                       />
                     ) : (
@@ -2362,7 +2550,7 @@ function LessonEditorInner() {
                   ) : verifyMaterial.type === 'markdown' ? (
                     verifyMaterial.metadata?.viewer_artifact?.viewer_markdown ? (
                       <div 
-                        className="prose prose-invert max-w-none text-slate-300 text-xs"
+                        className="prose max-w-none text-slate-200 text-xs"
                         dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(verifyMaterial.metadata.viewer_artifact.viewer_markdown) }}
                       />
                     ) : (
@@ -2385,7 +2573,7 @@ function LessonEditorInner() {
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800 bg-slate-950">
+                          <tbody className="divide-y divide-slate-800 bg-slate-955">
                             {(verifyMaterial.metadata.viewer_artifact.rows || []).slice(0, 5).map((row: any[], i: number) => (
                               <tr key={i} className="hover:bg-slate-880/20 hover:bg-slate-800/20">
                                 {row.map((cell: any, j: number) => (
@@ -2430,7 +2618,7 @@ function LessonEditorInner() {
               <button
                 type="button"
                 onClick={() => setVerifyMaterial(null)}
-                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-white font-semibold text-xs transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-955 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
               >
                 Close
               </button>
@@ -2539,10 +2727,10 @@ function LessonEditorInner() {
 
                 {/* 3. Grid-Mapped File Previews */}
                 <div className={`grid gap-6 ${getGridColsClass(gridLayout)}`}>
-                  {Array.from({ length: gridLayout === '3-cols' ? 3 : gridLayout === '2-cols' ? 2 : 1 }).map((_, colIdx) => {
+                  {Array.from({ length: getLayoutCellCount(gridLayout) }).map((_, colIdx) => {
                     const colMaterialsList = Array.isArray(cellMaterials[colIdx]) ? cellMaterials[colIdx] : []
                     return (
-                      <div key={colIdx} className="space-y-6 flex flex-col">
+                      <div key={colIdx} className={`space-y-6 flex flex-col ${getCellSpanClass(gridLayout, colIdx)}`}>
                         {colMaterialsList.length > 0 ? (
                           colMaterialsList.map((material: any) => (
                             <div key={material.id}>
@@ -2570,18 +2758,8 @@ function LessonEditorInner() {
                   )
                   if (unplaced.length === 0) return null
                   return (
-                    <div className="pt-8 border-t border-slate-800 space-y-4">
-                      <div className="space-y-1">
-                        <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wider">
-                          Additional Roadmap Documents
-                        </h3>
-                        <p className="text-[10px] text-slate-400">
-                          These documents are mapped to this lesson but have not been placed in the custom layout.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        {unplaced.map((m) => renderMaterialPreviewCard(m))}
-                      </div>
+                    <div className="pt-8 border-t border-slate-800 grid grid-cols-1 gap-6">
+                      {unplaced.map((m) => renderMaterialPreviewCard(m))}
                     </div>
                   )
                 })()}

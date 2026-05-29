@@ -820,8 +820,6 @@ function AdminLibraryContent() {
                 </div>
               </div>
             )}
-
-            )}
           </>
         )}
       </div>

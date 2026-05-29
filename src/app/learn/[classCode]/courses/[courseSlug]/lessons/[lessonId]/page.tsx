@@ -354,7 +354,7 @@ export default async function LessonPage({ params }: PageProps) {
 
         return {
           ...m,
-          signedUrl: data?.signedURL || data?.publicUrl || m.storage_url, // fallback
+          signedUrl: data?.signedUrl || data?.signedURL || data?.publicUrl || m.storage_url, // fallback
         }
       }
       return m
@@ -502,7 +502,7 @@ export default async function LessonPage({ params }: PageProps) {
                   <div key={assign.id} className="space-y-1.5 p-3 rounded-xl bg-slate-950/30 border border-slate-850">
                     <h4 className="text-xs font-bold text-slate-200">{assign.title}</h4>
                     <p className="text-[10px] text-slate-400 line-clamp-2">
-                      {assign.instructions}
+                      {assign.instructions?.replace(/<[^>]*>/g, '') || ''}
                     </p>
                     <Link
                       href={`/learn/${classCode}/assignments/${assign.id}`}

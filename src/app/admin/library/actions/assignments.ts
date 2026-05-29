@@ -35,6 +35,15 @@ export interface AssignmentInput {
 
 export async function saveAssignmentAction(input: AssignmentInput) {
   const supabase = getSupabaseServer(true)
+  if (
+    input.maxScore < 0 ||
+    input.maxFiles < 0 ||
+    input.maxTotalSizeMb < 0 ||
+    input.gracePeriodHours < 0 ||
+    input.penaltyPercentPerDay < 0
+  ) {
+    throw new Error('Assignment parameters (Max Score, Max Files, Max Size, Grace Hours, Late Penalty) cannot be negative.')
+  }
   try {
     let activeRubricId = input.rubricId
 

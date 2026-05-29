@@ -297,7 +297,7 @@ export async function getSignedUrlAction(
       throw error
     }
 
-    return { success: true, signedUrl: data?.signedURL || data?.publicUrl }
+    return { success: true, signedUrl: data?.signedUrl || data?.signedURL || data?.publicUrl || null }
   } catch (error: any) {
     console.error('Failed to generate signed URL:', error)
     return { success: false, error: error.message }

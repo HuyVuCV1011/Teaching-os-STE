@@ -342,9 +342,10 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 pb-2 border-b border-slate-800">
               Work Instructions
             </h2>
-            <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
-              {assignment?.instructions}
-            </div>
+            <div 
+              className="text-slate-300 text-sm leading-relaxed prose prose-invert max-w-none"
+              dangerouslySetInnerHTML={{ __html: assignment?.instructions || '' }}
+            />
 
             {promptDownloadUrl && (
               <div className="p-4 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-between gap-4">
