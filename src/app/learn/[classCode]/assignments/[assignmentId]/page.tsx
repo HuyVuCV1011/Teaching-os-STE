@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { calculateFileHash } from '@/lib/hash'
+import { sanitizeHtml } from '@/lib/sanitize'
 import {
   triggerRubricoreGradingAction,
   fetchStudentSubmissionAction,
@@ -343,8 +344,8 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
               Work Instructions
             </h2>
             <div 
-              className="text-slate-300 text-sm leading-relaxed prose prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: assignment?.instructions || '' }}
+              className="text-slate-700 text-sm leading-relaxed prose max-w-none"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(assignment?.instructions || '') }}
             />
 
             {promptDownloadUrl && (

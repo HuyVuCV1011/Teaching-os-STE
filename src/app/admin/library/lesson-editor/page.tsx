@@ -2028,7 +2028,7 @@ function LessonEditorInner() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 text-xs">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                         Max Files

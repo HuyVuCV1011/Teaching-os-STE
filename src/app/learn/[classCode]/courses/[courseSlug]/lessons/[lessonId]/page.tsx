@@ -211,7 +211,7 @@ function StudentMaterialPreviewCard({ m, downloadAllowed }: { m: any; downloadAl
             )}
           </div>
           <div 
-            className="prose prose-invert max-w-none text-slate-350 leading-relaxed text-xs flex-1 overflow-y-auto"
+            className="prose max-w-none text-slate-700 leading-relaxed text-xs flex-1 overflow-y-auto"
             dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(m.metadata?.viewer_artifact?.viewer_markdown || '') }}
           />
         </div>
@@ -405,7 +405,7 @@ export default async function LessonPage({ params }: PageProps) {
               Overview & Guide
             </h2>
             <article
-              className="prose prose-invert max-w-none text-slate-350 leading-relaxed text-sm"
+              className="prose max-w-none text-slate-700 leading-relaxed text-sm"
               dangerouslySetInnerHTML={{ __html: lessonData.content || '' }}
             />
           </div>
