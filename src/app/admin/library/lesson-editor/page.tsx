@@ -5,12 +5,16 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import RichTextEditor from '@/components/RichTextEditor'
 import { calculateFileHash } from '@/lib/hash'
+import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import {
   checkMaterialDeduplication,
   registerCanonicalMaterial,
   uploadFileToStorageAction,
   deleteFileFromStorageAction,
-  updateMaterialDisplayModeAction
+  updateMaterialDisplayModeAction,
+  getSignedUrlAction,
+  reorderMaterialsAction,
+  updateLessonLayoutAction
 } from '@/app/admin/library/actions/materials'
 import {
   saveAssignmentAction,
@@ -39,8 +43,99 @@ import {
   Upload,
   FileCheck,
   Check,
-  BookOpen
+  BookOpen,
+  GripVertical,
+  Eye,
+  Globe
 } from 'lucide-react'
+
+
+function htmlToMarkdown(html: string): string {
+  if (!html) return ''
+  let md = html
+    .replace(/<h1>(.*?)<\/h1>/gi, '# $1\n\n')
+    .replace(/<h2>(.*?)<\/h2>/gi, '## $1\n\n')
+    .replace(/<h3>(.*?)<\/h3>/gi, '### $1\n\n')
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+    .replace(/<i>(.*?)<\/i>/gi, '*$1*')
+    .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
+    .replace(/<p>(.*?)<\/p>/gi, '$1\n\n')
+    .replace(/<li>(.*?)<\/li>/gi, '- $1')
+    .replace(/<ul>/gi, '')
+    .replace(/<\/ul>/gi, '\n')
+    .replace(/<ol>/gi, '')
+    .replace(/<\/ol>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<blockquote.*?>(.*?)<\/blockquote>/gi, '> $1\n\n')
+    .replace(/<pre.*?><code.*?>(.*?)<\/code><\/pre>/gs, '```\n$1\n```\n\n')
+  md = md.replace(/<[^>]+>/g, '')
+  md = md
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'")
+  return md.trim()
+}
+
+const GRID_LAYOUTS = [
+  { id: '1-col', name: '1 Column', cols: 'grid-cols-1', cells: 1, icon: (
+    <div className="grid grid-cols-1 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
+      <div className="bg-blue-600/50 rounded-sm"></div>
+    </div>
+  )},
+  { id: '2-cols', name: '2 Columns', cols: 'grid-cols-2', cells: 2, icon: (
+    <div className="grid grid-cols-2 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
+      <div className="bg-blue-600/50 rounded-sm"></div>
+      <div className="bg-blue-600/50 rounded-sm"></div>
+    </div>
+  )},
+  { id: '3-cols', name: '3 Columns', cols: 'grid-cols-3', cells: 3, icon: (
+    <div className="grid grid-cols-3 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
+      <div className="bg-blue-600/50 rounded-sm"></div>
+      <div className="bg-blue-600/50 rounded-sm"></div>
+      <div className="bg-blue-600/50 rounded-sm"></div>
+    </div>
+  )}
+]
+
+const getGridColsClass = (layout: string) => {
+  switch (layout) {
+    case '1-col': return 'grid-cols-1'
+    case '2-cols': return 'grid-cols-1 sm:grid-cols-2'
+    case '3-cols': return 'grid-cols-1 md:grid-cols-3'
+    default: return 'grid-cols-1'
+  }
+}
+
+function renderSimpleMarkdown(md: string): string {
+  if (!md) return ''
+  let html = md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // Headings
+    .replace(/^# (.*?)$/gm, '<h1 class="text-lg font-bold text-slate-100 mt-4 mb-2 pb-1 border-b border-slate-200/30">$1</h1>')
+    .replace(/^## (.*?)$/gm, '<h2 class="text-base font-bold text-slate-100 mt-3 mb-2 pb-0.5 border-b border-slate-200/20">$1</h2>')
+    .replace(/^### (.*?)$/gm, '<h3 class="text-sm font-bold text-slate-100 mt-2 mb-1">$1</h3>')
+    // Bold & Italic
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Inline code
+    .replace(/`(.*?)`/g, '<code class="bg-slate-900/10 px-1 py-0.5 rounded text-rose-600 font-mono text-[11px]">$1</code>')
+    // Blockquotes (the starting > is now escaped to &gt;)
+    .replace(/^&gt;\s*(.*?)$/gm, '<blockquote class="border-l-4 border-indigo-400 bg-indigo-50/50 pl-3 py-1.5 my-2 rounded-r text-slate-600 italic">$1</blockquote>')
+    // Links [Text](URL)
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-500 underline transition-colors">$1</a>')
+    // Bullet lists - or *
+    .replace(/^[-*]\s+(.*?)$/gm, '<div class="flex items-start gap-1.5 my-1 text-slate-650"><span class="text-blue-500 font-bold shrink-0">•</span><span class="flex-1">$1</span></div>')
+    // Line breaks
+    .replace(/\n/g, '<br />')
+  return html
+}
 
 function LessonEditorInner() {
   const router = useRouter()
@@ -65,11 +160,47 @@ function LessonEditorInner() {
   const [materials, setMaterials] = useState<any[]>([])
   const [materialForm, setMaterialForm] = useState({
     title: '',
-    type: 'pdf' as 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link',
+    type: 'pdf' as 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link' | 'markdown' | 'json',
     linkUrl: '',
+    creationMethod: 'upload' as 'upload' | 'write',
+    uploadOption: 'file' as 'file' | 'link',
+    manualContent: '',
+    note: '',
   })
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [showMaterialForm, setShowMaterialForm] = useState(false)
+
+  // Download permission
+  const [downloadAllowed, setDownloadAllowed] = useState(true)
+
+  // Live status indicators
+  const [uploadStatus, setUploadStatus] = useState({
+    active: false,
+    step: '' as 'hashing' | 'uploading' | 'parsing' | 'saving' | '',
+    startedAt: 0,
+    elapsed: '0.0s'
+  })
+  const [saveStatus, setSaveStatus] = useState({
+    active: false,
+    startedAt: 0,
+    elapsed: '0.0s'
+  })
+
+  // Student view preview
+  const [showStudentPreview, setShowStudentPreview] = useState(false)
+  const [previewSignedUrls, setPreviewSignedUrls] = useState<Record<string, string>>({})
+  const [previewUrlStatus, setPreviewUrlStatus] = useState({
+    loading: false,
+    startedAt: 0,
+    elapsed: '0.0s'
+  })
+
+  // HTML5 Drag and drop reordering states
+  const [markdownTemplates, setMarkdownTemplates] = useState<Record<string, 'default' | 'dark' | 'accent'>>({})
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [gridLayout, setGridLayout] = useState<string>('1-col')
+  const [cellMaterials, setCellMaterials] = useState<Record<number, any>>({})
 
   // Unified Assignment states
   const [hasAssignment, setHasAssignment] = useState(false)
@@ -131,21 +262,436 @@ function LessonEditorInner() {
     }
   }
 
+
+  useEffect(() => {
+    if (!uploadStatus.active) return
+    const interval = setInterval(() => {
+      const diff = Date.now() - uploadStatus.startedAt
+      setUploadStatus(prev => ({ ...prev, elapsed: (diff / 1000).toFixed(1) + 's' }))
+    }, 200)
+    return () => clearInterval(interval)
+  }, [uploadStatus.active])
+
+  useEffect(() => {
+    if (!saveStatus.active) return
+    const interval = setInterval(() => {
+      const diff = Date.now() - saveStatus.startedAt
+      setSaveStatus(prev => ({ ...prev, elapsed: (diff / 1000).toFixed(1) + 's' }))
+    }, 200)
+    return () => clearInterval(interval)
+  }, [saveStatus.active])
+
+  useEffect(() => {
+    if (!previewUrlStatus.loading) return
+    const interval = setInterval(() => {
+      const diff = Date.now() - previewUrlStatus.startedAt
+      setPreviewUrlStatus(prev => ({ ...prev, elapsed: (diff / 1000).toFixed(1) + 's' }))
+    }, 200)
+    return () => clearInterval(interval)
+  }, [previewUrlStatus.loading])
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.effectAllowed = 'move'
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+    setDragOverIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDropItem = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === dropIndex) return
+
+    const updatedMaterials = [...materials]
+    const [draggedItem] = updatedMaterials.splice(draggedIndex, 1)
+    updatedMaterials.splice(dropIndex, 0, draggedItem)
+
+    const reordered = updatedMaterials.map((item, idx) => ({
+      ...item,
+      display_order: idx
+    }))
+
+    setMaterials(reordered)
+
+    const updates = reordered.map((item) => ({
+      id: item.id,
+      display_order: item.display_order
+    }))
+
+    const res = await reorderMaterialsAction(updates)
+    if (!res.success) {
+      alert(`Failed to save new order: ${res.error}`)
+      fetchLessonDetails()
+    }
+
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
+  // Grid layout builder drag & drop handlers
+  // Grid layout builder drag & drop handlers
+  const handleDragStartCell = (e: React.DragEvent, mId: string, sourceColIdx: number, sourceItemIdx: number) => {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', JSON.stringify({ materialId: mId, sourceCol: sourceColIdx, sourceIdx: sourceItemIdx }))
+  }
+
+  const handleDropToColumn = async (e: React.DragEvent, targetColIdx: number, targetItemIdx?: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain')
+      if (!dataStr) return
+      const { materialId, sourceCol, sourceIdx } = JSON.parse(dataStr)
+      if (!materialId) return
+
+      const matchedMaterial = materials.find(m => m.id === materialId)
+      if (!matchedMaterial) return
+
+      const updatedMapping = { ...cellMaterials }
+      
+      const maxCols = gridLayout === '3-cols' ? 3 : gridLayout === '2-cols' ? 2 : 1
+      for (let i = 0; i < maxCols; i++) {
+        if (!updatedMapping[i]) {
+          updatedMapping[i] = []
+        } else if (!Array.isArray(updatedMapping[i])) {
+          updatedMapping[i] = updatedMapping[i] ? [updatedMapping[i]] : []
+        }
+      }
+
+      // 1. Remove from source position if applicable
+      if (sourceCol !== undefined && sourceCol !== -1) {
+        const sourceList = [...(updatedMapping[sourceCol] || [])]
+        if (sourceIdx !== undefined && sourceIdx !== -1) {
+          sourceList.splice(sourceIdx, 1)
+          updatedMapping[sourceCol] = sourceList
+        }
+      }
+
+      // 2. Filter out to avoid duplicates
+      Object.keys(updatedMapping).forEach((colKey) => {
+        const c = parseInt(colKey)
+        if (Array.isArray(updatedMapping[c])) {
+          updatedMapping[c] = updatedMapping[c].filter((item: any) => item.id !== materialId)
+        }
+      })
+
+      // 3. Insert into target column
+      const targetList = [...(updatedMapping[targetColIdx] || [])]
+      if (targetItemIdx !== undefined && targetItemIdx !== -1) {
+        targetList.splice(targetItemIdx, 0, matchedMaterial)
+      } else {
+        targetList.push(matchedMaterial)
+      }
+      updatedMapping[targetColIdx] = targetList
+
+      setCellMaterials(updatedMapping)
+
+      // Auto save to database
+      const res = await updateLessonLayoutAction(lessonId, gridLayout, updatedMapping)
+      if (!res.success) {
+        alert(`Failed to save column layout: ${res.error}`)
+      }
+    } catch (err) {
+      console.error('Column drop error:', err)
+    }
+  }
+
+  const handleRemoveFromColumn = async (colIdx: number, itemIdx: number) => {
+    const updatedMapping = { ...cellMaterials }
+    if (updatedMapping[colIdx] && Array.isArray(updatedMapping[colIdx])) {
+      const list = [...updatedMapping[colIdx]]
+      list.splice(itemIdx, 1)
+      updatedMapping[colIdx] = list
+      setCellMaterials(updatedMapping)
+
+      // Auto save to database
+      const res = await updateLessonLayoutAction(lessonId, gridLayout, updatedMapping)
+      if (!res.success) {
+        alert(`Failed to save column layout: ${res.error}`)
+      }
+    }
+  }
+
+  const handleLayoutChange = async (newLayout: string) => {
+    setGridLayout(newLayout)
+    const updatedMapping = { ...cellMaterials }
+    const maxCols = newLayout === '3-cols' ? 3 : newLayout === '2-cols' ? 2 : 1
+    
+    Object.keys(updatedMapping).forEach((key) => {
+      const k = parseInt(key)
+      if (k >= maxCols) {
+        delete updatedMapping[k]
+      }
+    })
+
+    for (let i = 0; i < maxCols; i++) {
+      if (!updatedMapping[i]) {
+        updatedMapping[i] = []
+      } else if (!Array.isArray(updatedMapping[i])) {
+        updatedMapping[i] = [updatedMapping[i]]
+      }
+    }
+    setCellMaterials(updatedMapping)
+
+    // Auto save to database
+    const res = await updateLessonLayoutAction(lessonId, newLayout, updatedMapping)
+    if (!res.success) {
+      alert(`Failed to save column layout: ${res.error}`)
+    }
+  }
+
+  const renderMaterialPreviewCard = (m: any) => {
+    const styles = getMaterialTypeStyles(m.type)
+    const Icon = getMaterialIcon(m.type)
+    
+    return (
+      <div key={m.id} className="space-y-3">
+        <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+          <Icon className={`w-3.5 h-3.5 ${styles.iconColor}`} />
+          {m.type.toUpperCase()} Document
+        </h2>
+
+        {/* PDF Preview */}
+        {m.type === 'pdf' && (
+          <div className="h-[450px] overflow-y-auto flex flex-col space-y-3">
+            {previewUrlStatus.loading ? (
+              <div className="flex-1 border border-slate-800 bg-slate-950/10 rounded-2xl text-center text-slate-400 text-xs flex items-center justify-center gap-2 min-h-[400px]">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                <span>Generating secure PDF URL... ({previewUrlStatus.elapsed})</span>
+              </div>
+            ) : previewSignedUrls[m.id] ? (
+              <div className="border border-slate-800 bg-slate-900 rounded-2xl overflow-hidden shadow-sm flex-1 min-h-[400px]">
+                <DocumentViewer url={previewSignedUrls[m.id]} title={m.title} />
+              </div>
+            ) : (
+              <div className="flex-1 border border-slate-800 bg-slate-950/10 rounded-2xl text-center text-slate-400 text-xs flex items-center justify-center min-h-[400px]">
+                Failed to load PDF secure preview URL. Close and re-open preview.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DOCX Preview */}
+        {m.type === 'docx' && (
+          <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
+              <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <FileText className={`w-4 h-4 ${styles.iconColor}`} />
+                {m.title}
+              </h3>
+              {downloadAllowed && (
+                <a
+                  href={previewSignedUrls[m.id] || '#'}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-[10px] border border-blue-100 hover:border-blue-200 transition-colors whitespace-nowrap shrink-0"
+                >
+                  Download
+                </a>
+              )}
+            </div>
+            <div 
+              className="prose max-w-none text-slate-700 leading-relaxed text-xs flex-1 overflow-y-auto"
+              dangerouslySetInnerHTML={{ __html: m.metadata?.viewer_artifact?.viewer_html || '<p class="text-slate-450 italic">No HTML preview available.</p>' }}
+            />
+          </div>
+        )}
+
+        {/* CSV / XLSX tabular preview */}
+        {['csv', 'xlsx'].includes(m.type) && (
+          <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
+              <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <FileText className={`w-4 h-4 ${styles.iconColor}`} />
+                {m.title}
+              </h3>
+              {downloadAllowed && (
+                <a
+                  href={previewSignedUrls[m.id] || '#'}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded bg-emerald-50 text-emerald-600 font-semibold text-[10px] border border-emerald-100 hover:bg-emerald-100 transition-colors whitespace-nowrap shrink-0"
+                >
+                  Download
+                </a>
+              )}
+            </div>
+            {m.metadata?.viewer_artifact?.rows && m.metadata?.viewer_artifact?.rows.length > 0 ? (
+              <div className="overflow-x-auto border border-slate-200 rounded-xl flex-1 overflow-y-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="bg-slate-50 sticky top-0 z-10">
+                    <tr>
+                      {(m.metadata.viewer_artifact.headers || []).map((hdr: string, i: number) => (
+                        <th key={i} className="px-3 py-2 text-left font-bold text-slate-100 border-r border-slate-200 last:border-0 whitespace-nowrap bg-slate-50">
+                          {hdr}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150 bg-white">
+                    {(m.metadata.viewer_artifact.rows || []).slice(0, 5).map((row: any[], i: number) => (
+                      <tr key={i} className="hover:bg-slate-850 transition-colors">
+                        {row.map((cell: any, j: number) => (
+                          <td key={j} className="px-3 py-2 text-slate-700 border-r border-slate-200 last:border-0 whitespace-nowrap">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">No table data available.</p>
+            )}
+            {m.metadata?.viewer_artifact?.row_count > 5 && (
+              <span className="block text-[10px] text-slate-400 italic shrink-0">
+                Showing first 5 of {m.metadata.viewer_artifact.row_count} rows.
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Markdown Preview */}
+        {m.type === 'markdown' && (() => {
+          const template = markdownTemplates[m.id] || 'default'
+          
+          let cardClasses = "border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col transition-all duration-300"
+          let titleColor = "text-slate-100"
+          let textColor = "text-slate-700"
+          
+          if (template === 'dark') {
+            cardClasses = "border border-slate-950 bg-slate-100 rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col transition-all duration-300"
+            titleColor = "text-slate-900 font-bold"
+            textColor = "text-slate-900"
+          } else if (template === 'accent') {
+            cardClasses = "border border-indigo-200 bg-indigo-50/40 rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col transition-all duration-300"
+            titleColor = "text-indigo-900 font-bold"
+            textColor = "text-indigo-950"
+          } else {
+            cardClasses = "border border-slate-800 bg-white rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col transition-all duration-300"
+          }
+          
+          return (
+            <div className={cardClasses}>
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2">
+                  <FileText className={`w-4 h-4 ${styles.iconColor}`} />
+                  <h3 className={`font-bold text-sm ${titleColor}`}>
+                    {m.title}
+                  </h3>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <select
+                    value={template}
+                    onChange={(e) => setMarkdownTemplates(prev => ({
+                      ...prev,
+                      [m.id]: e.target.value as 'default' | 'dark' | 'accent'
+                    }))}
+                    className="px-2 py-1 rounded border border-slate-300 bg-white text-slate-700 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="default">Default</option>
+                    <option value="dark">Dark</option>
+                    <option value="accent">Accent</option>
+                  </select>
+
+                  {downloadAllowed && (
+                    <a
+                      href={`data:text/markdown;charset=utf-8,${encodeURIComponent(m.metadata?.viewer_artifact?.viewer_markdown || '')}`}
+                      download={`${m.title}.md`}
+                      className="px-2.5 py-1 rounded bg-violet-50 text-violet-600 font-semibold text-[10px] border border-violet-100 hover:bg-violet-100 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      Download
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div 
+                className={`prose max-w-none text-xs flex-1 overflow-y-auto ${textColor}`}
+                dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(m.metadata?.viewer_artifact?.viewer_markdown || '') }}
+              />
+            </div>
+          )
+        })()}
+
+        {/* JSON Preview */}
+        {m.type === 'json' && (
+          <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
+              <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <FileText className={`w-4 h-4 ${styles.iconColor}`} />
+                {m.title}
+              </h3>
+              {downloadAllowed && (
+                <a
+                  href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(m.metadata?.viewer_artifact?.viewer_json || m.metadata?.viewer_artifact?.raw_text || {}, null, 2))}`}
+                  download={`${m.title}.json`}
+                  className="px-2.5 py-1 rounded bg-amber-50 text-amber-600 font-semibold text-[10px] border border-amber-100 hover:bg-amber-100 transition-colors whitespace-nowrap shrink-0"
+                >
+                  Download
+                </a>
+              )}
+            </div>
+            <pre className="overflow-x-auto p-4 bg-slate-900 border border-slate-800 rounded-xl text-slate-350 font-mono text-xs whitespace-pre-wrap flex-1 overflow-y-auto">
+              {JSON.stringify(m.metadata?.viewer_artifact?.viewer_json || m.metadata?.viewer_artifact?.raw_text || {}, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const handleOpenStudentPreview = async () => {
+    setPreviewUrlStatus({ loading: true, startedAt: Date.now(), elapsed: '0.0s' })
+    setShowStudentPreview(true)
+    const urls: Record<string, string> = {}
+    
+    try {
+      for (const m of materials) {
+        if (['pdf', 'docx', 'csv', 'xlsx'].includes(m.type)) {
+          const result = await getSignedUrlAction('teaching-materials', m.storage_url, 300)
+          if (result.success && result.signedUrl) {
+            urls[m.id] = result.signedUrl
+          }
+        }
+      }
+      setPreviewSignedUrls(urls)
+    } catch (err) {
+      console.error('Failed to pre-fetch signed URLs for preview:', err)
+    } finally {
+      setPreviewUrlStatus(prev => ({ ...prev, loading: false }))
+    }
+  }
+
   const handleFileSelection = (file: File) => {
     setUploadFile(file)
     const ext = file.name.split('.').pop()?.toLowerCase()
-    let detectedType: 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link' = 'pdf'
+    let detectedType: 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link' | 'markdown' | 'json' = 'pdf'
     if (ext === 'pdf') detectedType = 'pdf'
     else if (ext === 'docx') detectedType = 'docx'
     else if (ext === 'csv') detectedType = 'csv'
     else if (ext === 'xlsx' || ext === 'xls') detectedType = 'xlsx'
     else if (ext === 'zip' || ext === 'js' || ext === 'py' || ext === 'ts') detectedType = 'code_repo'
-    else if (ext === 'json') detectedType = 'flow_diagram'
+    else if (ext === 'json') detectedType = 'json'
+    else if (ext === 'md' || ext === 'txt') detectedType = 'markdown'
 
     setMaterialForm({
+      ...materialForm,
       title: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
       type: detectedType,
-      linkUrl: ''
+      linkUrl: '',
+      uploadOption: 'file'
     })
     setShowMaterialForm(true)
   }
@@ -179,18 +725,21 @@ function LessonEditorInner() {
           .from('canonical_materials')
           .select('*')
           .eq('lesson_id', lessonId)
-          .order('created_at'),
+          .order('display_order', { ascending: true }),
         supabase
           .from('assignments')
           .select('*, rubric_snapshots(snapshot)')
           .eq('lesson_id', lessonId)
-          .order('created_at'),
+          .order('display_order'),
       ])
 
       if (lessonData) {
         setLesson(lessonData)
         setTitle(lessonData.title)
         setContent(lessonData.content || '')
+        setDownloadAllowed(lessonData.download_allowed ?? true)
+        setGridLayout(lessonData.grid_layout || '1-col')
+        setCellMaterials(lessonData.metadata?.grid_cell_mapping || {})
       }
       setMaterials(materialsData || [])
 
@@ -248,7 +797,7 @@ function LessonEditorInner() {
     if (initialLoaded) {
       setIsDirty(true)
     }
-  }, [title, content, materials, hasAssignment, assignmentForm, solutionMode, solutionText, criteriaList])
+  }, [title, content, materials, hasAssignment, assignmentForm, solutionMode, solutionText, criteriaList, downloadAllowed])
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -297,6 +846,7 @@ function LessonEditorInner() {
         .update({
           title,
           content,
+          download_allowed: downloadAllowed,
           version: (lesson.version || 1) + 1,
         })
         .eq('id', lessonId)
@@ -309,28 +859,68 @@ function LessonEditorInner() {
       alert(`Save failed: ${err.message}`)
     } finally {
       setSaving(false)
+      setSaveStatus({ active: false, startedAt: 0, elapsed: '' })
     }
   }
 
   const handleCreateMaterial = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!materialForm.title || !lessonId) return
+    if (!materialForm.title || !lessonId) {
+      alert('Please specify a material heading / title')
+      return
+    }
 
     setUploading(true)
+    setUploadStatus({ active: true, step: 'hashing', startedAt: Date.now(), elapsed: '0.0s' })
     let isNewUpload = false
     let finalStorageUrl = ''
+    let finalType = materialForm.type
+
     try {
       let calculatedHash: string | undefined = undefined
-      const isFileType = ['pdf', 'docx', 'csv', 'xlsx'].includes(materialForm.type)
+      let fileToUpload: File | null = null
 
-      if (isFileType) {
-        if (!uploadFile) {
-          alert(`Please select a ${materialForm.type.toUpperCase()} file to upload`)
+      if (materialForm.creationMethod === 'write') {
+        // Option B: manual text content
+        if (!materialForm.manualContent.trim()) {
+          alert('Please enter some content in the rich text editor first')
           setUploading(false)
+          setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
           return
         }
+        const mdContent = htmlToMarkdown(materialForm.manualContent)
+        const fileName = `${materialForm.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}.md`
+        fileToUpload = new File([mdContent], fileName, { type: 'text/markdown' })
+        finalType = 'markdown'
+      } else {
+        // Option A: Upload local file or external link
+        if (materialForm.uploadOption === 'file') {
+          if (!uploadFile) {
+            alert('Please select a file to upload')
+            setUploading(false)
+            setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
+            return
+          }
+          fileToUpload = uploadFile
+          finalType = materialForm.type
+        } else {
+          // URL link / git repo
+          if (!materialForm.linkUrl) {
+            alert('Please specify a URL link')
+            setUploading(false)
+            setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
+            return
+          }
+          finalStorageUrl = materialForm.linkUrl
+          const isGithub = materialForm.linkUrl.includes('github.com') || materialForm.linkUrl.includes('git')
+          finalType = isGithub ? 'code_repo' : 'link'
+        }
+      }
 
-        const hash = await calculateFileHash(uploadFile)
+      // If we are uploading a file (Option A File OR Option B Manual Text)
+      if (fileToUpload) {
+        setUploadStatus(prev => ({ ...prev, step: 'hashing' }))
+        const hash = await calculateFileHash(fileToUpload)
         calculatedHash = hash
 
         const duplicate = await checkMaterialDeduplication(hash)
@@ -338,7 +928,8 @@ function LessonEditorInner() {
           alert(`Deduplication: Duplicate asset "${duplicate.title}" detected. Reusing existing file storage url!`)
           finalStorageUrl = duplicate.storage_url
         } else {
-          const ext = uploadFile.name.split('.').pop()
+          setUploadStatus(prev => ({ ...prev, step: 'uploading' }))
+          const ext = fileToUpload.name.split('.').pop()
           const subjectSlug = lesson.modules.courses.subjects.slug
           const courseSlug = lesson.modules.courses.slug
           const lessonOrder = String(lesson.order_index).padStart(2, '0')
@@ -347,7 +938,7 @@ function LessonEditorInner() {
           const formData = new FormData()
           formData.append('bucket', 'teaching-materials')
           formData.append('path', fileName)
-          formData.append('file', uploadFile)
+          formData.append('file', fileToUpload)
           formData.append('upsert', 'false')
 
           const uploadRes = await uploadFileToStorageAction(formData)
@@ -358,28 +949,40 @@ function LessonEditorInner() {
           finalStorageUrl = fileName
           isNewUpload = true
         }
-      } else {
-        if (!materialForm.linkUrl) {
-          alert('Please specify a URL link')
-          setUploading(false)
-          return
-        }
-        finalStorageUrl = materialForm.linkUrl
+      }
+
+      setUploadStatus(prev => ({ ...prev, step: 'saving' }))
+
+      // Force original display mode for pdf
+      const metadata: Record<string, any> = {
+        note: materialForm.note || ''
+      }
+      if (finalType === 'pdf') {
+        metadata.display_mode = 'original'
       }
 
       const regRes = await registerCanonicalMaterial({
         lessonId,
         title: materialForm.title,
-        type: materialForm.type,
+        type: finalType,
         storageUrl: finalStorageUrl,
         fileHash: calculatedHash,
+        metadata
       })
 
       if (!regRes.success) {
         throw new Error(regRes.error)
       }
 
-      setMaterialForm({ title: '', type: 'pdf', linkUrl: '' })
+      setMaterialForm({
+        title: '',
+        type: 'pdf',
+        linkUrl: '',
+        creationMethod: 'upload',
+        uploadOption: 'file',
+        manualContent: '',
+        note: ''
+      })
       setUploadFile(null)
       setShowMaterialForm(false)
       fetchLessonDetails()
@@ -394,6 +997,7 @@ function LessonEditorInner() {
       alert(`Asset mapping failed: ${err.message}`)
     } finally {
       setUploading(false)
+      setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
     }
   }
 
@@ -479,6 +1083,7 @@ function LessonEditorInner() {
   const handleSaveComposer = async () => {
     if (!title || !lessonId) return
     setSaving(true)
+    setSaveStatus({ active: true, startedAt: Date.now(), elapsed: '0.0s' })
 
     let isNewSolutionUpload = false
     let finalSolutionPath = solutionStoragePath
@@ -492,6 +1097,7 @@ function LessonEditorInner() {
         .update({
           title,
           content,
+          download_allowed: downloadAllowed,
           version: (lesson.version || 1) + 1,
         })
         .eq('id', lessonId)
@@ -615,25 +1221,10 @@ function LessonEditorInner() {
       alert(`Save failed: ${err.message}`)
     } finally {
       setSaving(false)
+      setSaveStatus({ active: false, startedAt: 0, elapsed: '' })
     }
   }
 
-  const getMaterialIcon = (type: string) => {
-    switch (type) {
-      case 'pdf':
-      case 'docx':
-        return FileText
-      case 'csv':
-      case 'xlsx':
-        return FileDown
-      case 'code_repo':
-        return CodeIcon
-      case 'flow_diagram':
-        return Network
-      default:
-        return LinkIcon
-    }
-  }
 
   if (loading) {
     return (
@@ -723,243 +1314,519 @@ function LessonEditorInner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Workspace Panels */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           {/* TAB 1: LESSON MATERIALS & HANDOUTS */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              {/* Lesson Heading Card */}
-              <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Lesson Heading
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Handouts & Upload Card */}
+              {/* Card A: Upload & Manage Materials */}
               <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
-                <div className="flex justify-between items-center pb-3 border-b border-slate-700">
-                  <div>
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                      Handouts & Learning Materials
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Upload reading documents, code files, spreadsheets, or link websites.
-                    </p>
+                <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between border-b border-slate-800 pb-6">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Lesson Heading / Title
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
                   </div>
-                  <button
-                    onClick={() => {
-                      setMaterialForm({ title: '', type: 'pdf', linkUrl: '' })
-                      setUploadFile(null)
-                      setShowMaterialForm(!showMaterialForm)
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-350 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{showMaterialForm ? 'Close Form' : 'Add Material'}</span>
-                  </button>
+                  <div className="shrink-0 flex flex-col gap-1.5">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Allow Student Downloads
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setDownloadAllowed(true)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          downloadAllowed
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-300'
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDownloadAllowed(false)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          !downloadAllowed
+                            ? 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-300'
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Form or Upload Drag and Drop Zone */}
-                {showMaterialForm ? (
-                  <form onSubmit={handleCreateMaterial} className="p-4 rounded-xl border border-slate-700 bg-slate-950/60 space-y-4 text-xs">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">
+                      Material Source:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setMaterialForm({ ...materialForm, creationMethod: 'upload' })}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        materialForm.creationMethod === 'upload'
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-slate-955/20 border-slate-800 text-slate-450 hover:text-slate-300'
+                      }`}
+                    >
+                      Upload File / Add Link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMaterialForm({ ...materialForm, creationMethod: 'write' })}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        materialForm.creationMethod === 'write'
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-slate-955/20 border-slate-800 text-slate-450 hover:text-slate-300'
+                      }`}
+                    >
+                      Write Manually (Rich Text)
+                    </button>
+                  </div>
+                  
+                  {materialForm.creationMethod === 'upload' ? (
+                    <div className="space-y-4">
+                      {/* Upload Option selection: File vs Link */}
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-xs text-slate-350 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="uploadOption"
+                            checked={materialForm.uploadOption === 'file'}
+                            onChange={() => setMaterialForm({ ...materialForm, uploadOption: 'file' })}
+                            className="w-3.5 h-3.5 text-blue-600 bg-slate-900 border-slate-700"
+                          />
+                          <span>Upload Local File</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs text-slate-350 cursor-pointer ml-4">
+                          <input
+                            type="radio"
+                            name="uploadOption"
+                            checked={materialForm.uploadOption === 'link'}
+                            onChange={() => setMaterialForm({ ...materialForm, uploadOption: 'link' })}
+                            className="w-3.5 h-3.5 text-blue-600 bg-slate-900 border-slate-700"
+                          />
+                          <span>Add External Link / Git Repo</span>
+                        </label>
+                      </div>
+
+                      {materialForm.uploadOption === 'file' ? (
+                        <div className="space-y-4">
+                          {/* File format selector */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              Material Heading / Title
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Lab Guide"
+                              value={materialForm.title}
+                              onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </div>
+
+                          {/* Optional Note */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              Extra Notes (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Required reading before lecture"
+                              value={materialForm.note}
+                              onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </div>
+
+                          {/* Drag & Drop Zone */}
+                          <div
+                            onDragEnter={handleDrag}
+                            onDragOver={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDrop={handleDrop}
+                            className={`relative border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center transition-all min-h-[170px] ${
+                              dragActive
+                                ? 'border-blue-500 bg-blue-500/10'
+                                : 'border-slate-700 bg-slate-955/20 hover:border-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="file"
+                              id="drag-file-upload"
+                              multiple={false}
+                              onChange={handleFileInputChange}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <Upload className="w-8 h-8 text-slate-500 mb-2" />
+                            <p className="text-xs font-semibold text-white">
+                              Drag and drop your file here, or click to browse
+                            </p>
+                            {uploadFile && (
+                              <span className="block text-[10px] text-emerald-400 font-semibold mt-2">
+                                Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                              </span>
+                            )}
+                          </div>
+                          
+                          <p className="text-[10px] text-slate-500 text-center -mt-2">
+                            Supported formats: PDF, DOCX, CSV, XLSX, MD, JSON, TXT, ZIP, JS, TS, PY
+                          </p>
+                          
+                          <div className="flex justify-end pt-2">
+                            <button
+                              type="button"
+                              onClick={handleCreateMaterial}
+                              disabled={uploading}
+                              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5"
+                            >
+                              {uploading ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>
+                                    {uploadStatus.step === 'hashing' && `Hashing... (${uploadStatus.elapsed})`}
+                                    {uploadStatus.step === 'uploading' && `Uploading... (${uploadStatus.elapsed})`}
+                                    {uploadStatus.step === 'parsing' && `Parsing... (${uploadStatus.elapsed})`}
+                                    {uploadStatus.step === 'saving' && `Saving... (${uploadStatus.elapsed})`}
+                                  </span>
+                                </>
+                              ) : (
+                                <span>Map Material File</span>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {/* Link URL Options */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              Link Title / Heading
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. Project Repository"
+                              value={materialForm.title}
+                              onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              URL Address / Git Link
+                            </label>
+                            <input
+                              type="url"
+                              required
+                              placeholder="https://github.com/..."
+                              value={materialForm.linkUrl}
+                              onChange={(e) => setMaterialForm({ ...materialForm, linkUrl: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </div>
+
+                          {/* Optional Note */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                              Extra Notes (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Link to codebase"
+                              value={materialForm.note}
+                              onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                            />
+                          </div>
+
+                          <div className="flex justify-end pt-2">
+                            <button
+                              type="button"
+                              onClick={handleCreateMaterial}
+                              disabled={uploading}
+                              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5"
+                            >
+                              {uploading ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>
+                                    {uploadStatus.step === 'hashing' && `Hashing... (${uploadStatus.elapsed})`}
+                                    {uploadStatus.step === 'uploading' && `Uploading... (${uploadStatus.elapsed})`}
+                                    {uploadStatus.step === 'parsing' && `Parsing... (${uploadStatus.elapsed})`}
+                                    {uploadStatus.step === 'saving' && `Saving... (${uploadStatus.elapsed})`}
+                                  </span>
+                                </>
+                              ) : (
+                                <span>Map Resource URL</span>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Option B: Manual text composer */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                          Material Title
+                          Material Title / Heading
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="e.g. Tutorial Slides"
+                          placeholder="e.g. Lesson Lecture Note"
                           value={materialForm.title}
                           onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
                           className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
                         />
                       </div>
 
+                      {/* Optional Note */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                          Material Format
-                        </label>
-                        <select
-                          value={materialForm.type}
-                          onChange={(e: any) => setMaterialForm({ ...materialForm, type: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white"
-                        >
-                          <option value="pdf">PDF Document</option>
-                          <option value="docx">Word DOCX</option>
-                          <option value="csv">CSV Sheet</option>
-                          <option value="xlsx">Excel XLSX</option>
-                          <option value="code_repo">Code Scripts (GitHub/Zip)</option>
-                          <option value="flow_diagram">Flowchart Map (JSON)</option>
-                          <option value="link">External Website Link</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {['pdf', 'docx', 'csv', 'xlsx'].includes(materialForm.type) ? (
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                          Upload File
-                        </label>
-                        <div className="border border-dashed border-slate-700 bg-slate-950/20 p-6 rounded-xl text-center space-y-2">
-                          <Upload className="w-6 h-6 text-slate-500 mx-auto" />
-                          <input
-                            type="file"
-                            onChange={handleFileInputChange}
-                            className="text-xs text-slate-400 mx-auto block cursor-pointer"
-                          />
-                          {uploadFile && (
-                            <span className="block text-[10px] text-emerald-400">
-                              Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                          Link URL Address
+                          Extra Notes (Optional)
                         </label>
                         <input
-                          type="url"
-                          required
-                          placeholder="https://example.com"
-                          value={materialForm.linkUrl}
-                          onChange={(e) => setMaterialForm({ ...materialForm, linkUrl: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white"
+                          type="text"
+                          placeholder="e.g. Lecture overview notes"
+                          value={materialForm.note}
+                          onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
                         />
                       </div>
-                    )}
 
-                    <div className="flex gap-2 justify-end pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowMaterialForm(false)
-                          setUploadFile(null)
-                        }}
-                        className="px-2.5 py-1 rounded text-slate-400 hover:text-slate-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={uploading}
-                        className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5"
-                      >
-                        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                        <span>Map File</span>
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Drag & Drop Zone */}
-                    <div
-                      onDragEnter={handleDrag}
-                      onDragOver={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDrop={handleDrop}
-                      className={`relative border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center transition-all min-h-[170px] ${
-                        dragActive
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-slate-700 bg-slate-950/20 hover:border-slate-700'
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        id="drag-file-upload"
-                        multiple={false}
-                        onChange={handleFileInputChange}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                      <Upload className="w-8 h-8 text-slate-500 mb-2" />
-                      <p className="text-xs font-semibold text-white">
-                        Drag and drop your learning material here
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Supports PDF, Word (DOCX), CSV, Excel (XLSX), Code repos, Flowcharts
-                      </p>
-                      <span className="mt-2 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-xs font-medium text-slate-400">
-                        Or click to browse files
-                      </span>
-                    </div>
-
-                    {/* Mapped Resource List */}
-                    <div className="space-y-3">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Currently Mapped Resources
-                      </h4>
-                      {materials.length === 0 ? (
-                        <div className="text-center py-10 border border-slate-700 rounded-xl bg-slate-950/10 text-slate-500 text-[10px]">
-                          No mapped resources. Drag a file on the left or add one manually.
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Write Handout Body (Rich Text Editor)
+                        </label>
+                        <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-950/20">
+                          <RichTextEditor content={materialForm.manualContent} onChange={(c) => setMaterialForm({ ...materialForm, manualContent: c })} />
                         </div>
-                      ) : (
-                        <div className="space-y-2 max-h-[170px] overflow-y-auto pr-1">
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="button"
+                          onClick={handleCreateMaterial}
+                          disabled={uploading}
+                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5"
+                        >
+                          {uploading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>
+                                {uploadStatus.step === 'hashing' && `Hashing... (${uploadStatus.elapsed})`}
+                                {uploadStatus.step === 'uploading' && `Uploading... (${uploadStatus.elapsed})`}
+                                {uploadStatus.step === 'parsing' && `Parsing... (${uploadStatus.elapsed})`}
+                                {uploadStatus.step === 'saving' && `Saving... (${uploadStatus.elapsed})`}
+                              </span>
+                            </>
+                          ) : (
+                            <span>Compose & Map Material</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card C: Currently Mapped Resources */}
+              <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-700">
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                      Currently Mapped Resources
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Drag and drop to reorder materials. These will render in this order for students.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenStudentPreview}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Preview Student View</span>
+                  </button>
+                </div>
+                
+                {materials.length === 0 ? (
+                  <div className="text-center py-10 border border-slate-750 border-dashed rounded-xl bg-slate-950/10 text-slate-555 text-xs">
+                    No mapped resources. Add files or links above to populate the roadmap materials.
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Grid Layout Template Selector */}
+                    <div className="p-4 bg-slate-950/20 border border-slate-800 rounded-xl space-y-3">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Grid Layout Builder Template
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {GRID_LAYOUTS.map((lay) => (
+                          <button
+                            key={lay.id}
+                            type="button"
+                            onClick={() => handleLayoutChange(lay.id)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-xs font-semibold ${
+                              gridLayout === lay.id
+                                ? 'bg-blue-600 border-blue-500 text-white shadow-md'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                            }`}
+                          >
+                            {lay.icon}
+                            <span>{lay.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2-Column builder workspace inside Card C */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+                      {/* Column 1: Draggable Materials List */}
+                      <div className="lg:col-span-1 space-y-2 border-r border-slate-800 pr-6">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Available handouts
+                        </h4>
+                        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
                           {materials.map((m) => {
+                            const styles = getMaterialTypeStyles(m.type)
                             const Icon = getMaterialIcon(m.type)
+                            const isPlaced = Object.values(cellMaterials).some(
+                              colList => Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
+                            )
                             return (
                               <div
                                 key={m.id}
-                                className="flex justify-between items-center p-2.5 rounded-xl bg-slate-950/40 border border-slate-700 hover:border-slate-700 transition-all text-xs"
+                                draggable
+                                onDragStart={(e) => handleDragStartCell(e, m.id, -1, -1)}
+                                className={`flex justify-between items-center p-2.5 rounded-xl border transition-all text-xs cursor-grab active:cursor-grabbing ${
+                                  isPlaced
+                                    ? 'border-emerald-500/20 bg-emerald-500/5 opacity-80'
+                                    : 'border-slate-800 hover:border-slate-700 bg-slate-950/40'
+                                }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <Icon className="w-3.5 h-3.5 text-slate-450 shrink-0" />
-                                  <span className="text-slate-300 truncate font-medium">{m.title}</span>
-                                  <span className="text-[10px] uppercase tracking-wider bg-slate-950 px-1.5 py-0.5 rounded text-slate-450 border border-slate-700">
-                                    {m.type}
-                                  </span>
+                                  <GripVertical className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                  <Icon className={`w-3.5 h-3.5 ${styles.iconColor} shrink-0`} />
+                                  <span className="text-slate-200 truncate font-semibold">{m.title}</span>
                                 </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
                                   <button
-                                    onClick={() => {
-                                      setVerifyMaterial(m)
-                                      setVerifyDisplayMode(m.metadata?.display_mode || 'both')
-                                    }}
-                                    className="text-slate-400 hover:text-blue-500 p-0.5 transition-colors"
-                                    title="Verify & Configure"
                                     type="button"
+                                    onClick={() => setVerifyMaterial(m)}
+                                    className="text-slate-400 hover:text-blue-400 p-1 transition-colors"
+                                    title="Verify Handout"
                                   >
                                     <Edit className="w-3.5 h-3.5" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteMaterial(m.id)}
-                                    className="text-slate-400 hover:text-rose-500 p-0.5 transition-colors"
-                                    title="Delete"
                                     type="button"
+                                    onClick={() => handleDeleteMaterial(m.id)}
+                                    className="text-slate-400 hover:text-rose-500 p-1 transition-colors"
+                                    title="Delete"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
+                                  {isPlaced && (
+                                    <span className="text-[7px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded border border-emerald-500/20">
+                                      Placed
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             )
                           })}
                         </div>
-                      )}
+                      </div>
+
+                      {/* Column 2 & 3: Columns Drop Arena */}
+                      <div className="lg:col-span-2 space-y-3">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Columns Builder Arena
+                        </h4>
+                        <div className={`grid gap-4 ${getGridColsClass(gridLayout)}`}>
+                          {Array.from({ length: gridLayout === '3-cols' ? 3 : gridLayout === '2-cols' ? 2 : 1 }).map((_, colIdx) => {
+                            const colMaterialsList = Array.isArray(cellMaterials[colIdx]) ? cellMaterials[colIdx] : []
+                            
+                            return (
+                              <div
+                                key={colIdx}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => handleDropToColumn(e, colIdx)}
+                                className="border border-dashed border-slate-800 bg-slate-950/10 rounded-2xl p-4 flex flex-col gap-3 min-h-[300px] transition-all relative"
+                              >
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded w-fit">
+                                  Column {colIdx + 1}
+                                </span>
+
+                                <div className="flex-1 flex flex-col gap-2">
+                                  {colMaterialsList.length > 0 ? (
+                                    colMaterialsList.map((material: any, itemIdx: number) => {
+                                      const styles = getMaterialTypeStyles(material.type)
+                                      const Icon = getMaterialIcon(material.type)
+                                      
+                                      return (
+                                        <div
+                                          key={material.id}
+                                          draggable
+                                          onDragStart={(e) => handleDragStartCell(e, material.id, colIdx, itemIdx)}
+                                          onDragOver={(e) => e.preventDefault()}
+                                          onDrop={(e) => {
+                                            e.stopPropagation()
+                                            handleDropToColumn(e, colIdx, itemIdx)
+                                          }}
+                                          className="w-full flex items-center justify-between gap-3 p-3 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl cursor-grab active:cursor-grabbing transition-all"
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            <GripVertical className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                            <Icon className={`w-3.5 h-3.5 ${styles.iconColor} shrink-0`} />
+                                            <span className="text-xs font-semibold text-slate-200 truncate">{material.title}</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveFromColumn(colIdx, itemIdx)}
+                                            className="text-slate-400 hover:text-rose-500 p-1.5 transition-colors shrink-0"
+                                            title="Remove from column"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )
+                                    })
+                                  ) : (
+                                    <div className="flex-1 flex flex-col justify-center items-center text-center py-10">
+                                      <Upload className="w-4 h-4 text-slate-650 mb-1.5 animate-pulse" />
+                                      <span className="block text-[10px] text-slate-500">Drop handouts here</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* Lecture Content Card */}
-              <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Lecture Content Editor
-                </label>
-                <RichTextEditor content={content} onChange={setContent} />
-              </div>
             </div>
           )}
-
           {/* TAB 2: ASSIGNMENT DETAILS */}
           {currentStep === 2 && (
             <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
@@ -1463,7 +2330,7 @@ function LessonEditorInner() {
                   Verify Handout: {verifyMaterial.title}
                 </h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Check the parsed results and configure how students can read this handout.
+                  Verify the parsed content results. Student download permission is controlled globally.
                 </p>
               </div>
               <button
@@ -1477,7 +2344,6 @@ function LessonEditorInner() {
 
             {/* Content Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-350">
-              {/* Parse Preview */}
               <div className="space-y-2">
                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   Parsed Content Preview (Server Extraction)
@@ -1493,6 +2359,19 @@ function LessonEditorInner() {
                     ) : (
                       <span className="text-slate-500 italic">No HTML parsing output generated for this Word document.</span>
                     )
+                  ) : verifyMaterial.type === 'markdown' ? (
+                    verifyMaterial.metadata?.viewer_artifact?.viewer_markdown ? (
+                      <div 
+                        className="prose prose-invert max-w-none text-slate-300 text-xs"
+                        dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(verifyMaterial.metadata.viewer_artifact.viewer_markdown) }}
+                      />
+                    ) : (
+                      <span className="text-slate-500 italic">No markdown preview content available.</span>
+                    )
+                  ) : verifyMaterial.type === 'json' ? (
+                    <pre className="overflow-x-auto p-4 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 font-mono text-xs whitespace-pre-wrap">
+                      {JSON.stringify(verifyMaterial.metadata?.viewer_artifact?.viewer_json || verifyMaterial.metadata?.viewer_artifact?.raw_text || {}, null, 2)}
+                    </pre>
                   ) : ['csv', 'xlsx'].includes(verifyMaterial.type) ? (
                     verifyMaterial.metadata?.viewer_artifact?.rows && verifyMaterial.metadata?.viewer_artifact?.rows.length > 0 ? (
                       <div className="overflow-x-auto border border-slate-700 rounded-lg">
@@ -1500,17 +2379,17 @@ function LessonEditorInner() {
                           <thead className="bg-slate-900">
                             <tr>
                               {(verifyMaterial.metadata.viewer_artifact.headers || []).map((hdr: string, i: number) => (
-                                <th key={i} className="px-3 py-1.5 text-left font-semibold text-slate-400 border-r border-slate-700 last:border-0 whitespace-nowrap">
+                                <th key={i} className="px-3 py-1.5 text-left font-semibold text-slate-100 border-r border-slate-700 last:border-0 whitespace-nowrap">
                                   {hdr}
                                 </th>
                               ))}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-800 bg-slate-950">
-                            {(verifyMaterial.metadata.viewer_artifact.rows || []).slice(0, 15).map((row: any[], i: number) => (
-                              <tr key={i} className="hover:bg-slate-900/50">
+                            {(verifyMaterial.metadata.viewer_artifact.rows || []).slice(0, 5).map((row: any[], i: number) => (
+                              <tr key={i} className="hover:bg-slate-880/20 hover:bg-slate-800/20">
                                 {row.map((cell: any, j: number) => (
-                                  <td key={j} className="px-3 py-1.5 text-slate-300 border-r border-slate-700 last:border-0 whitespace-nowrap">
+                                  <td key={j} className="px-3 py-1.5 text-slate-100 border-r border-slate-700 last:border-0 whitespace-nowrap">
                                     {cell}
                                   </td>
                                 ))}
@@ -1530,7 +2409,7 @@ function LessonEditorInner() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-6 text-slate-400 gap-2">
-                      <LinkIcon className="w-8 h-8 text-slate-555" />
+                      <LinkIcon className="w-8 h-8 text-slate-500" />
                       <span>External Resource Link</span>
                       <a href={verifyMaterial.storage_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:underline break-all">
                         {verifyMaterial.storage_url}
@@ -1538,118 +2417,185 @@ function LessonEditorInner() {
                     </div>
                   )}
                 </div>
-                {['csv', 'xlsx'].includes(verifyMaterial.type) && verifyMaterial.metadata?.viewer_artifact?.row_count > 15 && (
+                {['csv', 'xlsx'].includes(verifyMaterial.type) && verifyMaterial.metadata?.viewer_artifact?.row_count > 5 && (
                   <span className="block text-xs text-slate-500 italic">
-                    Showing first 15 of {verifyMaterial.metadata.viewer_artifact.row_count} rows.
+                    Showing first 5 of {verifyMaterial.metadata.viewer_artifact.row_count} rows.
                   </span>
                 )}
-              </div>
-
-              {/* Student Display Mode settings */}
-              <div className="space-y-3 pt-4 border-t border-slate-700">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Configure Student Visibility Option
-                </span>
-                <p className="text-[10px] text-slate-400">
-                  Select what options should be visible to students in the class roadmap lessons page.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <label className={`flex flex-col p-4 rounded-xl border cursor-pointer transition-all ${
-                    verifyDisplayMode === 'both' 
-                      ? 'bg-blue-600/10 border-blue-500 text-slate-250' 
-                      : 'bg-slate-950/40 border-slate-700 text-slate-400 hover:border-slate-700'
-                  }`}>
-                    <div className="flex items-center gap-2 font-bold text-xs text-white">
-                      <input
-                        type="radio"
-                        name="display_mode"
-                        value="both"
-                        checked={verifyDisplayMode === 'both'}
-                        onChange={() => setVerifyDisplayMode('both')}
-                        className="w-3.5 h-3.5 text-blue-600 bg-slate-900 border-slate-700"
-                      />
-                      <span>Both (Default)</span>
-                    </div>
-                    <span className="block text-[10px] text-slate-400 mt-2">
-                      Students can view the interactive preview AND download the original file.
-                    </span>
-                  </label>
-
-                  <label className={`flex flex-col p-4 rounded-xl border cursor-pointer transition-all ${
-                    verifyDisplayMode === 'web' 
-                      ? 'bg-blue-600/10 border-blue-500 text-slate-250' 
-                      : 'bg-slate-950/40 border-slate-700 text-slate-400 hover:border-slate-700'
-                  }`}>
-                    <div className="flex items-center gap-2 font-bold text-xs text-white">
-                      <input
-                        type="radio"
-                        name="display_mode"
-                        value="web"
-                        checked={verifyDisplayMode === 'web'}
-                        onChange={() => setVerifyDisplayMode('web')}
-                        className="w-3.5 h-3.5 text-blue-600 bg-slate-900 border-slate-700"
-                      />
-                      <span>Interactive Preview Only</span>
-                    </div>
-                    <span className="block text-[10px] text-slate-400 mt-2">
-                      Students view the web reader but cannot download/access the original file.
-                    </span>
-                  </label>
-
-                  <label className={`flex flex-col p-4 rounded-xl border cursor-pointer transition-all ${
-                    verifyDisplayMode === 'original' 
-                      ? 'bg-blue-600/10 border-blue-500 text-slate-250' 
-                      : 'bg-slate-950/40 border-slate-700 text-slate-400 hover:border-slate-700'
-                  }`}>
-                    <div className="flex items-center gap-2 font-bold text-xs text-white">
-                      <input
-                        type="radio"
-                        name="display_mode"
-                        value="original"
-                        checked={verifyDisplayMode === 'original'}
-                        onChange={() => setVerifyDisplayMode('original')}
-                        className="w-3.5 h-3.5 text-blue-600 bg-slate-900 border-slate-700"
-                      />
-                      <span>File Download Only</span>
-                    </div>
-                    <span className="block text-[10px] text-slate-400 mt-2">
-                      Students download the file directly, with no web-preview layout rendered.
-                    </span>
-                  </label>
-                </div>
               </div>
             </div>
 
             {/* Footer Buttons */}
-            <div className="p-5 border-t border-slate-700 flex gap-3 justify-end shrink-0">
+            <div className="p-5 border-t border-slate-700 flex justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setVerifyMaterial(null)}
-                disabled={savingVerify}
-                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-white font-semibold text-xs transition-all disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-white font-semibold text-xs transition-all"
               >
-                Cancel
+                Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student View Simulator Modal */}
+      {showStudentPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-blue-500" />
+                  Student View Simulator
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  This simulates what students see when accessing this lesson.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowStudentPreview(false)}
+                className="text-slate-400 hover:text-slate-200 text-xs transition-colors p-1"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-900 text-slate-100 custom-scrollbar">
+              <div className="max-w-4xl mx-auto space-y-8">
+                {/* Lesson Header Simulation */}
+                <div className="border-b border-slate-805 pb-4">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Course Roadmap / Lesson Preview
+                  </span>
+                  <h1 className="text-xl font-bold text-slate-100 mt-1">{title || 'Untitled Lesson'}</h1>
+                </div>
+
+                {/* 1. Deliverables Card CTA */}
+                {hasAssignment && (
+                  <div className="border border-indigo-500/20 bg-slate-950/10 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-indigo-400 shrink-0">
+                        <ClipboardList className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                          Lesson Deliverables: {assignmentForm.title || 'Assignment'}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Max Score: {assignmentForm.maxScore} pts | Files: Max {assignmentForm.maxFiles}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-[10px] uppercase tracking-wider select-none shrink-0">
+                      Submit Deliverables
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Resources & Repositories list */}
+                <div className="border border-slate-800 bg-slate-950/10 rounded-2xl p-5 space-y-3">
+                  <h3 className="font-bold text-slate-100 text-xs pb-2 border-b border-slate-800">
+                    Resources & Repositories
+                  </h3>
+                  {materials.filter((m) => ['link', 'code_repo'].includes(m.type)).length === 0 ? (
+                    <p className="text-[10px] text-slate-400 italic">No additional links mapped to this lesson.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {materials
+                        .filter((m) => ['link', 'code_repo'].includes(m.type))
+                        .map((m) => {
+                          const isRepo = m.type === 'code_repo'
+                          const styles = getMaterialTypeStyles(m.type)
+                          const Icon = getMaterialIcon(m.type)
+                          return (
+                            <a
+                              key={m.id}
+                              href={m.storage_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800 hover:border-slate-700 transition-all group"
+                            >
+                              <div className={`w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center ${styles.iconColor} transition-colors`}>
+                                <Icon className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-xs font-semibold text-slate-200 truncate group-hover:text-slate-100 transition-colors">
+                                  {m.title}
+                                </span>
+                                <span className={`inline-block text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded border font-semibold mt-1 ${styles.bg}`}>
+                                  {isRepo ? 'Git Repository' : 'External Link'}
+                                </span>
+                              </div>
+                            </a>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Grid-Mapped File Previews */}
+                <div className={`grid gap-6 ${getGridColsClass(gridLayout)}`}>
+                  {Array.from({ length: gridLayout === '3-cols' ? 3 : gridLayout === '2-cols' ? 2 : 1 }).map((_, colIdx) => {
+                    const colMaterialsList = Array.isArray(cellMaterials[colIdx]) ? cellMaterials[colIdx] : []
+                    return (
+                      <div key={colIdx} className="space-y-6 flex flex-col">
+                        {colMaterialsList.length > 0 ? (
+                          colMaterialsList.map((material: any) => (
+                            <div key={material.id}>
+                              {renderMaterialPreviewCard(material)}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="border border-dashed border-slate-800 bg-slate-900/10 rounded-2xl p-8 min-h-[220px] flex flex-col items-center justify-center text-slate-500 text-xs">
+                            <Upload className="w-5 h-5 mb-2 text-slate-600 animate-pulse" />
+                            <span>Empty Column {colIdx + 1}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* 4. Unplaced Fallback Materials */}
+                {(() => {
+                  const unplaced = materials.filter(m => 
+                    ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type) &&
+                    !Object.values(cellMaterials).some((colList: any) => 
+                      Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
+                    )
+                  )
+                  if (unplaced.length === 0) return null
+                  return (
+                    <div className="pt-8 border-t border-slate-800 space-y-4">
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wider">
+                          Additional Roadmap Documents
+                        </h3>
+                        <p className="text-[10px] text-slate-400">
+                          These documents are mapped to this lesson but have not been placed in the custom layout.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {unplaced.map((m) => renderMaterialPreviewCard(m))}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-slate-700 flex justify-end shrink-0">
               <button
                 type="button"
-                onClick={async () => {
-                  setSavingVerify(true)
-                  const res = await updateMaterialDisplayModeAction(verifyMaterial.id, verifyDisplayMode)
-                  setSavingVerify(false)
-                  if (res.success) {
-                    alert('Student display mode configured successfully!')
-                    setVerifyMaterial(null)
-                    fetchLessonDetails()
-                  } else {
-                    alert(`Failed to save configuration: ${res.error}`)
-                  }
-                }}
-                disabled={savingVerify}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg transition-all disabled:opacity-50"
+                onClick={() => setShowStudentPreview(false)}
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
               >
-                {savingVerify ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                <span>Save Settings</span>
+                Close Preview
               </button>
             </div>
           </div>

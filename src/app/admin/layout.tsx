@@ -31,21 +31,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-purple-500/5 blur-[100px] pointer-events-none" />
 
       {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-700 bg-slate-900/40 backdrop-blur-xl flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20">
+      <aside className="w-56 border-r border-slate-700 bg-slate-900/40 backdrop-blur-xl flex flex-col justify-between shrink-0 sticky top-0 h-screen z-10">
         <div>
           {/* Header/Logo */}
-          <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-700">
+          <div className="h-16 flex items-center gap-3 px-4 border-b border-slate-700">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/10">
               <ShieldCheck className="w-4 h-4 text-white" />
             </div>
             <div>
-              <span className="font-bold tracking-tight text-white block text-sm">Teaching OS</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Admin Panel</span>
+              <span className="font-bold tracking-tight text-white block text-xs">Teaching OS</span>
+              <span className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold block">Admin Panel</span>
             </div>
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1">
+          <nav className="p-3 space-y-1">
             {navigationItems.map((item) => {
               const isActive =
                 item.href === '/admin'
@@ -92,7 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen relative z-10">
+      <main className="flex-1 flex flex-col min-w-0 min-h-screen relative z-20">
         {/* Top Header Bar */}
         <header className="h-16 border-b border-slate-700 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
           <div className="flex items-center gap-2">

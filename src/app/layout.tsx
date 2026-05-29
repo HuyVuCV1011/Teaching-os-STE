@@ -2,8 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import ScrollToTopButton from '@/components/ui/ScrollToTopButton'
-import { FloatingNav } from '@/components/FloatingNavbar'
-import { navItems } from '@/data'
+import { ConditionalFloatingNav } from '@/components/ConditionalFloatingNav'
 // import Footer from '@/components/Footer'
 
 const geistSans = Geist({
@@ -31,7 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased relative`}
       >
-        <FloatingNav navItems={navItems} />
+        <ConditionalFloatingNav />
         {children}
         {/* <Footer /> */}
         <ScrollToTopButton />

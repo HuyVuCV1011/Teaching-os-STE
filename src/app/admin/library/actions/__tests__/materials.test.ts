@@ -4,20 +4,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const { mockSupabase } = vi.hoisted(() => {
   const mockSelect = vi.fn()
   const mockInsert = vi.fn(() => ({ select: vi.fn() }))
+  const mockUpdate = vi.fn()
+  const mockRpc = vi.fn()
   const mockFrom = vi.fn((table: string) => {
-    if (table === 'canonical_materials') {
+    if (table === 'canonical_materials' || table === 'lessons') {
       return {
         select: mockSelect,
         insert: mockInsert,
+        update: mockUpdate,
       }
     }
-    return { select: vi.fn(), insert: vi.fn() }
+    return { select: vi.fn(), insert: vi.fn(), update: vi.fn() }
   })
 
   const mockSupabase = {
     from: mockFrom,
     select: mockSelect,
     insert: mockInsert,
+    update: mockUpdate,
+    rpc: mockRpc,
   }
 
   return { mockSupabase }
@@ -25,12 +30,16 @@ const { mockSupabase } = vi.hoisted(() => {
 
 vi.mock('@/lib/supabase', () => ({
   supabase: mockSupabase,
+  getSupabaseServer: vi.fn(() => mockSupabase),
 }))
+
 
 import {
   checkMaterialDeduplication,
   registerCanonicalMaterial,
   type MaterialInput,
+  reorderMaterialsAction,
+  updateLessonLayoutAction,
 } from '../materials'
 import { supabase } from '@/lib/supabase'
 
@@ -175,3 +184,89 @@ describe('registerCanonicalMaterial', () => {
     expect(result.success).toBe(true)
   })
 })
+
+describe('reorderMaterialsAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('calls rpc for reordering canonical materials successfully', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ error: null } as any)
+
+    const updates = [{ id: '1', display_order: 1 }, { id: '2', display_order: 2 }]
+    const result = await reorderMaterialsAction(updates)
+
+    expect(result.success).toBe(true)
+    expect(supabase.rpc).toHaveBeenCalledWith('reorder_canonical_materials', { updates })
+  })
+
+  it('returns success: false on rpc error', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ error: { message: 'RPC Error' } } as any)
+
+    const result = await reorderMaterialsAction([])
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('RPC Error')
+  })
+})
+
+describe('updateLessonLayoutAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('fetches metadata, updates mapping and layout successfully', async () => {
+    const lesson = { metadata: { existing: 'data' } }
+    
+    // Mock select & single chain: supabase.from('lessons').select('metadata').eq('id', 'l1').single()
+    const mockSingle = vi.fn().mockResolvedValue({ data: lesson, error: null })
+    const mockEqFetch = vi.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEqFetch })
+
+    // Mock update chain: supabase.from('lessons').update({ ... }).eq('id', 'l1')
+    const mockEqUpdate = vi.fn().mockResolvedValue({ error: null })
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockEqUpdate })
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'lessons') {
+        return {
+          select: mockSelect,
+          update: mockUpdate,
+        } as any
+      }
+      return { select: vi.fn(), update: vi.fn() } as any
+    })
+
+    const result = await updateLessonLayoutAction('l1', '2-cols', { 1: ['mat-1'] })
+
+    expect(result.success).toBe(true)
+    expect(mockSelect).toHaveBeenCalledWith('metadata')
+    expect(mockEqFetch).toHaveBeenCalledWith('id', 'l1')
+    expect(mockUpdate).toHaveBeenCalledWith({
+      grid_layout: '2-cols',
+      metadata: {
+        existing: 'data',
+        grid_cell_mapping: { 1: ['mat-1'] }
+      }
+    })
+  })
+
+  it('returns success: false when lesson fetch fails', async () => {
+    const mockSingle = vi.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } })
+    const mockEqFetch = vi.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEqFetch })
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'lessons') {
+        return {
+          select: mockSelect,
+        } as any
+      }
+      return {} as any
+    })
+
+    const result = await updateLessonLayoutAction('l1', '2-cols', {})
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Lesson not found: Not found')
+  })
+})
+

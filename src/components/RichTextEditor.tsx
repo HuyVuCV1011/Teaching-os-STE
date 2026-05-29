@@ -37,6 +37,7 @@ interface RichTextEditorProps {
 
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         bulletList: {
@@ -51,13 +52,15 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
         },
         code: {
           HTMLAttributes: {
-            class: 'bg-slate-950 text-emerald-400 rounded px-1.5 py-0.5 font-mono text-sm border border-slate-800',
+            class: 'bg-slate-955 text-emerald-400 rounded px-1.5 py-0.5 font-mono text-sm border border-slate-800',
           },
         },
         heading: {
           levels: [1, 2, 3],
           HTMLAttributes: { class: 'text-white font-bold my-4' },
         },
+        strike: false,
+        blockquote: false,
       }),
       Underline.configure({}),
       Strike.configure({}),
