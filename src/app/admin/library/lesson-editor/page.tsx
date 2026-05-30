@@ -24,7 +24,6 @@ import {
   generateRubricAction,
   parseAssignmentFileAction,
   readMaterialsTextAction,
-  generateAssignmentQuestionsAction,
   suggestQuestionAnswerAction
 } from '@/app/admin/library/actions/assignments'
 import {
@@ -1441,7 +1440,7 @@ function LessonEditorInner() {
       setGenStage('generating')
       const generatingStartTime = Date.now()
       
-      const res = await generateAssignmentQuestionsAction({
+      const res = await clientGenerateQuestions({
         modelChoice: selectedModel,
         assignmentType: aiType,
         category: aiCategory,
