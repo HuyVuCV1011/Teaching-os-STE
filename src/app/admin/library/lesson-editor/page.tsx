@@ -3453,16 +3453,6 @@ function LessonEditorInner() {
             const activeReviewIndex = Math.max(0, Math.min(activeReviewQsIdx, totalApproved - 1))
             const activeQ = approvedQs[activeReviewIndex]
 
-            // Function to focus the textarea for editing
-            const handleFocusEdit = () => {
-              const el = document.getElementById('model-answer-textarea')
-              if (el) {
-                el.focus()
-              } else {
-                alert('Editing mode active. Please click correct option below.')
-              }
-            }
-
             return (
               <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-700">
@@ -3587,13 +3577,6 @@ function LessonEditorInner() {
                                     <Sparkles className="w-3 h-3 text-indigo-505" />
                                   )}
                                   <span>Suggest AI</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleFocusEdit}
-                                  className="px-2.5 py-1 rounded bg-slate-955 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-slate-300 hover:text-slate-100 transition-colors"
-                                >
-                                  {activeQ.answer && activeQ.answer.trim() !== '' ? 'Edit' : 'Add'}
                                 </button>
                               </div>
                             </div>
