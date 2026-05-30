@@ -376,6 +376,9 @@ function LessonEditorInner() {
   const [classifyDownloadable, setClassifyDownloadable] = useState(true)
   const [classifyPreviewable, setClassifyPreviewable] = useState(true)
   const [parseDefaultAnswerFormat, setParseDefaultAnswerFormat] = useState<'text' | 'file' | 'both'>('text')
+  const [showEssayFormatModal, setShowEssayFormatModal] = useState(false)
+  const [parsedQuestionsTemp, setParsedQuestionsTemp] = useState<any[]>([])
+  const [parsedFileNameTemp, setParsedFileNameTemp] = useState<string>('')
   const [isParsingFile, setIsParsingFile] = useState(false)
 
   // Step 1: Material Selection states
@@ -1501,12 +1504,10 @@ function LessonEditorInner() {
             source_file: null
           }))
         }
-        setBatches(prev => {
-          const nextBatches = [...prev, newBatch]
-          setActiveBatchIndex(nextBatches.length - 1)
-          setActiveQuestionIndex(0)
-          return nextBatches
-        })
+        const nextBatches = [...batches, newBatch]
+        setBatches(nextBatches)
+        setActiveBatchIndex(nextBatches.length - 1)
+        setActiveQuestionIndex(0)
         setModalStep(3)
       } else {
         clearInterval(timer)
@@ -1747,16 +1748,14 @@ function LessonEditorInner() {
     const confirmed = window.confirm("Delete the ENTIRE batch? This will remove all questions in this batch. This cannot be undone.")
     if (!confirmed) return
     
-    setBatches(prev => {
-      const next = prev.filter((_, idx) => idx !== batchIdx)
-      if (next.length === 0) {
-        setActiveBatchIndex(0)
-        setActiveQuestionIndex(0)
-      } else if (activeBatchIndex >= next.length) {
-        setActiveBatchIndex(next.length - 1)
-      }
-      return next
-    })
+    const nextBatches = batches.filter((_, idx) => idx !== batchIdx)
+    setBatches(nextBatches)
+    if (nextBatches.length === 0) {
+      setActiveBatchIndex(0)
+      setActiveQuestionIndex(0)
+    } else if (activeBatchIndex >= nextBatches.length) {
+      setActiveBatchIndex(nextBatches.length - 1)
+    }
   }
 
   const handleQuestionFormatOverride = (qIdx: number, format: 'text' | 'file' | 'both' | undefined) => {
@@ -2072,32 +2071,42 @@ function LessonEditorInner() {
           }))
 
           const isMCQ = newQuestions.some(q => q.options && q.options.length > 0)
-          const newQuestionsWithFormat = newQuestions.map((q: any) => ({
-            ...q,
-            answerFormat: isMCQ ? 'text' : parseDefaultAnswerFormat
-          }))
+          
+          if (isMCQ) {
+            // Proceed as normal for Multiple Choice
+            const newQuestionsWithFormat = newQuestions.map((q: any) => ({
+              ...q,
+              answerFormat: 'text'
+            }))
 
-          const newBatch: BatchItem = {
-            id: Date.now(),
-            type: isMCQ ? 'multiple_choice' : 'essay',
-            category: 'theory',
-            defaultAnswerFormat: isMCQ ? 'text' : parseDefaultAnswerFormat,
-            questions: newQuestionsWithFormat
-          }
+            const newBatch: BatchItem = {
+              id: Date.now(),
+              type: 'multiple_choice',
+              category: 'theory',
+              defaultAnswerFormat: 'text',
+              questions: newQuestionsWithFormat
+            }
 
-          setBatches(prev => {
-            const nextBatches = [...prev, newBatch]
+            const nextBatches = [...batches, newBatch]
+            setBatches(nextBatches)
             setActiveBatchIndex(nextBatches.length - 1)
             setActiveQuestionIndex(0)
-            return nextBatches
-          })
 
-          setClassifyModalOpen(false)
-          setClassifyFile(null)
-          
-          // Open AI Modal to Step 3 (Review)
-          setModalStep(3)
-          setShowAiModal(true)
+            setClassifyModalOpen(false)
+            setClassifyFile(null)
+            
+            // Open AI Modal to Step 3 (Review)
+            setModalStep(3)
+            setShowAiModal(true)
+          } else {
+            // Essay questions detected! Capture temporarily and launch the post-parse select dialog
+            setParsedQuestionsTemp(newQuestions)
+            setParsedFileNameTemp(classifyFile.name)
+            
+            setClassifyModalOpen(false)
+            setClassifyFile(null)
+            setShowEssayFormatModal(true)
+          }
         } else {
           alert(`Parsing failed: ${res.error}`)
         }
@@ -2129,6 +2138,37 @@ function LessonEditorInner() {
       setClassifyModalOpen(false)
       setClassifyFile(null)
     }
+  }
+
+  const handleApplyEssayFormat = (format: 'text' | 'file' | 'both') => {
+    if (parsedQuestionsTemp.length === 0) return
+
+    const newQuestionsWithFormat = parsedQuestionsTemp.map((q: any) => ({
+      ...q,
+      answerFormat: format
+    }))
+
+    const newBatch: BatchItem = {
+      id: Date.now(),
+      type: 'essay',
+      category: 'theory',
+      defaultAnswerFormat: format,
+      questions: newQuestionsWithFormat
+    }
+
+    const nextBatches = [...batches, newBatch]
+    setBatches(nextBatches)
+    setActiveBatchIndex(nextBatches.length - 1)
+    setActiveQuestionIndex(0)
+
+    // Reset temporary states
+    setParsedQuestionsTemp([])
+    setParsedFileNameTemp('')
+    setShowEssayFormatModal(false)
+
+    // Open AI Modal to Step 3 (Review)
+    setModalStep(3)
+    setShowAiModal(true)
   }
 
   const handleAsgDrag = (e: React.DragEvent) => {
@@ -4895,56 +4935,7 @@ function LessonEditorInner() {
                 </div>
               </div>
 
-              {classifyType === 'question' ? (
-                <div className="space-y-2 pt-2 border-t border-slate-800/60 mt-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
-                    Parsed Essay Default Answer Format
-                  </label>
-                  <div className="grid grid-cols-3 gap-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setParseDefaultAnswerFormat('text')}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[64px] ${
-                        parseDefaultAnswerFormat === 'text'
-                          ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
-                          : 'bg-slate-955 border-slate-800 text-slate-400 hover:bg-slate-900/50 hover:text-slate-205'
-                      }`}
-                    >
-                      <span className="text-base mb-0.5">📝</span>
-                      <span className="block text-[10px] font-bold">Text Only</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setParseDefaultAnswerFormat('file')}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[64px] ${
-                        parseDefaultAnswerFormat === 'file'
-                          ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
-                          : 'bg-slate-955 border-slate-800 text-slate-400 hover:bg-slate-900/50 hover:text-slate-205'
-                      }`}
-                    >
-                      <span className="text-base mb-0.5">📎</span>
-                      <span className="block text-[10px] font-bold">File Only</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setParseDefaultAnswerFormat('both')}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[64px] ${
-                        parseDefaultAnswerFormat === 'both'
-                          ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
-                          : 'bg-slate-955 border-slate-800 text-slate-400 hover:bg-slate-900/50 hover:text-slate-205'
-                      }`}
-                    >
-                      <span className="text-base mb-0.5">🔀</span>
-                      <span className="block text-[10px] font-bold">Both</span>
-                    </button>
-                  </div>
-                  <span className="block text-[9px] text-slate-400 font-medium leading-normal pt-1">
-                    If parsed questions do not contain multiple-choice options, they will be classified as essays using this default format.
-                  </span>
-                </div>
-              ) : (
+              {classifyType !== 'question' && (
                 <div className="space-y-2 pt-2">
                   <label className="block text-[10px] font-bold text-slate-405 uppercase tracking-widest">
                     Options
@@ -4993,6 +4984,120 @@ function LessonEditorInner() {
               >
                 {isParsingFile && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>{classifyType === 'question' ? 'AI Parse Questions' : 'Confirm'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Smart Post-Parse Essay Format Modal */}
+      {showEssayFormatModal && (
+        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
+                Essay Questions Detected!
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEssayFormatModal(false)
+                  setParsedQuestionsTemp([])
+                  setParsedFileNameTemp('')
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5 text-xs text-slate-205">
+              <div className="p-3.5 bg-slate-950 border border-slate-850 rounded-xl space-y-1">
+                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                  Parsed File Source:
+                </span>
+                <span className="block text-xs font-semibold text-slate-200 truncate">
+                  {parsedFileNameTemp}
+                </span>
+                <span className="block text-[9px] text-emerald-400 font-bold font-mono">
+                  ✓ Successfully extracted {parsedQuestionsTemp.length} essay question(s)
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                  Choose Submission Answer Format
+                </label>
+                <p className="text-[10px] text-slate-450 leading-normal">
+                  Configure how you would like students to submit their answers for these parsed essay questions:
+                </p>
+
+                <div className="grid grid-cols-1 gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyEssayFormat('text')}
+                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                  >
+                    <div className="p-2 bg-blue-600/10 text-blue-500 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                      📝
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-200">Text Input Only</span>
+                      <span className="block text-[9px] text-slate-500 mt-0.5 leading-normal">
+                        Students write their essay answers directly inside a rich textarea editor. Ideal for standard written responses.
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyEssayFormat('file')}
+                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                  >
+                    <div className="p-2 bg-amber-600/10 text-amber-500 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0">
+                      📎
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-200">File Upload Only</span>
+                      <span className="block text-[9px] text-slate-500 mt-0.5 leading-normal">
+                        Students upload a file submission (PDF, DOCX, ZIP, source code) to answer the questions. Ideal for lab reports or projects.
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyEssayFormat('both')}
+                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                  >
+                    <div className="p-2 bg-purple-600/10 text-purple-500 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0">
+                      🔀
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-200">Both Options Allowed</span>
+                      <span className="block text-[9px] text-slate-500 mt-0.5 leading-normal">
+                        Give students maximum flexibility: they can choose to write manually, upload a file, or do both.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEssayFormatModal(false)
+                  setParsedQuestionsTemp([])
+                  setParsedFileNameTemp('')
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                Cancel & Discard
               </button>
             </div>
           </div>
