@@ -92,6 +92,25 @@ function htmlToMarkdown(html: string): string {
   return md.trim()
 }
 
+function cleanOptionText(opt: string, index: number): string {
+  if (!opt) return ''
+  const letter = String.fromCharCode(65 + index)
+  const prefixRegex = new RegExp(`^(?:Option\\s+)?${letter}(?:[\\.\\s\\)\\-\\:]+)\\s*`, 'i')
+  if (prefixRegex.test(opt)) {
+    return opt.replace(prefixRegex, '').trim()
+  }
+  
+  const generalRegex = /^[A-Z](?:[\\.\\s\\)\\-\\:]+)\\s*/i
+  const trimmed = opt.trim()
+  if (trimmed.length > 0) {
+    const firstLetter = trimmed.charAt(0).toUpperCase()
+    if (firstLetter === letter && generalRegex.test(trimmed)) {
+      return trimmed.replace(generalRegex, '').trim()
+    }
+  }
+  return opt
+}
+
 const GRID_LAYOUTS = [
   { id: '1-col', name: '1 Column', cols: 'grid-cols-1', cells: 1, icon: (
     <div className="grid grid-cols-1 gap-0.5 w-6 h-6 border border-slate-700 p-0.5 rounded bg-slate-900">
@@ -1471,7 +1490,9 @@ function LessonEditorInner() {
           questions: res.questions.map((q: any) => ({
             id: q.id || Math.random(),
             content: q.content || '',
-            options: q.options || undefined,
+            options: q.options && Array.isArray(q.options)
+              ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
+              : undefined,
             answer: q.answer || undefined,
             status: 'pending' as const,
             data: q.data || undefined,
@@ -2007,7 +2028,9 @@ function LessonEditorInner() {
           const newQuestions = res.questions.map((q: any) => ({
             id: q.id || Math.random(),
             content: q.content || '',
-            options: q.options || undefined,
+            options: q.options && Array.isArray(q.options)
+              ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
+              : undefined,
             answer: q.answer || undefined,
             status: 'pending' as const,
             data: q.data || undefined,
@@ -3583,7 +3606,7 @@ function LessonEditorInner() {
                                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-950">
                                   {activeQ.options.map((opt, oIdx) => (
                                     <div key={oIdx} className="text-[11px] text-slate-400 font-medium">
-                                      <strong className="text-blue-500">{String.fromCharCode(65 + oIdx)}.</strong> {opt}
+                                      <strong className="text-blue-500">{String.fromCharCode(65 + oIdx)}.</strong> {cleanOptionText(opt, oIdx)}
                                     </div>
                                   ))}
                                 </div>
@@ -3663,7 +3686,7 @@ function LessonEditorInner() {
                                       return (
                                         <div key={letter} className="flex items-center gap-2 p-2 bg-slate-900 border border-slate-855 rounded-lg text-[10px] text-slate-400">
                                           <span className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center font-bold text-[9px] shrink-0 text-slate-505 bg-slate-955">{letter}</span>
-                                          <span className="truncate">{opt}</span>
+                                          <span className="truncate">{cleanOptionText(opt, oIdx)}</span>
                                         </div>
                                       )
                                     })}
@@ -3958,7 +3981,7 @@ function LessonEditorInner() {
                                             }`}>
                                               {letter}
                                             </span>
-                                            <span>{opt}</span>
+                                            <span>{cleanOptionText(opt, oIdx)}</span>
                                           </button>
                                         )
                                       })}
@@ -4753,7 +4776,7 @@ function LessonEditorInner() {
                                             }`}>
                                               {letter}
                                             </span>
-                                            <span>{opt}</span>
+                                            <span>{cleanOptionText(opt, oIdx)}</span>
                                           </button>
                                         )
                                       })}
@@ -5617,7 +5640,7 @@ function LessonEditorInner() {
                                           }`}>
                                             {letter}
                                           </span>
-                                          <span className={isCorrect ? 'text-slate-200' : ''}>{opt}</span>
+                                          <span className={isCorrect ? 'text-slate-200' : ''}>{cleanOptionText(opt, oIdx)}</span>
                                         </div>
                                       )
                                     })}
@@ -5739,7 +5762,12 @@ function LessonEditorInner() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setEditingQuestion({ ...q })
+                                    setEditingQuestion({
+                                      ...q,
+                                      options: q.options && Array.isArray(q.options)
+                                        ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
+                                        : undefined
+                                    })
                                     setEditingBatchIndex(activeBatchIndex)
                                     setEditingQuestionIndex(qIdx)
                                   }}
@@ -5945,7 +5973,7 @@ function LessonEditorInner() {
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
                                     {q.options.map((opt, oIdx) => (
                                       <div key={oIdx} className="text-[10px] text-slate-400">
-                                        <strong className="text-blue-500 font-bold">{String.fromCharCode(65 + oIdx)}.</strong> {opt}
+                                        <strong className="text-blue-500 font-bold">{String.fromCharCode(65 + oIdx)}.</strong> {cleanOptionText(opt, oIdx)}
                                       </div>
                                     ))}
                                   </div>
