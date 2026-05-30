@@ -502,7 +502,36 @@ export default async function LessonPage({ params }: PageProps) {
                   <div key={assign.id} className="space-y-1.5 p-3 rounded-xl bg-slate-950/30 border border-slate-850">
                     <h4 className="text-xs font-bold text-slate-200">{assign.title}</h4>
                     <p className="text-[10px] text-slate-400 line-clamp-2">
-                      {assign.instructions?.replace(/<[^>]*>/g, '') || ''}
+                      {(() => {
+                        const instr = assign.instructions || ''
+                        const trimmed = instr.trim()
+                        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                          try {
+                            const parsedObj = JSON.parse(trimmed)
+                            const qCount = parsedObj.questions?.length || 0
+                            const dfCount = parsedObj.data_files?.length || 0
+                            const rfCount = parsedObj.reference_files?.length || 0
+                            const parts = []
+                            if (qCount > 0) parts.push(`${qCount} Questions`)
+                            if (dfCount > 0) parts.push(`${dfCount} Data Files`)
+                            if (rfCount > 0) parts.push(`${rfCount} Reference Files`)
+                            return parts.length > 0 ? parts.join(', ') : 'Assignment details included'
+                          } catch {
+                            // Fallback
+                          }
+                        }
+                        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                          try {
+                            const parsed = JSON.parse(trimmed)
+                            if (Array.isArray(parsed)) {
+                              return `${parsed.length} Questions: ` + parsed.map((q: any, idx: number) => `Q${idx+1}: ${q.content}`).join('; ')
+                            }
+                          } catch {
+                            // Fallback
+                          }
+                        }
+                        return instr.replace(/<[^>]*>/g, '')
+                      })()}
                     </p>
                     <Link
                       href={`/learn/${classCode}/assignments/${assign.id}`}

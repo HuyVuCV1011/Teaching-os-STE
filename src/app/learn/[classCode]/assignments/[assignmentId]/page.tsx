@@ -10,8 +10,12 @@ import {
   triggerRubricoreGradingAction,
   fetchStudentSubmissionAction,
   submitAssignmentAction,
-  getAssignmentPromptSignedUrlAction
+  getAssignmentPromptSignedUrlAction,
+  parseAssignmentPromptAction,
+  getStudentMaterialSignedUrlAction,
+  parseStudentMaterialAction
 } from './actions'
+import DocumentViewer from '@/components/DocumentViewer'
 import {
   ArrowLeft,
   FileText,
@@ -21,7 +25,28 @@ import {
   Loader2,
   Trash2,
   Calendar,
+  FileCode,
+  Paperclip,
 } from 'lucide-react'
+
+function renderSimpleMarkdown(md: string): string {
+  if (!md) return ''
+  let html = md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/^# (.*?)$/gm, '<h1 class="text-lg font-bold text-slate-800 mt-4 mb-2 pb-1 border-b border-slate-200">$1</h1>')
+    .replace(/^## (.*?)$/gm, '<h2 class="text-base font-bold text-slate-800 mt-3 mb-2 pb-0.5 border-b border-slate-150">$1</h2>')
+    .replace(/^### (.*?)$/gm, '<h3 class="text-sm font-bold text-slate-800 mt-2 mb-1">$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-rose-600 font-mono text-[11px]">$1</code>')
+    .replace(/^&gt;\s*(.*?)$/gm, '<blockquote class="border-l-4 border-indigo-400 bg-indigo-50 pl-3 py-1.5 my-2 rounded-r text-slate-500 italic">$1</blockquote>')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-500 underline transition-colors">$1</a>')
+    .replace(/^[-*]\s+(.*?)$/gm, '<div class="flex items-start gap-1.5 my-1 text-slate-650"><span class="text-blue-500 font-bold shrink-0">•</span><span class="flex-1">$1</span></div>')
+    .replace(/\n/g, '<br />')
+  return html
+}
 
 function getCookie(name: string): string {
   if (typeof document === 'undefined') return ''
@@ -50,6 +75,9 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
   // Data states
   const [assignment, setAssignment] = useState<any>(null)
   const [promptDownloadUrl, setPromptDownloadUrl] = useState<string | null>(null)
+  const [parsedPromptContent, setParsedPromptContent] = useState<any>(null)
+  const [parsingPrompt, setParsingPrompt] = useState(false)
+  const [parsingPromptError, setParsingPromptError] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<any>(null)
   const [existingSubmission, setExistingSubmission] = useState<any>(null)
   const [gradingResult, setGradingResult] = useState<any>(null)
@@ -61,6 +89,48 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
   const [email, setEmail] = useState('')
   const [text, setText] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [answers, setAnswers] = useState<Record<number, string>>({})
+
+  // Student view interactive file preview states
+  const [previewingFile, setPreviewingFile] = useState<any>(null)
+  const [previewContent, setPreviewContent] = useState<any>(null)
+  const [previewSignedUrl, setPreviewSignedUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
+  const handlePreviewFile = async (fileItem: any) => {
+    setPreviewingFile(fileItem)
+    setPreviewContent(null)
+    setPreviewSignedUrl(null)
+    setPreviewLoading(true)
+    setPreviewError(null)
+
+    const ext = fileItem.storage_path.split('.').pop()?.toLowerCase() || ''
+    
+    try {
+      // 1. Get signed URL first (needed for PDFs or download links in previewer)
+      const urlRes = await getStudentMaterialSignedUrlAction(classCode, fileItem.storage_path)
+      if (urlRes.success && urlRes.signedUrl) {
+        setPreviewSignedUrl(urlRes.signedUrl)
+      } else {
+        throw new Error(urlRes.error || 'Failed to generate signed preview URL')
+      }
+
+      // 2. Parse if previewable content type (docx, csv, xlsx, xls, md, markdown, json, txt, js, ts, py)
+      if (['docx', 'doc', 'csv', 'xlsx', 'xls', 'md', 'markdown', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+        const parseRes = await parseStudentMaterialAction(classCode, fileItem.storage_path)
+        if (parseRes.success) {
+          setPreviewContent(parseRes.content)
+        } else {
+          setPreviewError(parseRes.error || 'Failed to parse file preview content.')
+        }
+      }
+    } catch (err: any) {
+      setPreviewError(err.message || 'An error occurred while loading the preview.')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
 
   useEffect(() => {
     fetchAssignmentData()
@@ -136,6 +206,22 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
           setPromptDownloadUrl(res.signedUrl)
         }
       })
+
+      const ext = assignmentData.prompt_file_path.split('.').pop()?.toLowerCase() || ''
+      if (['docx', 'csv', 'xlsx', 'xls', 'md', 'markdown', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+        setParsingPrompt(true)
+        parseAssignmentPromptAction(classCode, assignmentId).then((res) => {
+          if (res.success) {
+            setParsedPromptContent(res.content)
+          } else {
+            setParsingPromptError(res.error || 'Failed to parse assignment prompt file content.')
+          }
+          setParsingPrompt(false)
+        }).catch((err) => {
+          setParsingPromptError(err.message || 'Failed to parse assignment prompt file content.')
+          setParsingPrompt(false)
+        })
+      }
     }
 
     // 2. Fetch class schedules for due_date
@@ -237,7 +323,30 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || files.length === 0) return
+    
+    // Parse questions list from instructions
+    let questionsList: any[] = []
+    const instructionsStr = assignment?.instructions || ''
+    const trimmed = instructionsStr.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsedObj = JSON.parse(trimmed)
+        questionsList = parsedObj.questions || []
+      } catch (err) {}
+    } else if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsedArr = JSON.parse(trimmed)
+        if (Array.isArray(parsedArr)) {
+          questionsList = parsedArr
+        }
+      } catch (err) {}
+    }
+
+    if (!email.trim()) return
+    if (files.length === 0 && questionsList.length === 0 && !text.trim()) {
+      setError('Please provide at least one file or complete the assignment questions.')
+      return
+    }
 
     setSubmitting(true)
     setError(null)
@@ -276,11 +385,23 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         type: file.type
       }))
 
+      // Serialize questions and responses
+      let finalSubmissionText = text
+      if (questionsList.length > 0) {
+        let answersSection = '\n\n--- CÂU TRẢ LỜI CỦA HỌC VIÊN ---\n'
+        questionsList.forEach((q: any, idx: number) => {
+          const ans = answers[idx] || '(Chưa trả lời)'
+          const typeText = q.type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'
+          answersSection += `Câu ${idx + 1} (${typeText}): ${ans}\n`
+        })
+        finalSubmissionText = text + answersSection
+      }
+
       // Call secure transactional server action
       const submitRes = await submitAssignmentAction({
         classCode,
         assignmentId,
-        text,
+        text: finalSubmissionText,
         files: fileData,
         uploadedUrls
       })
@@ -343,31 +464,715 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 pb-2 border-b border-slate-800">
               Work Instructions
             </h2>
-            <div 
-              className="text-slate-700 text-sm leading-relaxed prose max-w-none"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(assignment?.instructions || '') }}
-            />
+            {(() => {
+              const instructionsStr = assignment?.instructions || ''
+              const trimmed = instructionsStr.trim()
+              
+              let questionsList: any[] = []
+              let dataFiles: any[] = []
+              let referenceFiles: any[] = []
+              let isNewJsonFormat = false
+              
+              if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                try {
+                  const parsedObj = JSON.parse(trimmed)
+                  questionsList = parsedObj.questions || []
+                  dataFiles = parsedObj.data_files || []
+                  referenceFiles = parsedObj.reference_files || []
+                  isNewJsonFormat = true
+                } catch (e) {
+                  console.error('Error parsing assignment instructions JSON:', e)
+                }
+              } else if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                try {
+                  const parsedArr = JSON.parse(trimmed)
+                  if (Array.isArray(parsedArr)) {
+                    questionsList = parsedArr
+                  }
+                } catch (e) {
+                  console.error('Error parsing assignment instructions array:', e)
+                }
+              }
 
-            {promptDownloadUrl && (
-              <div className="p-4 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-500" />
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-bold text-slate-200">Assignment File Attachment</span>
-                    <span className="block text-[10px] text-slate-400">Download instructions/requirements document</span>
+              if (isNewJsonFormat) {
+                return (
+                  <div className="space-y-6">
+                    {/* Render standard instructions info/text if any (e.g. title/desc) */}
+                    <div className="space-y-1">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Description</span>
+                      <p className="text-sm text-slate-350 leading-relaxed font-medium">
+                        Please review the attached reference materials, download/analyze the data files, and complete the questions below.
+                      </p>
+                    </div>
+
+                    {/* Reference Materials List */}
+                    {referenceFiles.length > 0 && (
+                      <div className="space-y-3 pt-4 border-t border-slate-805">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                          Reference Materials (For Reading)
+                        </h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {referenceFiles.map((fileItem, idx) => (
+                            <div key={idx} className="p-3 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-800 transition-all">
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <span className="block text-xs font-semibold text-slate-200 truncate">
+                                  {fileItem.name}
+                                </span>
+                                <span className="block text-[9px] text-slate-500">
+                                  {(fileItem.size / 1024).toFixed(1)} KB
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {fileItem.previewable && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreviewFile(fileItem)}
+                                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-355 hover:text-slate-100 text-[9px] font-bold transition-all"
+                                  >
+                                    Preview
+                                  </button>
+                                )}
+                                {fileItem.downloadable && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (fileItem.storage_path) {
+                                        const res = await getStudentMaterialSignedUrlAction(classCode, fileItem.storage_path)
+                                        if (res.success && res.signedUrl) {
+                                          window.open(res.signedUrl, '_blank')
+                                        } else {
+                                          alert('Could not download file.')
+                                        }
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[9px] font-bold border border-blue-500/20 transition-all"
+                                  >
+                                    Download
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Data Files List */}
+                    {dataFiles.length > 0 && (
+                      <div className="space-y-3 pt-4 border-t border-slate-805">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          Attached Data Files (For Download)
+                        </h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {dataFiles.map((fileItem, idx) => (
+                            <div key={idx} className="p-3 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-800 transition-all">
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <span className="block text-xs font-semibold text-slate-200 truncate">
+                                  {fileItem.name}
+                                </span>
+                                <span className="block text-[9px] text-slate-500">
+                                  {(fileItem.size / 1024).toFixed(1)} KB
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {fileItem.previewable && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreviewFile(fileItem)}
+                                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-355 hover:text-slate-100 text-[9px] font-bold transition-all"
+                                  >
+                                    Preview
+                                  </button>
+                                )}
+                                {fileItem.downloadable && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (fileItem.storage_path) {
+                                        const res = await getStudentMaterialSignedUrlAction(classCode, fileItem.storage_path)
+                                        if (res.success && res.signedUrl) {
+                                          window.open(res.signedUrl, '_blank')
+                                        } else {
+                                          alert('Could not download file.')
+                                        }
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[9px] font-bold border border-blue-500/20 transition-all"
+                                  >
+                                    Download
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Interactive File Preview Pane */}
+                    {previewingFile && (
+                      <div className="space-y-4 pt-4 border-t border-slate-805">
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                            <span className="text-xs font-bold text-slate-200 truncate">{previewingFile.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewingFile(null)
+                              setPreviewContent(null)
+                              setPreviewSignedUrl(null)
+                              setPreviewError(null)
+                            }}
+                            className="text-slate-400 hover:text-white text-xs transition-colors p-1 bg-slate-900 hover:bg-slate-850 rounded"
+                          >
+                            ✕ Close Preview
+                          </button>
+                        </div>
+
+                        {previewLoading ? (
+                          <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 font-mono text-xs border border-slate-850 rounded-xl bg-slate-950/30">
+                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                            <span>Loading preview artifact...</span>
+                          </div>
+                        ) : previewError ? (
+                          <div className="p-4 bg-rose-50 border border-rose-150 rounded-xl text-xs text-rose-600">
+                            {previewError}
+                          </div>
+                        ) : (
+                          <div className="border border-slate-800 bg-slate-900/10 rounded-2xl overflow-hidden">
+                            {(() => {
+                              const ext = previewingFile.storage_path.split('.').pop()?.toLowerCase() || ''
+                              
+                              if (ext === 'pdf' && previewSignedUrl) {
+                                return <DocumentViewer url={previewSignedUrl} title={previewingFile.name} />
+                              }
+                              
+                              if (['docx', 'doc'].includes(ext) && previewContent) {
+                                return (
+                                  <div 
+                                    className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700 max-h-[500px] overflow-y-auto"
+                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewContent.viewer_html || '') }}
+                                  />
+                                )
+                              }
+                              
+                              if (['csv', 'xlsx', 'xls'].includes(ext) && previewContent) {
+                                const headers = previewContent.headers || []
+                                const rows = previewContent.rows || []
+                                return (
+                                  <div className="bg-white p-5 text-slate-800 space-y-4 h-[400px] overflow-y-auto flex flex-col shadow-sm">
+                                    <div className="overflow-x-auto border border-slate-150 rounded-xl flex-1 overflow-y-auto">
+                                      <table className="min-w-full divide-y divide-slate-150 text-xs">
+                                        <thead className="bg-slate-50 sticky top-0 z-10">
+                                          <tr>
+                                            {headers.map((hdr: string, i: number) => (
+                                              <th key={i} className="px-3 py-2 text-left font-bold text-slate-700 border-r border-slate-150 last:border-0 whitespace-nowrap bg-slate-50">
+                                                {hdr}
+                                              </th>
+                                            ))}
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                          {rows.map((row: any[], i: number) => (
+                                            <tr key={i} className="hover:bg-slate-50/50">
+                                              {row.map((cell: any, j: number) => (
+                                                <td key={j} className="px-3 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
+                                                  {cell}
+                                                </td>
+                                              ))}
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )
+                              }
+                              
+                              if (['md', 'markdown'].includes(ext) && previewContent) {
+                                return (
+                                  <div 
+                                    className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700 max-h-[500px] overflow-y-auto"
+                                    dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(previewContent) }}
+                                  />
+                                )
+                              }
+                              
+                              if (['json', 'txt', 'js', 'ts', 'py'].includes(ext) && previewContent) {
+                                const rawCode = typeof previewContent === 'object' ? JSON.stringify(previewContent, null, 2) : previewContent
+                                const lines = rawCode.split('\n')
+                                return (
+                                  <div className="border border-slate-800 bg-slate-950 rounded-xl overflow-hidden shadow-md flex flex-col font-mono text-xs max-h-[500px]">
+                                    <div className="flex-1 overflow-auto p-4 bg-slate-950 text-slate-200 flex">
+                                      <div className="text-slate-600 select-none text-right pr-4 border-r border-slate-900 min-w-[2rem]">
+                                        {lines.map((_, i) => (
+                                          <div key={i}>{i + 1}</div>
+                                        ))}
+                                      </div>
+                                      <pre className="pl-4 overflow-x-auto whitespace-pre text-slate-200 flex-1 leading-relaxed">
+                                        {rawCode}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )
+                              }
+
+                              return (
+                                <div className="p-6 text-center text-slate-400 text-xs bg-slate-950/40 rounded-xl">
+                                  No preview available. You can download the file to view its contents.
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Assignment Questions List */}
+                    <div className="space-y-4 pt-6 border-t border-slate-805">
+                      <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Assignment Questions ({questionsList.length})
+                      </h5>
+                      <div className="space-y-4">
+                        {questionsList.map((q: any, idx: number) => (
+                          <div key={q.id || idx} className="border border-slate-800 bg-slate-950/30 rounded-2xl p-5 md:p-6 space-y-4 shadow-sm text-slate-200 animate-fade-in">
+                            <div className="flex justify-between items-start gap-4">
+                              <div className="flex gap-2.5">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-bold shrink-0 mt-0.5">
+                                  {idx + 1}
+                                </span>
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[9px] font-bold uppercase tracking-wider">
+                                      {q.type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'}
+                                    </span>
+                                    {q.points && (
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 text-[9px] font-bold">
+                                        {q.points} Points
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm font-semibold text-slate-200 leading-relaxed pt-1">{q.content}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Options (if multiple choice) / Response field (if essay) */}
+                            {q.type === 'essay' ? (
+                              <div className="pl-8 space-y-2">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                  Your Response
+                                </label>
+                                {q.answerFormat === 'file' ? (
+                                  <div className="border border-dashed border-slate-800 bg-slate-900/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-2 select-none shadow-inner">
+                                    <Paperclip className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                    <div className="space-y-1">
+                                      <span className="block text-xs font-bold text-slate-200">File Submission Required</span>
+                                      <span className="block text-[10px] text-slate-450 leading-relaxed max-w-xs mx-auto">
+                                        This question requires a file upload. Please use the uploader on the right-hand side of the page to submit your files.
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <textarea
+                                      value={answers[idx] || ''}
+                                      onChange={(e) => {
+                                        setAnswers(prev => ({ ...prev, [idx]: e.target.value }))
+                                      }}
+                                      placeholder="Type your essay or practice solution here..."
+                                      className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-505 h-28 leading-relaxed font-sans placeholder-slate-600"
+                                    />
+                                    <div className="flex justify-between items-center text-[10px]">
+                                      {q.answerFormat === 'both' ? (
+                                        <span className="text-slate-400 font-medium flex items-center gap-1">
+                                          💡 <span className="font-semibold text-blue-400">Tip:</span> You can type a summary here and upload supporting files in the uploader on the right.
+                                        </span>
+                                      ) : (
+                                        <span />
+                                      )}
+                                      <span className="text-slate-500">
+                                        {(answers[idx] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ) : q.options && Array.isArray(q.options) && q.options.length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-8">
+                                {q.options.map((opt: string, optIdx: number) => {
+                                  const letter = String.fromCharCode(65 + optIdx)
+                                  const isSelected = answers[idx] === letter
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={optIdx}
+                                      onClick={() => {
+                                        setAnswers(prev => ({ ...prev, [idx]: letter }))
+                                      }}
+                                      className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
+                                        isSelected
+                                          ? 'bg-blue-600/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-bold'
+                                          : 'bg-slate-955 border-slate-850 text-slate-355 hover:bg-slate-900/50 hover:border-slate-800'
+                                      }`}
+                                    >
+                                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                                        isSelected
+                                          ? 'bg-blue-500 border-blue-500 text-white'
+                                          : 'border-slate-700 text-slate-550'
+                                      }`}>
+                                        {letter}
+                                      </span>
+                                      <span>{opt}</span>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <div className="pl-8 space-y-2">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                  Your Response
+                                </label>
+                                {q.answerFormat === 'file' ? (
+                                  <div className="border border-dashed border-slate-800 bg-slate-900/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-2 select-none shadow-inner">
+                                    <Paperclip className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                    <div className="space-y-1">
+                                      <span className="block text-xs font-bold text-slate-200">File Submission Required</span>
+                                      <span className="block text-[10px] text-slate-450 leading-relaxed max-w-xs mx-auto">
+                                        This question requires a file upload. Please use the uploader on the right-hand side of the page to submit your files.
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <textarea
+                                      value={answers[idx] || ''}
+                                      onChange={(e) => {
+                                        setAnswers(prev => ({ ...prev, [idx]: e.target.value }))
+                                      }}
+                                      placeholder="Type your solution here..."
+                                      className="w-full bg-slate-950 border border-slate-855 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 h-28 leading-relaxed font-sans placeholder-slate-600"
+                                    />
+                                    {q.answerFormat === 'both' && (
+                                      <div className="text-[10px] text-slate-400 font-medium pt-1">
+                                        💡 <span className="font-semibold text-blue-400">Tip:</span> You can type a summary here and upload supporting files in the uploader on the right.
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
+                )
+              }
+
+              if (questionsList.length > 0) {
+                return (
+                  <div className="space-y-6">
+                    {questionsList.map((q: any, idx: number) => (
+                      <div key={q.id || idx} className="border border-slate-800 bg-slate-950/30 rounded-2xl p-5 md:p-6 space-y-4 shadow-sm text-slate-200 animate-fade-in">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex gap-2.5">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-bold shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <div className="space-y-1">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Question {idx + 1}</span>
+                              <p className="text-sm font-semibold text-slate-200 leading-relaxed">{q.content}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Options (if multiple choice) / Response field (if essay) */}
+                        {q.type === 'essay' ? (
+                          <div className="pl-8 space-y-2">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              Your Response
+                            </label>
+                            {q.answerFormat === 'file' ? (
+                              <div className="border border-dashed border-slate-800 bg-slate-900/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-2 select-none shadow-inner">
+                                <Paperclip className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                <div className="space-y-1">
+                                  <span className="block text-xs font-bold text-slate-200">File Submission Required</span>
+                                  <span className="block text-[10px] text-slate-450 leading-relaxed max-w-xs mx-auto">
+                                    This question requires a file upload. Please use the uploader on the right-hand side of the page to submit your files.
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <textarea
+                                  value={answers[idx] || ''}
+                                  onChange={(e) => {
+                                    setAnswers(prev => ({ ...prev, [idx]: e.target.value }))
+                                  }}
+                                  placeholder="Type your essay or practice solution here..."
+                                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 h-28 leading-relaxed font-sans placeholder-slate-600"
+                                />
+                                <div className="flex justify-between items-center text-[10px]">
+                                  {q.answerFormat === 'both' ? (
+                                    <span className="text-slate-400 font-medium flex items-center gap-1">
+                                      💡 <span className="font-semibold text-blue-400">Tip:</span> You can type a summary here and upload supporting files in the uploader on the right.
+                                    </span>
+                                  ) : (
+                                    <span />
+                                  )}
+                                  <span className="text-slate-500">
+                                    {(answers[idx] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ) : q.options && Array.isArray(q.options) && q.options.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-8">
+                            {q.options.map((opt: string, optIdx: number) => {
+                              const letter = String.fromCharCode(65 + optIdx)
+                              const isSelected = answers[idx] === letter
+                              return (
+                                <button
+                                  type="button"
+                                  key={optIdx}
+                                  onClick={() => {
+                                    setAnswers(prev => ({ ...prev, [idx]: letter }))
+                                  }}
+                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
+                                    isSelected
+                                      ? 'bg-blue-600/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-bold'
+                                      : 'bg-slate-950 border-slate-850 text-slate-350 hover:bg-slate-900/50 hover:border-slate-800'
+                                  }`}
+                                >
+                                  <span className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                                    isSelected
+                                      ? 'bg-blue-500 border-blue-500 text-white'
+                                      : 'border-slate-700 text-slate-550'
+                                  }`}>
+                                    {letter}
+                                  </span>
+                                  <span>{opt}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="pl-8 space-y-2">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              Your Response
+                            </label>
+                            {q.answerFormat === 'file' ? (
+                              <div className="border border-dashed border-slate-800 bg-slate-900/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-2 select-none shadow-inner">
+                                <Paperclip className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                <div className="space-y-1">
+                                  <span className="block text-xs font-bold text-slate-200">File Submission Required</span>
+                                  <span className="block text-[10px] text-slate-450 leading-relaxed max-w-xs mx-auto">
+                                    This question requires a file upload. Please use the uploader on the right-hand side of the page to submit your files.
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <textarea
+                                  value={answers[idx] || ''}
+                                  onChange={(e) => {
+                                    setAnswers(prev => ({ ...prev, [idx]: e.target.value }))
+                                  }}
+                                  placeholder="Type your solution here..."
+                                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 h-28 leading-relaxed font-sans placeholder-slate-600"
+                                />
+                                {q.answerFormat === 'both' && (
+                                  <div className="text-[10px] text-slate-400 font-medium pt-1">
+                                    💡 <span className="font-semibold text-blue-400">Tip:</span> You can type a summary here and upload supporting files in the uploader on the right.
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+
+              return (
+                <div 
+                  className="text-slate-300 text-sm leading-relaxed prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(instructionsStr) }}
+                />
+              )
+            })()}
+
+            {/* Uploaded File Presentation */}
+            {promptDownloadUrl && (() => {
+              const promptExt = assignment?.prompt_file_path?.split('.').pop()?.toLowerCase()
+              
+              if (promptExt === 'pdf') {
+                return (
+                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assignment PDF Document</span>
+                    <DocumentViewer url={promptDownloadUrl} title={assignment?.title} />
+                  </div>
+                )
+              }
+              
+              if (promptExt === 'zip') {
+                return (
+                  <div className="p-6 rounded-2xl bg-amber-50 border border-amber-250 text-center space-y-3">
+                    <FileText className="w-8 h-8 text-amber-500 mx-auto" />
+                    <h3 className="text-sm font-bold text-slate-800">ZIP Archive — download to view</h3>
+                    <p className="text-xs text-slate-650">This assignment is packaged as a ZIP archive. Please download it using the button below to extract and view the contents.</p>
+                    <a
+                      href={promptDownloadUrl}
+                      download
+                      className="inline-flex px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-colors items-center gap-1.5"
+                    >
+                      Download ZIP Archive
+                    </a>
+                  </div>
+                )
+              }
+
+              if (parsingPrompt) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-400 font-mono text-xs">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                    <span>Parsing assignment attachment...</span>
+                  </div>
+                )
+              }
+
+              if (parsingPromptError) {
+                return (
+                  <div className="p-4 bg-rose-50 border border-rose-150 rounded-xl text-xs text-rose-600">
+                    {parsingPromptError}
+                  </div>
+                )
+              }
+
+              if (parsedPromptContent) {
+                if (['docx', 'doc'].includes(promptExt || '')) {
+                  return (
+                    <div className="space-y-4 pt-4 border-t border-slate-200">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document View (DOCX)</span>
+                      <div 
+                        className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700"
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsedPromptContent.viewer_html || '') }}
+                      />
+                    </div>
+                  )
+                }
+
+                if (['csv', 'xlsx', 'xls'].includes(promptExt || '')) {
+                  const headers = parsedPromptContent.headers || []
+                  const rows = parsedPromptContent.rows || []
+                  return (
+                    <div className="space-y-4 pt-4 border-t border-slate-200">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sheet / Table View ({promptExt?.toUpperCase()})</span>
+                      <div className="border border-slate-200 bg-white rounded-xl p-5 text-slate-800 space-y-4 h-[400px] overflow-y-auto flex flex-col shadow-sm">
+                        <div className="overflow-x-auto border border-slate-150 rounded-xl flex-1 overflow-y-auto">
+                          <table className="min-w-full divide-y divide-slate-150 text-xs">
+                            <thead className="bg-slate-50 sticky top-0 z-10">
+                              <tr>
+                                {headers.map((hdr: string, i: number) => (
+                                  <th key={i} className="px-3 py-2 text-left font-bold text-slate-700 border-r border-slate-150 last:border-0 whitespace-nowrap bg-slate-50">
+                                    {hdr}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {rows.map((row: any[], i: number) => (
+                                <tr key={i} className="hover:bg-slate-50/50">
+                                  {row.map((cell: any, j: number) => (
+                                    <td key={j} className="px-3 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
+                                      {cell}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                if (['md', 'markdown'].includes(promptExt || '')) {
+                  return (
+                    <div className="space-y-4 pt-4 border-t border-slate-200">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Markdown Readme</span>
+                      <div 
+                        className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700"
+                        dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(parsedPromptContent) }}
+                      />
+                    </div>
+                  )
+                }
+
+                if (['json', 'txt', 'js', 'ts', 'py'].includes(promptExt || '')) {
+                  const rawCode = typeof parsedPromptContent === 'object' ? JSON.stringify(parsedPromptContent, null, 2) : parsedPromptContent
+                  const lines = rawCode.split('\n')
+                  return (
+                    <div className="space-y-4 pt-4 border-t border-slate-200">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Code File View</span>
+                      <div className="border border-slate-200 bg-slate-950 rounded-xl overflow-hidden shadow-md flex flex-col font-mono text-xs max-h-[500px]">
+                        <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 text-slate-400 font-semibold select-none">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-3.5 h-3.5 text-blue-500" />
+                            <span>{assignment.prompt_file_path.split('/').pop()}</span>
+                          </div>
+                          <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">
+                            {promptExt?.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 overflow-auto p-4 bg-slate-950 text-slate-200 flex">
+                          <div className="text-slate-600 select-none text-right pr-4 border-r border-slate-900 min-w-[2rem]">
+                            {lines.map((_, i) => (
+                              <div key={i}>{i + 1}</div>
+                            ))}
+                          </div>
+                          <pre className="pl-4 overflow-x-auto whitespace-pre text-slate-200 flex-1 leading-relaxed">
+                            {rawCode}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+              }
+
+              return (
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-150 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <div className="space-y-0.5">
+                      <span className="block text-xs font-bold text-slate-800">Assignment File Attachment</span>
+                      <span className="block text-[10px] text-slate-500">Download instructions/requirements document</span>
+                    </div>
+                  </div>
+                  <a
+                    href={promptDownloadUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
+                  >
+                    Download File
+                  </a>
                 </div>
-                <a
-                  href={promptDownloadUrl}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
-                >
-                  Download File
-                </a>
-              </div>
-            )}
+              )
+            })()}
 
             <div className="flex flex-wrap gap-4 pt-6 border-t border-slate-800/60 text-xs">
               <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">
@@ -534,7 +1339,6 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
                       <input
                         type="file"
                         multiple
-                        required
                         onChange={handleFileChange}
                         className="hidden"
                       />

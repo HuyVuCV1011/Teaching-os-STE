@@ -21,7 +21,11 @@ import {
   saveAssignmentAction,
   deleteAssignmentAction,
   generateSolutionAction,
-  generateRubricAction
+  generateRubricAction,
+  parseAssignmentFileAction,
+  readMaterialsTextAction,
+  generateAssignmentQuestionsAction,
+  suggestQuestionAnswerAction
 } from '@/app/admin/library/actions/assignments'
 import {
   ArrowLeft,
@@ -47,7 +51,14 @@ import {
   BookOpen,
   GripVertical,
   Eye,
-  Globe
+  Globe,
+  X,
+  RefreshCw,
+  Lightbulb,
+  Heart,
+  Terminal,
+  Minus,
+  Paperclip
 } from 'lucide-react'
 
 
@@ -229,6 +240,8 @@ function LessonEditorInner() {
 
   // Student view preview
   const [showStudentPreview, setShowStudentPreview] = useState(false)
+  const [showMaterialsPreview, setShowMaterialsPreview] = useState(false)
+  const [showAssignmentPreview, setShowAssignmentPreview] = useState(false)
   const [previewSignedUrls, setPreviewSignedUrls] = useState<Record<string, string>>({})
   const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({})
   const [previewUrlStatus, setPreviewUrlStatus] = useState({
@@ -259,7 +272,7 @@ function LessonEditorInner() {
   })
 
   // AI config
-  const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash')
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash')
   const [solutionMode, setSolutionMode] = useState<'upload' | 'ai'>('ai')
   const [solutionText, setSolutionText] = useState('')
   const [solutionFile, setSolutionFile] = useState<File | null>(null)
@@ -283,6 +296,89 @@ function LessonEditorInner() {
 
   // Drag and drop state/handlers for materials
   const [dragActive, setDragActive] = useState(false)
+
+  // AI Redesign assignment states
+  const [aiType, setAiType] = useState<'multiple_choice' | 'essay'>('multiple_choice')
+  const [aiCategory, setAiCategory] = useState<'theory' | 'code'>('theory')
+  const [aiQuestionCount, setAiQuestionCount] = useState<number>(10)
+  const [aiSampleData, setAiSampleData] = useState<boolean>(false)
+  const [aiDefaultAnswerFormat, setAiDefaultAnswerFormat] = useState<'text' | 'file' | 'both'>('text')
+  const [aiDifficulty, setAiDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
+  const [aiLanguage, setAiLanguage] = useState<'vietnamese' | 'english' | 'both'>('vietnamese')
+  const [activeReviewQsIdx, setActiveReviewQsIdx] = useState<number>(0)
+  const [suggestingAnsIdx, setSuggestingAnsIdx] = useState<number | null>(null) // showing loader for suggest action
+  const [isSuggestingAll, setIsSuggestingAll] = useState<boolean>(false) // loader for suggest all
+  const [isGeneratingRubric, setIsGeneratingRubric] = useState<boolean>(false) // loader for rubric generation
+  
+  interface QuestionItem {
+    id: number
+    content: string
+    options?: string[]
+    answer?: string
+    status: 'pending' | 'approved' | 'rejected'
+    answerFormat?: 'text' | 'file' | 'both'
+    answerSource?: 'ai_generated' | 'file_import' | 'teacher_edit'
+    data?: any
+    source: 'ai_generator' | 'file_import'
+    source_file?: string | null
+    points?: number
+  }
+
+  interface BatchItem {
+    id: number
+    type: 'multiple_choice' | 'essay'
+    category: 'theory' | 'code'
+    defaultAnswerFormat: 'text' | 'file' | 'both'
+    questions: QuestionItem[]
+  }
+
+  interface AssignmentFileItem {
+    name: string
+    size: number
+    storage_path?: string
+    file?: File | null
+    downloadable: boolean
+    previewable: boolean
+  }
+
+  const [batches, setBatches] = useState<BatchItem[]>([])
+  const [dataFiles, setDataFiles] = useState<AssignmentFileItem[]>([])
+  const [referenceFiles, setReferenceFiles] = useState<AssignmentFileItem[]>([])
+  const [simulatedAnswers, setSimulatedAnswers] = useState<Record<number, string>>({})
+  
+  // Question Editing states
+  const [editingQuestion, setEditingQuestion] = useState<QuestionItem | null>(null)
+  const [editingBatchIndex, setEditingBatchIndex] = useState<number | null>(null)
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null)
+  
+  // Classify popup states
+  const [classifyModalOpen, setClassifyModalOpen] = useState(false)
+  const [classifyFile, setClassifyFile] = useState<File | null>(null)
+  const [classifyType, setClassifyType] = useState<'data' | 'reference' | 'question'>('data')
+  const [classifyDownloadable, setClassifyDownloadable] = useState(true)
+  const [classifyPreviewable, setClassifyPreviewable] = useState(true)
+  const [isParsingFile, setIsParsingFile] = useState(false)
+
+  // Step 1: Material Selection states
+  const [aiSelectedMaterials, setAiSelectedMaterials] = useState<string[]>([])
+  const [isReadingMaterials, setIsReadingMaterials] = useState(false)
+  const [genStage, setGenStage] = useState<'reading' | 'generating' | 'sample_data'>('reading')
+
+  // Modal control states
+  const [showAiModal, setShowAiModal] = useState<boolean>(false)
+  const [showBatchSummaryModal, setShowBatchSummaryModal] = useState<boolean>(false)
+  const [previewBatchIndex, setPreviewBatchIndex] = useState<number | null>(null)
+  const [modalStep, setModalStep] = useState<number>(1)
+  const [genElapsed, setGenElapsed] = useState<number>(0)
+  const [readingDuration, setReadingDuration] = useState<number | null>(null)
+  const [generatingDuration, setGeneratingDuration] = useState<number | null>(null)
+  const [sampleDataDuration, setSampleDataDuration] = useState<number | null>(null)
+  const [activeBatchIndex, setActiveBatchIndex] = useState<number>(0)
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0)
+  const [isGeneratingBatch, setIsGeneratingBatch] = useState<boolean>(false)
+  const [asgDragActive, setAsgDragActive] = useState(false)
+  const [saveStage, setSaveStage] = useState<string>('')
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -700,9 +796,9 @@ function LessonEditorInner() {
     )
   }
 
-  const handleOpenStudentPreview = async () => {
+  const handleOpenMaterialsPreview = async () => {
     setPreviewUrlStatus({ loading: true, startedAt: Date.now(), elapsed: '0.0s' })
-    setShowStudentPreview(true)
+    setShowMaterialsPreview(true)
     const urls: Record<string, string> = {}
     const errors: Record<string, string> = {}
     
@@ -852,7 +948,7 @@ function LessonEditorInner() {
         const policy = activeAs.late_policy || {}
         setAssignmentForm({
           title: activeAs.title,
-          instructions: activeAs.instructions,
+          instructions: activeAs.instructions || '',
           maxScore: activeAs.max_score,
           maxFiles: activeAs.max_files || 3,
           maxTotalSizeMb: activeAs.max_total_size_mb || 50,
@@ -862,7 +958,89 @@ function LessonEditorInner() {
         })
         setSolutionStoragePath(activeAs.solution_storage_path || '')
         setPromptStoragePath(activeAs.prompt_file_path || '')
-        setSelectedModel(activeAs.ai_model_used || 'gemini-1.5-flash')
+        setSelectedModel(activeAs.ai_model_used || 'gemini-2.5-flash')
+
+        // Load assignment questions into batches
+        try {
+          if (activeAs.instructions && activeAs.instructions.trim()) {
+            const instr = activeAs.instructions.trim()
+            if (instr.startsWith('{')) {
+              const parsed = JSON.parse(instr)
+              const dataFilesLoaded = parsed.data_files || []
+              const referenceFilesLoaded = parsed.reference_files || []
+              
+              setDataFiles(dataFilesLoaded)
+              setReferenceFiles(referenceFilesLoaded)
+              
+              const questions = parsed.questions || []
+              const groupedBatches: BatchItem[] = []
+              questions.forEach((q: any) => {
+                const qItem: QuestionItem = {
+                  id: q.id || Math.random(),
+                  content: q.content || '',
+                  options: q.options || undefined,
+                  answer: q.answer || undefined,
+                  status: q.status || 'approved',
+                  answerFormat: q.answerFormat || undefined,
+                  data: q.data || undefined,
+                  source: q.source || 'ai_generator',
+                  source_file: q.source_file || null
+                }
+                
+                const qType = q.type || (q.options && q.options.length > 0 ? 'multiple_choice' : 'essay')
+                const qCategory = q.category || 'theory'
+                
+                let match = groupedBatches.find(b => {
+                  if (qItem.source === 'file_import') {
+                    return b.questions.some(bq => bq.source === 'file_import' && bq.source_file === qItem.source_file)
+                  } else {
+                    return b.type === qType && b.category === qCategory && b.questions.every(bq => bq.source !== 'file_import')
+                  }
+                })
+                
+                if (match) {
+                  match.questions.push(qItem)
+                } else {
+                  groupedBatches.push({
+                    id: Date.now() + Math.random(),
+                    type: qType,
+                    category: qCategory,
+                    defaultAnswerFormat: 'text',
+                    questions: [qItem]
+                  })
+                }
+              })
+              setBatches(groupedBatches)
+            } else if (instr.startsWith('[')) {
+              const parsed = JSON.parse(instr)
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                const questions = parsed.map((q: any) => ({
+                  id: q.id || Math.random(),
+                  content: q.content || '',
+                  options: q.options || undefined,
+                  answer: q.answer || undefined,
+                  status: 'approved' as const,
+                  answerFormat: q.answerFormat || undefined,
+                  data: q.data || undefined,
+                  source: 'ai_generator' as const,
+                  source_file: null
+                }))
+                const hasOptions = questions.some(q => q.options && q.options.length > 0)
+                setBatches([{
+                  id: Date.now(),
+                  type: hasOptions ? 'multiple_choice' : 'essay',
+                  category: 'theory',
+                  defaultAnswerFormat: 'text',
+                  questions
+                }])
+                setDataFiles([])
+                setReferenceFiles([])
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse instructions JSON', e)
+        }
 
         // Load rubric criteria from active snapshot
         const snapshot = activeAs.rubric_snapshots?.snapshot
@@ -886,6 +1064,7 @@ function LessonEditorInner() {
         setPromptStoragePath('')
         setSolutionFile(null)
         setPromptFile(null)
+        setBatches([])
       }
     } catch (error) {
       console.error('Failed to load lesson metadata:', error)
@@ -1181,6 +1360,739 @@ function LessonEditorInner() {
     return null
   }
 
+  // AI Redesign assignment helper functions
+  const clientGenerateQuestions = async (params: {
+    modelChoice: string
+    assignmentType: 'multiple_choice' | 'essay'
+    category: 'theory' | 'code'
+    questionCount: number
+    generateSampleData: boolean
+    lessonContent: string
+  }) => {
+    try {
+      const res = await fetch('/api/v1/generate-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        let errMsg = text
+        try {
+          const json = JSON.parse(text)
+          errMsg = json.error || json.message || text
+        } catch {}
+        return { success: false, error: errMsg || `HTTP error ${res.status}` }
+      }
+      const data = await res.json()
+      if (!data.success) {
+        return { success: false, error: data.error || data.message || 'Generation failed' }
+      }
+      return { success: true, questions: data.questions }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  }
+
+  const handleStartGenerating = async () => {
+    setIsGeneratingBatch(true)
+    setModalStep(2)
+    setGenStage('reading')
+    setGenElapsed(0)
+    setReadingDuration(null)
+    setGeneratingDuration(null)
+    setSampleDataDuration(null)
+    
+    const startTime = Date.now()
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime
+      setGenElapsed(elapsed)
+    }, 200)
+
+    try {
+      let combinedContent = content || title
+      
+      const readingStartTime = Date.now()
+      // Stage 1: Read selected materials
+      if (aiSelectedMaterials.length > 0) {
+        // Retrieve storage paths for the selected material IDs
+        const selectedPaths = materials
+          .filter(m => aiSelectedMaterials.includes(m.id))
+          .map(m => m.storage_url)
+          .filter(Boolean)
+          
+        if (selectedPaths.length > 0) {
+          const readRes = await readMaterialsTextAction(selectedPaths)
+          if (readRes.success && readRes.combinedText) {
+            combinedContent = readRes.combinedText
+          }
+        }
+      }
+      const readingEndTime = Date.now()
+      setReadingDuration(readingEndTime - readingStartTime)
+
+      // Prepend difficulty and language instructions to the combinedContent payload
+      const difficultyText = aiDifficulty === 'easy' ? 'Easy (conceptual, basic definitions)' : aiDifficulty === 'hard' ? 'Hard (advanced code architecture, deep analysis)' : 'Medium (balanced application & details)'
+      const languageText = aiLanguage === 'english' ? 'English ONLY' : aiLanguage === 'vietnamese' ? 'Vietnamese ONLY' : 'Bilingual (Vietnamese & English)'
+
+      combinedContent = `AI INSTRUCTION CRITICAL:\n- Generate all questions and answers in ${languageText} language.\n- Set the overall difficulty level of questions to ${difficultyText}.\n\nSOURCE LESSON CONTENT/MATERIALS:\n${combinedContent}`
+      
+      // Stage 2: Generate questions
+      setGenStage('generating')
+      const generatingStartTime = Date.now()
+      
+      const res = await generateAssignmentQuestionsAction({
+        modelChoice: selectedModel,
+        assignmentType: aiType,
+        category: aiCategory,
+        questionCount: aiQuestionCount,
+        generateSampleData: aiSampleData,
+        lessonContent: combinedContent
+      })
+      
+      const generatingEndTime = Date.now()
+      setGeneratingDuration(generatingEndTime - generatingStartTime)
+      
+      if (res.success && res.questions) {
+        // Stage 3: Creating sample data
+        if (aiSampleData) {
+          setGenStage('sample_data')
+          const sampleStartTime = Date.now()
+          await new Promise(resolve => setTimeout(resolve, 1500))
+          setSampleDataDuration(Date.now() - sampleStartTime)
+        }
+
+        clearInterval(timer)
+        
+        const newBatch: BatchItem = {
+          id: Date.now(),
+          type: aiType,
+          category: aiCategory,
+          defaultAnswerFormat: aiType === 'multiple_choice' ? 'text' : aiDefaultAnswerFormat,
+          questions: res.questions.map((q: any) => ({
+            id: q.id || Math.random(),
+            content: q.content || '',
+            options: q.options || undefined,
+            answer: q.answer || undefined,
+            status: 'pending' as const,
+            data: q.data || undefined,
+            source: 'ai_generator',
+            source_file: null
+          }))
+        }
+        setBatches(prev => {
+          const nextBatches = [...prev, newBatch]
+          setActiveBatchIndex(nextBatches.length - 1)
+          setActiveQuestionIndex(0)
+          return nextBatches
+        })
+        setModalStep(3)
+      } else {
+        clearInterval(timer)
+        alert(`Generation failed: ${res.error}`)
+        setModalStep(1)
+      }
+    } catch (err: any) {
+      clearInterval(timer)
+      alert(`Generation failed: ${err.message}`)
+      setModalStep(1)
+    } finally {
+      setIsGeneratingBatch(false)
+    }
+  }
+
+  const handleReviewAction = (status: 'approved' | 'rejected') => {
+    if (activeBatchIndex < 0 || activeBatchIndex >= batches.length) return
+    const updated = [...batches]
+    const batch = updated[activeBatchIndex]
+    if (!batch) return
+    const questions = [...batch.questions]
+    if (!questions[activeQuestionIndex]) return
+
+    questions[activeQuestionIndex] = {
+      ...questions[activeQuestionIndex],
+      status
+    }
+    batch.questions = questions
+    setBatches(updated)
+
+    // Auto-advance to the next pending question across all batches
+    let found = false
+    // 1. Search same batch first
+    for (let qIdx = activeQuestionIndex + 1; qIdx < batch.questions.length; qIdx++) {
+      if (batch.questions[qIdx].status === 'pending') {
+        setActiveQuestionIndex(qIdx)
+        found = true
+        break
+      }
+    }
+    // 2. Search subsequent batches
+    if (!found) {
+      for (let bIdx = activeBatchIndex + 1; bIdx < updated.length; bIdx++) {
+        const nextBatch = updated[bIdx]
+        const pendingIdx = nextBatch.questions.findIndex(q => q.status === 'pending')
+        if (pendingIdx !== -1) {
+          setActiveBatchIndex(bIdx)
+          setActiveQuestionIndex(pendingIdx)
+          found = true
+          break
+        }
+      }
+    }
+    // 3. Search from start of all batches if not found
+    if (!found) {
+      for (let bIdx = 0; bIdx <= activeBatchIndex; bIdx++) {
+        const prevBatch = updated[bIdx]
+        const limit = bIdx === activeBatchIndex ? activeQuestionIndex : prevBatch.questions.length
+        for (let qIdx = 0; qIdx < limit; qIdx++) {
+          if (prevBatch.questions[qIdx].status === 'pending') {
+            setActiveBatchIndex(bIdx)
+            setActiveQuestionIndex(qIdx)
+            found = true
+            break
+          }
+        }
+        if (found) break
+      }
+    }
+  }
+
+  const handleDeleteQuestion = (bIdx: number, qIdx: number) => {
+    const confirmed = window.confirm("Delete this question? This cannot be undone.")
+    if (!confirmed) return
+
+    setBatches(prev => {
+      const next = [...prev]
+      if (next[bIdx]) {
+        const qs = [...next[bIdx].questions]
+        qs.splice(qIdx, 1)
+        next[bIdx] = {
+          ...next[bIdx],
+          questions: qs
+        }
+      }
+      
+      // Keep selection bounds valid
+      const totalQs = next[bIdx]?.questions.length || 0
+      if (activeQuestionIndex >= totalQs && totalQs > 0) {
+        setActiveQuestionIndex(totalQs - 1)
+      } else if (totalQs === 0) {
+        setActiveQuestionIndex(0)
+      }
+      return next
+    })
+  }
+
+  const handleEditSave = (bIdx: number, qIdx: number, updatedQ: QuestionItem) => {
+    setBatches(prev => {
+      const next = [...prev]
+      if (next[bIdx]) {
+        const qs = [...next[bIdx].questions]
+        qs[qIdx] = updatedQ
+        next[bIdx] = {
+          ...next[bIdx],
+          questions: qs
+        }
+      }
+      return next
+    })
+    setEditingQuestion(null)
+    setEditingBatchIndex(null)
+    setEditingQuestionIndex(null)
+  }
+
+  const handleRegenerateQuestion = async (bIdx: number, qIdx: number) => {
+    if (bIdx < 0 || bIdx >= batches.length) return
+    const batch = batches[bIdx]
+    const original = batch.questions[qIdx]
+    if (!original) return
+
+    const updated = [...batches]
+    const updatedQs = [...batch.questions]
+    updatedQs[qIdx] = {
+      ...original,
+      content: 'Regenerating question...'
+    }
+    updated[bIdx].questions = updatedQs
+    setBatches(updated)
+
+    const res = await clientGenerateQuestions({
+      modelChoice: selectedModel,
+      assignmentType: batch.type,
+      category: batch.category,
+      questionCount: 1,
+      generateSampleData: aiSampleData,
+      lessonContent: content || title
+    })
+
+    if (res.success && res.questions && res.questions.length > 0) {
+      const q = res.questions[0]
+      const nextUpdated = [...batches]
+      const nextUpdatedQs = [...nextUpdated[bIdx].questions]
+      nextUpdatedQs[qIdx] = {
+        id: original.id,
+        content: q.content || '',
+        options: q.options || undefined,
+        answer: q.answer || undefined,
+        status: 'pending',
+        data: q.data || undefined
+      }
+      nextUpdated[bIdx].questions = nextUpdatedQs
+      setBatches(nextUpdated)
+    } else {
+      alert(`Regeneration failed: ${res.error}`)
+      const nextUpdated = [...batches]
+      const nextUpdatedQs = [...nextUpdated[bIdx].questions]
+      nextUpdatedQs[qIdx] = original
+      nextUpdated[bIdx].questions = nextUpdatedQs
+      setBatches(nextUpdated)
+    }
+  }
+
+  const handleRegenAllRejected = async () => {
+    let hasRejected = false
+    batches.forEach(b => {
+      if (b.questions.some(q => q.status === 'rejected')) hasRejected = true
+    })
+    if (!hasRejected) {
+      alert('No rejected questions to regenerate.')
+      return
+    }
+
+    const updated = [...batches]
+    for (let bIdx = 0; bIdx < updated.length; bIdx++) {
+      const batch = updated[bIdx]
+      const rejectedIndices = batch.questions.map((q, idx) => q.status === 'rejected' ? idx : -1).filter(idx => idx !== -1)
+      if (rejectedIndices.length === 0) continue
+
+      // Set content to "Regenerating..." first for visual feedback
+      const updatedQs = [...batch.questions]
+      rejectedIndices.forEach(qIdx => {
+        updatedQs[qIdx] = {
+          ...updatedQs[qIdx],
+          content: 'Regenerating question...'
+        }
+      })
+      updated[bIdx].questions = updatedQs
+      setBatches([...updated])
+
+      const res = await clientGenerateQuestions({
+        modelChoice: selectedModel,
+        assignmentType: batch.type,
+        category: batch.category,
+        questionCount: rejectedIndices.length,
+        generateSampleData: aiSampleData,
+        lessonContent: content || title
+      })
+
+      if (res.success && res.questions) {
+        const finalQs = [...updated[bIdx].questions]
+        rejectedIndices.forEach((qIdx, arrIdx) => {
+          const replacement = res.questions[arrIdx]
+          if (replacement) {
+            finalQs[qIdx] = {
+              id: finalQs[qIdx].id,
+              content: replacement.content || '',
+              options: replacement.options || undefined,
+              answer: replacement.answer || undefined,
+              status: 'pending',
+              data: replacement.data || undefined
+            }
+          }
+        })
+        updated[bIdx].questions = finalQs
+        setBatches([...updated])
+      } else {
+        alert(`Regeneration failed for Batch ${bIdx + 1}: ${res.error}`)
+      }
+    }
+  }
+
+  const handleApproveAll = () => {
+    const updated = batches.map(batch => ({
+      ...batch,
+      questions: batch.questions.map(q => q.status === 'pending' ? { ...q, status: 'approved' as const } : q)
+    }))
+    setBatches(updated)
+  }
+
+  const handleEditBatch = (batchIdx: number) => {
+    setActiveBatchIndex(batchIdx)
+    setActiveQuestionIndex(0)
+    setModalStep(3)
+  }
+
+  const handleDeleteBatch = (batchIdx: number) => {
+    const confirmed = window.confirm("Delete the ENTIRE batch? This will remove all questions in this batch. This cannot be undone.")
+    if (!confirmed) return
+    
+    setBatches(prev => {
+      const next = prev.filter((_, idx) => idx !== batchIdx)
+      if (next.length === 0) {
+        setActiveBatchIndex(0)
+        setActiveQuestionIndex(0)
+      } else if (activeBatchIndex >= next.length) {
+        setActiveBatchIndex(next.length - 1)
+      }
+      return next
+    })
+  }
+
+  const handleQuestionFormatOverride = (qIdx: number, format: 'text' | 'file' | 'both' | undefined) => {
+    setBatches(prev => {
+      const next = [...prev]
+      if (next[activeBatchIndex]) {
+        const q = { ...next[activeBatchIndex].questions[qIdx] }
+        if (format === undefined) {
+          delete q.answerFormat
+        } else {
+          q.answerFormat = format
+        }
+        next[activeBatchIndex].questions[qIdx] = q
+      }
+      return next
+    })
+  }
+
+  const handleInlineApprove = (bIdx: number, qIdx: number) => {
+    setBatches(prev => {
+      const next = [...prev]
+      if (next[bIdx]) {
+        const qs = [...next[bIdx].questions]
+        qs[qIdx] = { ...qs[qIdx], status: 'approved' as const }
+        next[bIdx] = { ...next[bIdx], questions: qs }
+      }
+      return next
+    })
+  }
+
+  const handleInlineReject = (bIdx: number, qIdx: number) => {
+    setBatches(prev => {
+      const next = [...prev]
+      if (next[bIdx]) {
+        const qs = [...next[bIdx].questions]
+        qs[qIdx] = { ...qs[qIdx], status: 'rejected' as const }
+        next[bIdx] = { ...next[bIdx], questions: qs }
+      }
+      return next
+    })
+  }
+
+  const handleSaveQuestionsToAssignment = () => {
+    const approvedQuestions: any[] = []
+    batches.forEach(b => {
+      b.questions.forEach(q => {
+        if (q.status === 'approved') {
+          approvedQuestions.push({
+            id: q.id,
+            content: q.content,
+            options: q.options || null,
+            answer: q.answer || null,
+            type: b.type,
+            category: b.category,
+            status: q.status,
+            source: q.source || 'ai_generator',
+            source_file: q.source_file || null,
+            data: q.data || null,
+            answerFormat: b.type === 'multiple_choice' ? 'text' : (q.answerFormat || b.defaultAnswerFormat || 'text')
+          })
+        }
+      })
+    })
+
+    const payload = {
+      questions: approvedQuestions,
+      data_files: dataFiles.map(f => ({
+        name: f.name,
+        size: f.size,
+        storage_path: f.storage_path || null,
+        downloadable: f.downloadable,
+        previewable: f.previewable
+      })),
+      reference_files: referenceFiles.map(f => ({
+        name: f.name,
+        size: f.size,
+        storage_path: f.storage_path || null,
+        downloadable: f.downloadable,
+        previewable: f.previewable
+      }))
+    }
+
+    setAssignmentForm({
+      ...assignmentForm,
+      instructions: JSON.stringify(payload)
+    })
+    setHasAssignment(true)
+    setShowAiModal(false)
+  }
+
+  const updateQuestionInBatches = (qId: number, fields: Partial<QuestionItem>) => {
+    setBatches(prev => {
+      return prev.map(b => {
+        return {
+          ...b,
+          questions: b.questions.map(q => {
+            if (q.id === qId) {
+              return { ...q, ...fields }
+            }
+            return q
+          })
+        }
+      })
+    })
+  }
+
+  const handleSuggestAnswer = async (approvedQIndex: number) => {
+    const approvedQs: QuestionItem[] = []
+    batches.forEach(b => {
+      b.questions.forEach(q => {
+        if (q.status === 'approved') {
+          approvedQs.push(q)
+        }
+      })
+    })
+
+    const activeQ = approvedQs[approvedQIndex]
+    if (!activeQ) return
+
+    setSuggestingAnsIdx(approvedQIndex)
+    try {
+      let materialsText = ''
+      if (aiSelectedMaterials.length > 0) {
+        const selectedPaths = materials
+          .filter(m => aiSelectedMaterials.includes(m.id))
+          .map(m => m.storage_url)
+          .filter(Boolean)
+          
+        if (selectedPaths.length > 0) {
+          const readRes = await readMaterialsTextAction(selectedPaths)
+          if (readRes.success && readRes.combinedText) {
+            materialsText = readRes.combinedText
+          }
+        }
+      }
+
+      const res = await suggestQuestionAnswerAction({
+        questionContent: activeQ.content,
+        materialsText: materialsText || undefined,
+        lessonContext: content || title || undefined,
+        modelChoice: selectedModel
+      })
+
+      if (res.success && res.answer) {
+        updateQuestionInBatches(activeQ.id, {
+          answer: res.answer,
+          answerSource: 'ai_generated'
+        })
+      } else {
+        alert(`AI Suggest failed: ${res.error || 'No answer returned'}`)
+      }
+    } catch (err: any) {
+      alert(`AI Suggest failed: ${err.message}`)
+    } finally {
+      setSuggestingAnsIdx(null)
+    }
+  }
+
+  const handleSuggestAllMissingAnswers = async () => {
+    const approvedQs: QuestionItem[] = []
+    batches.forEach(b => {
+      b.questions.forEach(q => {
+        if (q.status === 'approved') {
+          approvedQs.push(q)
+        }
+      })
+    })
+
+    const missingQs = approvedQs.filter(q => !q.answer || q.answer.trim() === '')
+    if (missingQs.length === 0) {
+      alert('All approved questions already have answers!')
+      return
+    }
+
+    setIsSuggestingAll(true)
+    try {
+      let materialsText = ''
+      if (aiSelectedMaterials.length > 0) {
+        const selectedPaths = materials
+          .filter(m => aiSelectedMaterials.includes(m.id))
+          .map(m => m.storage_url)
+          .filter(Boolean)
+          
+        if (selectedPaths.length > 0) {
+          const readRes = await readMaterialsTextAction(selectedPaths)
+          if (readRes.success && readRes.combinedText) {
+            materialsText = readRes.combinedText
+          }
+        }
+      }
+
+      for (let i = 0; i < missingQs.length; i++) {
+        const q = missingQs[i]
+        const res = await suggestQuestionAnswerAction({
+          questionContent: q.content,
+          materialsText: materialsText || undefined,
+          lessonContext: content || title || undefined,
+          modelChoice: selectedModel
+        })
+
+        if (res.success && res.answer) {
+          updateQuestionInBatches(q.id, {
+            answer: res.answer,
+            answerSource: 'ai_generated'
+          })
+        }
+      }
+      alert(`Successfully generated answers for ${missingQs.length} question(s)!`)
+    } catch (err: any) {
+      alert(`Failed to suggest all answers: ${err.message}`)
+    } finally {
+      setIsSuggestingAll(false)
+    }
+  }
+
+  const handleGenerateRubric = async () => {
+    const approvedQs: QuestionItem[] = []
+    batches.forEach(b => {
+      b.questions.forEach(q => {
+        if (q.status === 'approved') {
+          approvedQs.push(q)
+        }
+      })
+    })
+
+    if (approvedQs.length === 0) {
+      alert('Please approve at least one question first before generating a rubric!')
+      return
+    }
+
+    setIsGeneratingRubric(true)
+    try {
+      const assignmentText = approvedQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
+      const solutionText = approvedQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
+
+      const res = await generateRubricAction(assignmentText, solutionText, selectedModel)
+      if (res.success && res.criteria) {
+        const newCriteria = res.criteria.map((c: any) => ({
+          key: c.key || `crit-${Date.now()}-${Math.random()}`,
+          label: c.label || c.name || 'Criterion',
+          description: c.description || '',
+          max_points: c.max_points || c.maxPoints || 10,
+          weight: c.weight || 1.0,
+          evaluation_hints: c.evaluation_hints || c.evaluationHints || { rule_type: 'none', expected_value: null }
+        }))
+        setCriteriaList(newCriteria)
+        alert('Rubric successfully generated from questions & answers! Check Tab 4.')
+      } else {
+        alert(`Rubric generation failed: ${res.error || 'No criteria returned'}`)
+      }
+    } catch (err: any) {
+      alert(`Rubric generation failed: ${err.message}`)
+    } finally {
+      setIsGeneratingRubric(false)
+    }
+  }
+
+  const handleConfirmClassification = async () => {
+    if (!classifyFile) return
+
+    if (classifyType === 'question') {
+      setIsParsingFile(true)
+      try {
+        const formData = new FormData()
+        formData.append('file', classifyFile)
+        formData.append('modelChoice', selectedModel)
+
+        const res = await parseAssignmentFileAction(formData)
+        if (res.success && res.questions) {
+          const newQuestions = res.questions.map((q: any) => ({
+            id: q.id || Math.random(),
+            content: q.content || '',
+            options: q.options || undefined,
+            answer: q.answer || undefined,
+            status: 'pending' as const,
+            data: q.data || undefined,
+            source: 'file_import' as const,
+            source_file: classifyFile.name
+          }))
+
+          const newBatch: BatchItem = {
+            id: Date.now(),
+            type: newQuestions.some(q => q.options && q.options.length > 0) ? 'multiple_choice' : 'essay',
+            category: 'theory',
+            questions: newQuestions
+          }
+
+          setBatches(prev => {
+            const nextBatches = [...prev, newBatch]
+            setActiveBatchIndex(nextBatches.length - 1)
+            setActiveQuestionIndex(0)
+            return nextBatches
+          })
+
+          setClassifyModalOpen(false)
+          setClassifyFile(null)
+          
+          // Open AI Modal to Step 3 (Review)
+          setModalStep(3)
+          setShowAiModal(true)
+        } else {
+          alert(`Parsing failed: ${res.error}`)
+        }
+      } catch (err: any) {
+        alert(`Parsing failed: ${err.message}`)
+      } finally {
+        setIsParsingFile(false)
+      }
+    } else if (classifyType === 'data') {
+      const newItem: AssignmentFileItem = {
+        name: classifyFile.name,
+        size: classifyFile.size,
+        file: classifyFile,
+        downloadable: classifyDownloadable,
+        previewable: classifyPreviewable
+      }
+      setDataFiles(prev => [...prev, newItem])
+      setClassifyModalOpen(false)
+      setClassifyFile(null)
+    } else if (classifyType === 'reference') {
+      const newItem: AssignmentFileItem = {
+        name: classifyFile.name,
+        size: classifyFile.size,
+        file: classifyFile,
+        downloadable: classifyDownloadable,
+        previewable: classifyPreviewable
+      }
+      setReferenceFiles(prev => [...prev, newItem])
+      setClassifyModalOpen(false)
+      setClassifyFile(null)
+    }
+  }
+
+  const handleAsgDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setAsgDragActive(true)
+    } else if (e.type === "dragleave") {
+      setAsgDragActive(false)
+    }
+  }
+
+  const handleAsgDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setAsgDragActive(false)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      setClassifyFile(file)
+      setClassifyType('data')
+      setClassifyDownloadable(true)
+      setClassifyPreviewable(true)
+      setClassifyModalOpen(true)
+    }
+  }
+
   // Save the entire combined workflow
   const handleSaveComposer = async () => {
     if (!title || !lessonId) return
@@ -1207,8 +2119,119 @@ function LessonEditorInner() {
       if (lessonErr) throw lessonErr
 
       if (hasAssignment) {
-        if (!assignmentForm.title || !assignmentForm.instructions) {
-          throw new Error('Assignment title and guidelines are required.')
+        // Collect approved questions
+        const approvedQuestions: any[] = []
+        batches.forEach(b => {
+          b.questions.forEach(q => {
+            if (q.status === 'approved') {
+              approvedQuestions.push({
+                id: q.id,
+                content: q.content,
+                options: q.options || null,
+                answer: q.answer || null,
+                type: b.type,
+                category: b.category,
+                status: q.status,
+                source: q.source || 'ai_generator',
+                source_file: q.source_file || null,
+                data: q.data || null,
+                answerFormat: b.type === 'multiple_choice' ? 'text' : (q.answerFormat || b.defaultAnswerFormat || 'text'),
+                answerSource: q.answerSource || (q.source === 'file_import' ? 'file_import' : 'ai_generated')
+              })
+            }
+          })
+        })
+
+        // Upload any local dataFiles
+        const finalDataFiles = []
+        for (const fileItem of dataFiles) {
+          if (fileItem.file) {
+            setSaveStage(`Uploading Data File ${fileItem.name}...`)
+            const hash = await calculateFileHash(fileItem.file)
+            const ext = fileItem.name.split('.').pop()
+            const fileName = `data_files/${lessonId}_${hash}.${ext}`
+
+            const formData = new FormData()
+            formData.append('bucket', 'teaching-materials')
+            formData.append('path', fileName)
+            formData.append('file', fileItem.file)
+            formData.append('upsert', 'true')
+
+            const uploadRes = await uploadFileToStorageAction(formData)
+            if (!uploadRes.success) {
+              throw new Error(`Data file ${fileItem.name} upload failed: ${uploadRes.error}`)
+            }
+            finalDataFiles.push({
+              name: fileItem.name,
+              size: fileItem.size,
+              storage_path: fileName,
+              downloadable: fileItem.downloadable,
+              previewable: fileItem.previewable
+            })
+          } else {
+            finalDataFiles.push({
+              name: fileItem.name,
+              size: fileItem.size,
+              storage_path: fileItem.storage_path,
+              downloadable: fileItem.downloadable,
+              previewable: fileItem.previewable
+            })
+          }
+        }
+
+        // Upload any local referenceFiles
+        const finalReferenceFiles = []
+        for (const fileItem of referenceFiles) {
+          if (fileItem.file) {
+            setSaveStage(`Uploading Reference File ${fileItem.name}...`)
+            const hash = await calculateFileHash(fileItem.file)
+            const ext = fileItem.name.split('.').pop()
+            const fileName = `reference_files/${lessonId}_${hash}.${ext}`
+
+            const formData = new FormData()
+            formData.append('bucket', 'teaching-materials')
+            formData.append('path', fileName)
+            formData.append('file', fileItem.file)
+            formData.append('upsert', 'true')
+
+            const uploadRes = await uploadFileToStorageAction(formData)
+            if (!uploadRes.success) {
+              throw new Error(`Reference file ${fileItem.name} upload failed: ${uploadRes.error}`)
+            }
+            finalReferenceFiles.push({
+              name: fileItem.name,
+              size: fileItem.size,
+              storage_path: fileName,
+              downloadable: fileItem.downloadable,
+              previewable: fileItem.previewable
+            })
+          } else {
+            finalReferenceFiles.push({
+              name: fileItem.name,
+              size: fileItem.size,
+              storage_path: fileItem.storage_path,
+              downloadable: fileItem.downloadable,
+              previewable: fileItem.previewable
+            })
+          }
+        }
+
+        const instructionsPayload = {
+          questions: approvedQuestions,
+          data_files: finalDataFiles,
+          reference_files: finalReferenceFiles
+        }
+        let currentInstructions = JSON.stringify(instructionsPayload)
+
+        const hasPromptFile = !!promptFile || !!promptStoragePath
+        const hasAiQuestions = approvedQuestions.length > 0
+
+        if (!hasPromptFile && !hasAiQuestions && finalDataFiles.length === 0 && finalReferenceFiles.length === 0) {
+          throw new Error('Please generate AI questions, parse a question sheet, or upload files.')
+        }
+
+        if (!assignmentForm.title) {
+          throw new Error('Assignment title is required.')
         }
 
         if (
@@ -1223,6 +2246,7 @@ function LessonEditorInner() {
 
         // 2a. Upload Assignment Prompt File if selected
         if (promptFile) {
+          setSaveStage('Hashing Prompt...')
           const hash = await calculateFileHash(promptFile)
           const ext = promptFile.name.split('.').pop()
           const fileName = `prompts/${lessonId}_${hash}.${ext}`
@@ -1233,6 +2257,7 @@ function LessonEditorInner() {
           formData.append('file', promptFile)
           formData.append('upsert', 'true')
 
+          setSaveStage('Uploading Prompt...')
           const uploadRes = await uploadFileToStorageAction(formData)
           if (!uploadRes.success) {
             throw new Error(`Assignment prompt upload failed: ${uploadRes.error}`)
@@ -1244,6 +2269,7 @@ function LessonEditorInner() {
 
         // 2b. Upload Solution File if manual mode
         if (solutionMode === 'upload' && solutionFile) {
+          setSaveStage('Hashing Solution...')
           const hash = await calculateFileHash(solutionFile)
           const ext = solutionFile.name.split('.').pop()
           const fileName = `solutions/${lessonId}_${hash}.${ext}`
@@ -1254,6 +2280,7 @@ function LessonEditorInner() {
           formData.append('file', solutionFile)
           formData.append('upsert', 'true')
 
+          setSaveStage('Uploading Solution...')
           const uploadRes = await uploadFileToStorageAction(formData)
           if (!uploadRes.success) {
             throw new Error(`Solution upload failed: ${uploadRes.error}`)
@@ -1263,12 +2290,14 @@ function LessonEditorInner() {
           isNewSolutionUpload = true
         }
 
+        setSaveStage('Saving Assignment...')
+
         // 3. Save Assignment + Rubric Snapshots
         const assignmentPayload: any = {
           id: assignmentId || undefined,
           lessonId,
           title: assignmentForm.title,
-          instructions: assignmentForm.instructions,
+          instructions: currentInstructions,
           rubricId: null, // Custom dynamic rubric is generated in action
           maxScore: assignmentForm.maxScore,
           maxFiles: assignmentForm.maxFiles,
@@ -1284,6 +2313,7 @@ function LessonEditorInner() {
 
         // If we generated solution via text, let's write it to storage as well
         if (solutionMode === 'ai' && solutionText) {
+          setSaveStage('Saving AI Solution...')
           const file = new File([solutionText], `${lessonId}_ai_draft.md`, { type: 'text/markdown' })
           const fileName = `solutions/${lessonId}_ai_draft.md`
 
@@ -1334,6 +2364,7 @@ function LessonEditorInner() {
     } finally {
       setSaving(false)
       setSaveStatus({ active: false, startedAt: 0, elapsed: '' })
+      setSaveStage('')
     }
   }
 
@@ -1379,8 +2410,13 @@ function LessonEditorInner() {
               onChange={(e) => setSelectedModel(e.target.value)}
               className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none hover:border-slate-700 transition-colors"
             >
-              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-              <option value="ollama">Ollama (llama3.2)</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
+              <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
+              <option value="groq/llama-3.3-70b-specdec">Llama 3.3 70B (Groq)</option>
+              <option value="openrouter/google/gemini-2.5-flash:free">OpenRouter Gemini 2.5 Flash Free</option>
+              <option value="deepseek/deepseek-r1:free">DeepSeek R1 (OpenRouter Free)</option>
+              <option value="ollama">Ollama (Local Llama)</option>
             </select>
           </div>
 
@@ -1763,7 +2799,7 @@ function LessonEditorInner() {
                   </div>
                   <button
                     type="button"
-                    onClick={handleOpenStudentPreview}
+                    onClick={handleOpenMaterialsPreview}
                     className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md"
                   >
                     <Eye className="w-3.5 h-3.5" />
@@ -1947,7 +2983,12 @@ function LessonEditorInner() {
                     <button
                       type="button"
                       id="asg_has_assignment_yes"
-                      onClick={() => setHasAssignment(true)}
+                      onClick={() => {
+                        setHasAssignment(true)
+                        if (!assignmentForm.title) {
+                          setAssignmentForm(prev => ({ ...prev, title: title + ' Assignment' }))
+                        }
+                      }}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                         hasAssignment
                           ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
@@ -1981,268 +3022,961 @@ function LessonEditorInner() {
               </div>
 
               {hasAssignment ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                        Assignment Title *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={assignmentForm.title}
-                        onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                        Max Score *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        value={assignmentForm.maxScore}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setAssignmentForm({
-                            ...assignmentForm,
-                            maxScore: val === '' ? 100 : Math.max(0, parseFloat(val) || 0)
-                          })
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Guidelines & Instructions *
-                    </label>
-                    <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-955/20">
-                      <RichTextEditor
-                        content={assignmentForm.instructions}
-                        onChange={(c) => setAssignmentForm({ ...assignmentForm, instructions: c })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        Max Files
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={assignmentForm.maxFiles}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setAssignmentForm({
-                            ...assignmentForm,
-                            maxFiles: val === '' ? 3 : Math.max(0, parseInt(val) || 0)
-                          })
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        Max Size (MB)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={assignmentForm.maxTotalSizeMb}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setAssignmentForm({
-                            ...assignmentForm,
-                            maxTotalSizeMb: val === '' ? 50 : Math.max(0, parseInt(val) || 0)
-                          })
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        Grace Hours
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={assignmentForm.gracePeriodHours}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setAssignmentForm({
-                            ...assignmentForm,
-                            gracePeriodHours: val === '' ? 0 : Math.max(0, parseInt(val) || 0)
-                          })
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="text-xs">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                      Late Penalty (%/day)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={assignmentForm.penaltyPercentPerDay}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setAssignmentForm({
-                          ...assignmentForm,
-                          penaltyPercentPerDay: val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
-                        })
-                      }}
-                      className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
-                    />
-                    <p className="mt-1.5 text-[10px] text-slate-500 italic leading-relaxed">
-                      Note: Assignment due dates are configured per cohort under Class Schedules. Grace Hours and Late Penalty settings configured here will apply relative to those deadlines.
-                    </p>
-                  </div>
-
-                  <div className="shrink-0 flex flex-col gap-1.5 pt-2">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Auto-Publish Grades
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
+                <div className="space-y-6 animate-fade-in">
+                  {/* Side-by-Side Split Action Blocks Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    {/* Left Column: AI Generator Launcher */}
+                    <div className="bg-slate-955/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-colors shadow-sm">
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-blue-505 animate-pulse" />
+                          ✨ AI Generator
+                        </h4>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Let our advanced AI engine automatically generate structured, curriculum-aligned homework questions based on your Tab 1 handouts, lecture content, difficulty parameters, and custom target languages.
+                        </p>
+                      </div>
                       <button
                         type="button"
-                        id="asg_auto_publish_yes"
-                        onClick={() => setAssignmentForm({ ...assignmentForm, autoPublishGrades: true })}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                          assignmentForm.autoPublishGrades
-                            ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
-                            : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-350'
-                        }`}
+                        onClick={() => {
+                          setModalStep(1)
+                          setShowAiModal(true)
+                        }}
+                        className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-500 hover:to-indigo-550 text-white rounded-xl text-xs font-bold shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
                       >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        id="asg_auto_publish_no"
-                        onClick={() => setAssignmentForm({ ...assignmentForm, autoPublishGrades: false })}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                          !assignmentForm.autoPublishGrades
-                            ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
-                            : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-350'
-                        }`}
-                      >
-                        No
+                        <Sparkles className="w-4 h-4 text-blue-200" />
+                        <span>Open AI Generator</span>
                       </button>
                     </div>
-                  </div>
 
-                  {/* Assignment Prompt File Upload Option */}
-                  <div className="space-y-2 pt-4 border-t border-slate-700">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Upload Assignment Prompt File (Optional PDF/DOCX task sheet)
-                    </label>
-                    <div className="border border-dashed border-slate-700 bg-slate-955/20 p-5 rounded-xl text-center space-y-2">
-                      <Upload className="w-6 h-6 text-slate-500 mx-auto" />
-                      <input
-                        type="file"
-                        onChange={(e) => setPromptFile(e.target.files?.[0] || null)}
-                        className="text-xs text-slate-400 mx-auto block max-w-xs cursor-pointer"
-                      />
-                      {promptStoragePath && (
-                        <span className="block text-[10px] text-emerald-600 font-medium">
-                          Current uploaded prompt: {promptStoragePath.split('/').pop()}
+                    {/* Right Column: Upload File Extractor */}
+                    <div className="bg-slate-955/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-colors shadow-sm">
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                          <Upload className="w-4 h-4 text-indigo-500" />
+                          📁 Upload File
+                        </h4>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Drag & drop your own assessment documents, markdown quiz sheets, code templates, or CSV tables. The AI will parse your file and import question sets directly as a structured batch.
+                        </p>
+                      </div>
+                      
+                      <div
+                        onDragEnter={handleAsgDrag}
+                        onDragOver={handleAsgDrag}
+                        onDragLeave={handleAsgDrag}
+                        onDrop={handleAsgDrop}
+                        className={`relative border-2 border-dashed rounded-xl p-3 text-center flex flex-col items-center justify-center transition-all ${
+                          asgDragActive
+                            ? 'border-blue-500 bg-blue-500/10'
+                            : 'border-slate-805 bg-slate-955/40 hover:border-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="file"
+                          id="asg-file-upload"
+                          multiple={false}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              const file = e.target.files[0]
+                              setClassifyFile(file)
+                              setClassifyType('data')
+                              setClassifyDownloadable(true)
+                              setClassifyPreviewable(true)
+                              setClassifyModalOpen(true)
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          accept=".pdf,.docx,.csv,.xlsx,.xls,.md,.json,.txt,.zip,.js,.ts,.py"
+                        />
+                        <Upload className="w-5 h-5 text-slate-500 mb-1" />
+                        <span className="text-[10px] font-semibold text-slate-205">
+                          Drop file here or click to browse
                         </span>
-                      )}
+                        <span className="text-[9px] text-slate-550 mt-0.5 font-mono">
+                          Supported: PDF, DOCX, CSV, MD, ZIP, PY
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Batches Grid Layout */}
+                  {batches.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
+                        ── All Batches ──
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {batches.map((batch, bIdx) => {
+                          const approved = batch.questions.filter(q => q.status === 'approved').length
+                          const pending = batch.questions.filter(q => q.status === 'pending').length
+                          const rejected = batch.questions.filter(q => q.status === 'rejected').length
+                          const typeText = batch.type === 'multiple_choice' ? 'MC Theory' : 'Essay Code'
+                          const isFileImport = batch.questions.some(q => q.source === 'file_import')
+                          const sourceText = isFileImport ? `File Import` : 'AI'
+                          
+                          return (
+                            <div key={batch.id || bIdx} className="p-4 bg-slate-955/40 border border-slate-800 rounded-xl relative group transition-all hover:border-slate-700 flex flex-col justify-between min-h-[110px] shadow-sm">
+                              <div className="space-y-1">
+                                <span className="block text-xs font-bold text-slate-205">
+                                  Batch {bIdx + 1}: {sourceText}
+                                </span>
+                                <span className="block text-[11px] text-slate-350 font-medium">
+                                  {typeText}({batch.questions.length})
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-900/60">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ✅ <strong className="text-emerald-500">{approved}</strong> | ⏳ <strong className="text-amber-500">{pending}</strong> | ✗ <strong className="text-rose-500">{rejected}</strong>
+                                </span>
+                                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveBatchIndex(bIdx)
+                                      setActiveQuestionIndex(0)
+                                      setModalStep(3)
+                                      setShowAiModal(true)
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-blue-450 hover:text-blue-400"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBatch(bIdx)}
+                                    className="px-2 py-0.5 rounded bg-rose-650/10 border border-rose-500/20 text-[10px] font-bold text-rose-500 hover:bg-rose-650/20"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="text-xs text-slate-400 font-semibold select-none flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                        <div>
+                          Total: <strong className="text-slate-200">{batches.reduce((acc, b) => acc + b.questions.length, 0)}</strong> questions (<strong className="text-emerald-500">{batches.reduce((acc, b) => acc + b.questions.filter(q => q.status === 'approved').length, 0)}</strong> approved)
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Content Summary */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
+                      ── Content Summary ──
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-350 bg-slate-955/40 border border-slate-850/60 p-3.5 rounded-xl">
+                      <div>
+                        Questions: <strong className="text-slate-200">{batches.reduce((acc, b) => acc + b.questions.length, 0)}</strong> (AI: {batches.reduce((acc, b) => acc + b.questions.filter(q => q.source === 'ai_generator').length, 0)}, File: {batches.reduce((acc, b) => acc + b.questions.filter(q => q.source === 'file_import').length, 0)})
+                      </div>
+                      <button
+                        type="button"
+                        disabled={batches.length === 0}
+                        onClick={() => {
+                          setShowBatchSummaryModal(true)
+                        }}
+                        className="px-3.5 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-[10px] shadow-sm transition-colors"
+                      >
+                        [View All Batches]
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Attached Files */}
+                  <div className="space-y-4 pt-2 border-t border-slate-800">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                      ── Attached Files ──
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Data files card */}
+                      <div className="p-4 bg-slate-955/40 border border-slate-850/60 rounded-xl space-y-3 shadow-sm">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                          📂 Data Files:
+                        </span>
+                        {dataFiles.length === 0 ? (
+                          <p className="text-[11px] text-slate-550 italic pl-1">No files uploaded</p>
+                        ) : (
+                          <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                            {dataFiles.map((fileItem, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs bg-slate-955 border border-slate-900 px-3 py-2 rounded-lg">
+                                <span className="text-slate-305 truncate max-w-[180px] font-medium" title={fileItem.name}>
+                                  {fileItem.name} ({(fileItem.size / 1024).toFixed(1)} KB)
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setDataFiles(prev => prev.filter((_, i) => i !== idx))}
+                                  className="text-rose-500 hover:text-rose-400 font-bold"
+                                >
+                                  [Delete]
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reference files card */}
+                      <div className="p-4 bg-slate-955/40 border border-slate-855/60 rounded-xl space-y-3 shadow-sm">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                          📂 Reference Files:
+                        </span>
+                        {referenceFiles.length === 0 ? (
+                          <p className="text-[11px] text-slate-550 italic pl-1">No files uploaded</p>
+                        ) : (
+                          <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                            {referenceFiles.map((fileItem, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs bg-slate-955 border border-slate-900 px-3 py-2 rounded-lg">
+                                <span className="text-slate-305 truncate max-w-[180px] font-medium" title={fileItem.name}>
+                                  {fileItem.name} ({(fileItem.size / 1024).toFixed(1)} KB)
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setReferenceFiles(prev => prev.filter((_, i) => i !== idx))}
+                                  className="text-rose-500 hover:text-rose-400 font-bold"
+                                >
+                                  [Delete]
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+
+
+                  {/* Bottom Section: Assignment Settings */}
+                  <div className="space-y-4 pt-6 border-t border-slate-800">
+                    <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                      Assignment Settings
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          Assignment Title *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={assignmentForm.title}
+                          onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
+                          className="w-full bg-slate-955 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          Max Score *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          value={assignmentForm.maxScore}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setAssignmentForm({
+                              ...assignmentForm,
+                              maxScore: val === '' ? 100 : Math.max(0, parseFloat(val) || 0)
+                            })
+                          }}
+                          className="w-full bg-slate-955 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Max Files
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={assignmentForm.maxFiles}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setAssignmentForm({
+                              ...assignmentForm,
+                              maxFiles: val === '' ? 3 : Math.max(0, parseInt(val) || 0)
+                            })
+                          }}
+                          className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Max Size (MB)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={assignmentForm.maxTotalSizeMb}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setAssignmentForm({
+                              ...assignmentForm,
+                              maxTotalSizeMb: val === '' ? 50 : Math.max(0, parseInt(val) || 0)
+                            })
+                          }}
+                          className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Grace Hours
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={assignmentForm.gracePeriodHours}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setAssignmentForm({
+                              ...assignmentForm,
+                              gracePeriodHours: val === '' ? 0 : Math.max(0, parseInt(val) || 0)
+                            })
+                          }}
+                          className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-xs">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                        Late Penalty (%/day)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={assignmentForm.penaltyPercentPerDay}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setAssignmentForm({
+                            ...assignmentForm,
+                            penaltyPercentPerDay: val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
+                          })
+                        }}
+                        className="w-full bg-slate-955 border border-slate-705 rounded px-2.5 py-1.5 text-slate-100 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="shrink-0 flex flex-col gap-1.5 pt-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Auto-Publish Grades
+                      </label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          id="asg_auto_publish_yes"
+                          onClick={() => setAssignmentForm({ ...assignmentForm, autoPublishGrades: true })}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                            assignmentForm.autoPublishGrades
+                              ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
+                              : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-350'
+                          }`}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          id="asg_auto_publish_no"
+                          onClick={() => setAssignmentForm({ ...assignmentForm, autoPublishGrades: false })}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                            !assignmentForm.autoPublishGrades
+                              ? 'bg-blue-600 border-blue-500 text-white font-extrabold shadow-md'
+                              : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-355'
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                      <p className="mt-2.5 text-[10px] text-slate-500 italic leading-relaxed">
+                        Note: Assignment due dates are configured per cohort under Class Schedules. Grace Hours and Late Penalty settings configured here will apply relative to those deadlines.
+                      </p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-16 text-slate-500 text-xs">
+                <div className="text-center py-16 text-slate-550 text-xs">
                   This lesson does not have any assignment. Enable it above to configure.
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 3: SOLUTION KEY */}
-          {currentStep === 3 && (
-            <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-700">
-                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-                  Assignment Solution Key
-                </h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSolutionMode('ai')}
-                    className={`px-3 py-1 rounded text-xs font-semibold ${
-                      solutionMode === 'ai' ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400'
-                    }`}
-                  >
-                    AI Generator
-                  </button>
-                  <button
-                    onClick={() => setSolutionMode('upload')}
-                    className={`px-3 py-1 rounded text-xs font-semibold ${
-                      solutionMode === 'upload' ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400'
-                    }`}
-                  >
-                    Manual Upload
-                  </button>
+          {/* TAB 3: REVIEW & FINALIZE (REPLACES SOLUTION KEY) */}
+          {currentStep === 3 && (() => {
+            const approvedQs: QuestionItem[] = []
+            batches.forEach(b => {
+              b.questions.forEach(q => {
+                if (q.status === 'approved') {
+                  approvedQs.push({ ...q, batchDefaultFormat: b.defaultAnswerFormat, batchType: b.type })
+                }
+              })
+            })
+
+            const totalApproved = approvedQs.length
+            const withAnswers = approvedQs.filter(q => q.answer && q.answer.trim() !== '').length
+            const withoutAnswers = totalApproved - withAnswers
+            const aiCount = approvedQs.filter(q => q.source === 'ai_generator').length
+            const fileCount = approvedQs.filter(q => q.source === 'file_import').length
+
+            // Ensure index is within bounds
+            const activeReviewIndex = Math.max(0, Math.min(activeReviewQsIdx, totalApproved - 1))
+            const activeQ = approvedQs[activeReviewIndex]
+
+            // Function to focus the textarea for editing
+            const handleFocusEdit = () => {
+              const el = document.getElementById('model-answer-textarea')
+              if (el) {
+                el.focus()
+              } else {
+                alert('Editing mode active. Please click correct option below.')
+              }
+            }
+
+            return (
+              <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-700">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                      <ClipboardList className="w-4 h-4 text-emerald-500 animate-pulse" />
+                      Review & Finalize Answers
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Ensure each question has a comprehensive, accurate model answer before publishing. Use AI to suggest missing keys or generate the rubric.
+                    </p>
+                  </div>
                 </div>
+
+                {totalApproved === 0 ? (
+                  <div className="text-center py-16 text-slate-500 text-xs">
+                    ⚠️ No approved questions found in this assignment yet. Go back to Tab 2 to approve some questions.
+                  </div>
+                ) : (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Split View */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[500px] overflow-hidden items-stretch">
+                      {/* Left Pane: Questions List */}
+                      <div className="lg:col-span-5 flex flex-col h-full bg-slate-955/40 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                        <div className="px-4 py-3 bg-slate-955 border-b border-slate-800 flex justify-between items-center shrink-0">
+                          <span className="text-[10px] font-bold text-slate-355 uppercase tracking-widest font-mono">
+                            📋 QUESTIONS ({totalApproved})
+                          </span>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 custom-scrollbar">
+                          {approvedQs.map((q, idx) => {
+                            const isSelected = idx === activeReviewIndex
+                            const hasAns = q.answer && q.answer.trim() !== ''
+                            const qTypeLabel = q.batchType === 'multiple_choice' ? 'MC' : 'Essay'
+                            const qCategoryLabel = q.category === 'theory' ? 'Theory' : 'Code'
+                            
+                            return (
+                              <button
+                                key={`q-review-${q.id || idx}-${idx}`}
+                                type="button"
+                                onClick={() => setActiveReviewQsIdx(idx)}
+                                className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex flex-col justify-between gap-1.5 ${
+                                  isSelected
+                                    ? 'bg-blue-605/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-semibold'
+                                    : 'bg-slate-900 border-slate-850 hover:bg-slate-855/60 text-slate-400 hover:text-slate-305'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="text-[9px] font-bold tracking-wider font-mono">
+                                    Q{idx + 1}. {q.batchType === 'multiple_choice' ? 'MCQ' : 'ESSAY'}
+                                  </span>
+                                  <span className={`w-2 h-2 rounded-full ${hasAns ? 'bg-emerald-500' : 'bg-amber-500'}`} title={hasAns ? 'Has Answer' : 'Missing Answer'} />
+                                </div>
+                                <p className="truncate w-full font-sans text-xs opacity-90">{q.content}</p>
+                                
+                                <div className="flex items-center justify-between w-full mt-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-950 border border-slate-850 text-slate-455 uppercase tracking-wider">
+                                      {qTypeLabel}
+                                    </span>
+                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-955 border border-slate-855 text-slate-455 uppercase tracking-wider">
+                                      {qCategoryLabel}
+                                    </span>
+                                  </div>
+                                  <span className="text-[8px] font-mono text-slate-505 uppercase tracking-widest">
+                                    {q.source === 'file_import' ? '📁 File' : '✨ AI'}
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Right Pane: Answer Worksheet */}
+                      <div className="lg:col-span-7 flex flex-col h-full bg-slate-955/40 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                        <div className="px-4 py-3 bg-slate-955 border-b border-slate-800 flex justify-between items-center shrink-0">
+                          <span className="text-[10px] font-bold text-slate-355 uppercase tracking-widest font-mono">
+                            ✅ ANSWERS (QUESTION {activeReviewIndex + 1})
+                          </span>
+                        </div>
+
+                        {activeQ && (
+                          <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar text-xs">
+                            {/* Answer Detail Header Block */}
+                            <div className="p-4 bg-slate-900 border border-slate-855 rounded-xl space-y-2 text-xs">
+                              <div className="flex justify-between items-center pb-2 border-b border-slate-950">
+                                <div>
+                                  <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono">Current Answer:</span>
+                                  <span className="text-slate-205 font-bold">
+                                    {activeQ.answer && activeQ.answer.trim() !== '' ? (
+                                      activeQ.batchType === 'multiple_choice'
+                                        ? `Option ${activeQ.answer}`
+                                        : `${activeQ.answer.slice(0, 40)}${activeQ.answer.length > 40 ? '...' : ''}`
+                                    ) : (
+                                      <span className="text-rose-400 italic">Answer: (not yet)</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                  activeQ.answerSource === 'teacher_edit'
+                                    ? 'bg-indigo-650/10 text-indigo-400 border border-indigo-500/20'
+                                    : activeQ.answerSource === 'file_import'
+                                    ? 'bg-amber-600/10 text-amber-500 border border-amber-500/20'
+                                    : 'bg-blue-600/10 text-blue-400 border border-blue-505/20'
+                                }`}>
+                                  Source: {activeQ.answerSource === 'teacher_edit' ? 'Teacher Edit' : activeQ.source === 'file_import' ? 'File Import' : 'AI Generated'}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSuggestAnswer(activeReviewIndex)}
+                                  disabled={suggestingAnsIdx === activeReviewIndex}
+                                  className="px-2.5 py-1 rounded bg-slate-955 hover:bg-slate-900 text-[10px] text-blue-450 hover:text-blue-405 font-bold border border-slate-850 hover:border-slate-800 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  {suggestingAnsIdx === activeReviewIndex ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="w-3 h-3 text-indigo-505" />
+                                  )}
+                                  <span>Suggest AI</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleFocusEdit}
+                                  className="px-2.5 py-1 rounded bg-slate-955 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-slate-300 hover:text-slate-100 transition-colors"
+                                >
+                                  {activeQ.answer && activeQ.answer.trim() !== '' ? 'Edit' : 'Add'}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Question content card */}
+                            <div className="p-4 bg-slate-900 border border-slate-855 rounded-xl space-y-2 select-text leading-relaxed">
+                              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Question:</span>
+                              <p className="text-slate-205 whitespace-pre-wrap">{activeQ.content}</p>
+                              {activeQ.options && Array.isArray(activeQ.options) && (
+                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-950">
+                                  {activeQ.options.map((opt, oIdx) => (
+                                    <div key={oIdx} className="text-[11px] text-slate-400 font-medium">
+                                      <strong className="text-blue-500">{String.fromCharCode(65 + oIdx)}.</strong> {opt}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Answer input */}
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Model Answer Workspace / Correct Key
+                              </label>
+
+                              {activeQ.batchType === 'multiple_choice' ? (
+                                <div className="space-y-3 p-3 bg-slate-900/40 border border-slate-850 rounded-xl">
+                                  <span className="block text-[9px] text-slate-500 uppercase tracking-widest font-bold font-mono">Select Correct Option:</span>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {(activeQ.options || ['A', 'B', 'C', 'D']).map((_, oIdx) => {
+                                      const letter = String.fromCharCode(65 + oIdx)
+                                      const isCorrect = activeQ.answer === letter
+                                      return (
+                                        <button
+                                          key={letter}
+                                          type="button"
+                                          onClick={() => {
+                                            updateQuestionInBatches(activeQ.id, {
+                                              answer: letter,
+                                              answerSource: 'teacher_edit'
+                                            })
+                                          }}
+                                          className={`py-2 rounded-xl text-xs font-extrabold border transition-all ${
+                                            isCorrect
+                                              ? 'bg-blue-600 border-blue-500 text-white shadow-md'
+                                              : 'bg-slate-900 border-slate-800 text-slate-450 hover:bg-slate-850'
+                                          }`}
+                                        >
+                                          Option {letter}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <textarea
+                                    id="model-answer-textarea"
+                                    rows={6}
+                                    placeholder="Type complete model answer text or essay response rubric expectation guidelines here..."
+                                    value={activeQ.answer || ''}
+                                    onChange={(e) => {
+                                      updateQuestionInBatches(activeQ.id, {
+                                        answer: e.target.value,
+                                        answerSource: 'teacher_edit'
+                                      })
+                                    }}
+                                    className="w-full bg-slate-955 border border-slate-800 rounded-xl p-3 text-xs text-slate-205 font-mono focus:outline-none resize-none leading-relaxed"
+                                  />
+                                  <div className="text-[10px] text-slate-500 text-right">
+                                    {(activeQ.answer || '').trim().split(/\s+/).filter(Boolean).length} words
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Simulated student view card preview */}
+                            <div className="p-4 bg-slate-955/20 border border-slate-850/60 rounded-xl space-y-2.5 select-none shadow-sm">
+                              <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono">Simulated Student View Preview:</span>
+                              <div className="p-3.5 bg-slate-955 border border-slate-900 rounded-xl space-y-2">
+                                <span className="block text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider w-fit">
+                                  Question {activeReviewIndex + 1} ({activeQ.batchType === 'multiple_choice' ? 'MCQ' : 'Essay'})
+                                </span>
+                                <p className="font-semibold text-xs text-slate-200">{activeQ.content}</p>
+                                
+                                {activeQ.batchType === 'multiple_choice' ? (
+                                  <div className="grid grid-cols-2 gap-2 mt-2">
+                                    {(activeQ.options || []).map((opt, oIdx) => {
+                                      const letter = String.fromCharCode(65 + oIdx)
+                                      return (
+                                        <div key={letter} className="flex items-center gap-2 p-2 bg-slate-900 border border-slate-855 rounded-lg text-[10px] text-slate-400">
+                                          <span className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center font-bold text-[9px] shrink-0 text-slate-505 bg-slate-955">{letter}</span>
+                                          <span className="truncate">{opt}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2 mt-2 pt-2 border-t border-slate-900">
+                                    <div className="text-[9px] text-slate-455 font-semibold flex items-center gap-1.5">
+                                      <span>Format:</span>
+                                      <span className="text-slate-300 font-bold uppercase tracking-wider text-[8px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">
+                                        {activeQ.answerFormat === 'file' ? '📎 File Only' : activeQ.answerFormat === 'both' ? '🔀 Both' : '📝 Text Only'}
+                                      </span>
+                                    </div>
+                                    <textarea
+                                      disabled
+                                      placeholder="Student types their answer here..."
+                                      className="w-full bg-slate-900 border border-slate-855 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-505 h-10 resize-none"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Summary row */}
+                    <div className="p-4 bg-slate-955/40 border border-slate-800 rounded-xl text-xs flex flex-col md:flex-row md:items-center justify-between gap-4 font-semibold text-slate-405 shadow-sm">
+                      <div>
+                        Summary: <strong className="text-slate-205">{totalApproved}</strong> approved questions | With answers: <strong className="text-emerald-500">{withAnswers}</strong> | Missing: <strong className="text-amber-500">{withoutAnswers}</strong>
+                      </div>
+                      <div className="flex gap-4">
+                        <span>AI Generated: <strong className="text-slate-205">{aiCount}</strong></span>
+                        <span>File Imports: <strong className="text-slate-205">{fileCount}</strong></span>
+                      </div>
+                    </div>
+
+                    {/* Action Row */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSuggestAllMissingAnswers}
+                        disabled={isSuggestingAll || withoutAnswers === 0}
+                        className="flex-1 py-3 bg-slate-900 hover:bg-slate-855 text-slate-250 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isSuggestingAll ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-505" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 text-blue-455" />
+                        )}
+                        <span>AI Suggest All Missing</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleGenerateRubric}
+                        disabled={isGeneratingRubric || totalApproved === 0}
+                        className="flex-1 py-3 bg-slate-900 hover:bg-slate-855 text-slate-250 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isGeneratingRubric ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-indigo-505" />
+                        ) : (
+                          <Brain className="w-4 h-4 text-indigo-400" />
+                        )}
+                        <span>AI Generate Rubric</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveComposer}
+                        disabled={saving}
+                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-505 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
+                      >
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <FileCheck className="w-4 h-4 text-blue-200" />
+                        )}
+                        <span>Finalize & Save</span>
+                      </button>
+                    </div>
+
+                    {/* Final Preview Section */}
+                    <div className="mt-8 border-t border-slate-800 pt-8 space-y-6 select-none">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+                        <Eye className="w-4.5 h-4.5 text-indigo-405 animate-pulse" />
+                        <h4 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+                          👁️ Final Preview (As Students Will See It)
+                        </h4>
+                      </div>
+
+                      <div className="border border-slate-800 bg-slate-955/30 rounded-3xl p-6 md:p-8 space-y-6 shadow-sm">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 shrink-0">
+                              <ClipboardList className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+                                {assignmentForm.title || 'Assignment Deliverables'}
+                              </h4>
+                              <p className="text-xs text-slate-455 mt-0.5 font-mono">
+                                Max Score: {assignmentForm.maxScore} pts | Files: Max {assignmentForm.maxFiles} ({assignmentForm.maxTotalSizeMb}MB)
+                              </p>
+                            </div>
+                          </div>
+                          <div className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-505 text-white font-bold text-xs uppercase tracking-wider select-none shrink-0 cursor-pointer shadow-lg transition-all hover:scale-[1.02]">
+                            Submit Deliverables
+                          </div>
+                        </div>
+
+                        {/* Section: Downloadable Data Files */}
+                        {dataFiles.length > 0 && (
+                          <div className="space-y-3">
+                            <h5 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                              <FileCode className="w-3.5 h-3.5 text-blue-505" />
+                              Attached Data Files (For Download)
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {dataFiles.map((fileItem, idx) => (
+                                <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+                                  <div className="min-w-0 flex-1">
+                                    <span className="block text-xs font-semibold text-slate-202 truncate">
+                                      {fileItem.name}
+                                    </span>
+                                    <span className="block text-[9px] text-slate-500 font-mono">
+                                      {(fileItem.size / 1024).toFixed(1)} KB
+                                    </span>
+                                  </div>
+                                  {fileItem.downloadable && (
+                                    <a
+                                      href={fileItem.storage_path ? `/api/storage/teaching-materials/${fileItem.storage_path}` : '#'}
+                                      download
+                                      className="px-2.5 py-1 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-405 text-[10px] font-bold border border-blue-505/20 transition-all shrink-0"
+                                    >
+                                      Download
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Section: Reference Materials */}
+                        {referenceFiles.length > 0 && (
+                          <div className="space-y-3">
+                            <h5 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                              <BookOpen className="w-3.5 h-3.5 text-indigo-505" />
+                              Reference Materials (For Reading)
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {referenceFiles.map((fileItem, idx) => (
+                                <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+                                  <div className="min-w-0 flex-1">
+                                    <span className="block text-xs font-semibold text-slate-202 truncate">
+                                      {fileItem.name}
+                                    </span>
+                                    <span className="block text-[9px] text-slate-500 font-mono">
+                                      {(fileItem.size / 1024).toFixed(1)} KB
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-1.5 shrink-0">
+                                    {fileItem.previewable && (
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          if (fileItem.storage_path) {
+                                            const res = await getSignedUrlAction('teaching-materials', fileItem.storage_path)
+                                            if (res.success && res.signedUrl) {
+                                              window.open(res.signedUrl, '_blank')
+                                            } else {
+                                              alert('Could not open file preview.')
+                                            }
+                                          }
+                                        }}
+                                        className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-355 hover:text-slate-105 text-[9px] font-bold transition-all"
+                                      >
+                                        Preview
+                                      </button>
+                                    )}
+                                    {fileItem.downloadable && (
+                                      <a
+                                        href={fileItem.storage_path ? `/api/storage/teaching-materials/${fileItem.storage_path}` : '#'}
+                                        download
+                                        className="px-2 py-0.5 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-405 text-[9px] font-bold border border-blue-505/20 transition-all"
+                                      >
+                                        Download
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Section: Structured Questions List */}
+                        <div className="space-y-4 pt-4 border-t border-slate-800">
+                          <h5 className="text-[10px] font-bold text-slate-455 uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                            <Brain className="w-3.5 h-3.5 text-blue-505 animate-pulse" />
+                            Assignment Questions ({approvedQs.length})
+                          </h5>
+
+                          <div className="space-y-4">
+                            {approvedQs.map((q, idx) => {
+                              const resolvedFormat = q.batchType === 'multiple_choice' ? 'text' : (q.answerFormat || q.batchDefaultFormat || 'text')
+                              return (
+                                <div key={`q-preview-${q.id || idx}-${idx}`} className="p-5 bg-slate-955 border border-slate-855 rounded-2xl space-y-3 text-xs text-slate-202 shadow-inner">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[9px] bg-slate-900 text-slate-450 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono">
+                                      Question {idx + 1} ({q.batchType === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'} — {q.source === 'file_import' ? 'File Import' : 'AI Generated'})
+                                    </span>
+                                  </div>
+                                  <p className="text-slate-202 font-semibold leading-relaxed whitespace-pre-wrap">
+                                    {q.content}
+                                  </p>
+
+                                  {/* Answer Format Indicator for Essay questions */}
+                                  {q.batchType === 'essay' && (
+                                    <div className="text-[10px] text-slate-455 font-semibold flex items-center gap-1.5 select-none font-mono">
+                                      <span>Format:</span>
+                                      {resolvedFormat === 'text' && <span className="text-slate-300 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">📝 Text Only</span>}
+                                      {resolvedFormat === 'file' && <span className="text-slate-300 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">📎 File Upload Only</span>}
+                                      {resolvedFormat === 'both' && <span className="text-slate-300 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">🔀 Both</span>}
+                                    </div>
+                                  )}
+
+                                  {/* Options (if MCQ) / Response field (if Essay) */}
+                                  {q.batchType === 'essay' ? (
+                                    <div className="space-y-3">
+                                      {(resolvedFormat === 'text' || resolvedFormat === 'both') && (
+                                        <div className="space-y-1.5">
+                                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                                            Your Answer (Text)
+                                          </label>
+                                          <textarea
+                                            value={simulatedAnswers[idx] || ''}
+                                            onChange={(e) => {
+                                              setSimulatedAnswers(prev => ({ ...prev, [idx]: e.target.value }))
+                                            }}
+                                            placeholder="Type your simulated essay response..."
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-505 h-24 placeholder-slate-600 font-sans"
+                                          />
+                                        </div>
+                                      )}
+
+                                      {resolvedFormat === 'both' && (
+                                        <div className="flex items-center justify-center gap-3">
+                                          <div className="h-px bg-slate-850 flex-1" />
+                                          <span className="text-[9px] text-slate-555 font-bold uppercase tracking-widest font-mono">or</span>
+                                          <div className="h-px bg-slate-855 flex-1" />
+                                        </div>
+                                      )}
+
+                                      {(resolvedFormat === 'file' || resolvedFormat === 'both') && (
+                                        <div className="space-y-1.5">
+                                          <label className="block text-[10px] font-bold text-slate-555 uppercase tracking-widest font-mono">
+                                            {resolvedFormat === 'file' ? 'Upload your file:' : 'Upload file instead:'}
+                                          </label>
+                                          <div className="border border-dashed border-slate-700 bg-slate-900/40 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-1 select-none">
+                                            <Paperclip className="w-5 h-5 text-slate-400" />
+                                            <span className="text-xs font-semibold text-slate-200 font-sans">Drag & drop or click to upload</span>
+                                            <span className="text-[9px] text-slate-555 font-mono">Supported: .py, .js, .ts, .pdf, .docx</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : q.options && Array.isArray(q.options) && q.options.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1.5">
+                                      {q.options.map((opt, oIdx) => {
+                                        const letter = String.fromCharCode(65 + oIdx)
+                                        const isSelected = simulatedAnswers[idx] === letter
+                                        return (
+                                          <button
+                                            type="button"
+                                            key={oIdx}
+                                            onClick={() => {
+                                              setSimulatedAnswers(prev => ({ ...prev, [idx]: letter }))
+                                            }}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
+                                              isSelected
+                                                ? 'bg-blue-600/10 border-blue-555 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-bold'
+                                                : 'bg-slate-900 border-slate-855 text-slate-355 hover:bg-slate-850/60 hover:border-slate-800'
+                                            }`}
+                                          >
+                                            <span className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                                              isSelected
+                                                ? 'bg-blue-505 border-blue-505 text-white'
+                                                : 'border-slate-700 text-slate-550'
+                                            }`}>
+                                              {letter}
+                                            </span>
+                                            <span>{opt}</span>
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {solutionMode === 'upload' ? (
-                <div className="space-y-4 text-xs">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Upload Solution PDF / Code key
-                  </label>
-                  <div className="border border-dashed border-slate-700 bg-slate-950/20 p-8 rounded-xl text-center space-y-2">
-                    <Upload className="w-8 h-8 text-slate-500 mx-auto" />
-                    <input
-                      type="file"
-                      onChange={(e) => setSolutionFile(e.target.files?.[0] || null)}
-                      className="text-xs text-slate-400 mx-auto block max-w-xs"
-                    />
-                    {solutionStoragePath && (
-                      <span className="block text-[10px] text-emerald-600">
-                        Current file path: {solutionStoragePath}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      AI Generated Solution Draft (Markdown)
-                    </label>
-                    <button
-                      onClick={handleGenerateAISolution}
-                      disabled={generatingSolution}
-                      className="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1"
-                    >
-                      {generatingSolution ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-indigo-600" />}
-                      <span>Generate Solution</span>
-                    </button>
-                  </div>
-
-                  <textarea
-                    rows={12}
-                    placeholder="Click 'Generate Solution' or type manual keys..."
-                    value={solutionText}
-                    onChange={(e) => setSolutionText(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none resize-none leading-relaxed"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 4: RUBRIC GENERATOR */}
+            )
+          })()}{/* TAB 4: RUBRIC GENERATOR */}
           {currentStep === 4 && (
             <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
               <div className="flex justify-between items-center pb-3 border-b border-slate-700">
@@ -2464,9 +4198,14 @@ function LessonEditorInner() {
                 type="button"
                 onClick={handleSaveComposer}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-350 hover:text-slate-200 font-semibold text-xs transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-350 hover:text-slate-200 font-semibold text-xs transition-all flex items-center gap-1.5"
               >
-                {saving ? 'Saving...' : 'Save Draft'}
+                {saving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>{saveStage || 'Saving...'} ({saveStatus.elapsed})</span>
+                  </>
+                ) : 'Save Draft'}
               </button>
               <button
                 type="button"
@@ -2627,23 +4366,147 @@ function LessonEditorInner() {
         </div>
       )}
 
-      {/* Student View Simulator Modal */}
-      {showStudentPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+      {/* Materials Preview Modal */}
+      {showMaterialsPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/80 backdrop-blur-sm">
           <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
               <div>
                 <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
                   <Eye className="w-4 h-4 text-blue-500" />
-                  Student View Simulator
+                  Materials & Handouts Preview
                 </h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  This simulates what students see when accessing this lesson.
+                  This simulates what students see when reviewing lesson materials and study handouts.
                 </p>
               </div>
               <button
-                onClick={() => setShowStudentPreview(false)}
+                onClick={() => setShowMaterialsPreview(false)}
+                className="text-slate-400 hover:text-slate-200 text-xs transition-colors p-1"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-900 text-slate-100 custom-scrollbar">
+              <div className="max-w-4xl mx-auto space-y-8">
+                {/* Lesson Header Simulation */}
+                <div className="border-b border-slate-805 pb-4">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Lesson Reference Materials
+                  </span>
+                  <h1 className="text-xl font-bold text-slate-100 mt-1">{title || 'Untitled Lesson'}</h1>
+                </div>
+
+                {/* Handouts Materials List */}
+                <div className="space-y-4">
+                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                    Mapped Materials & Handouts ({materials.length})
+                  </h5>
+
+                  {materials.length === 0 ? (
+                    <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-950/20 text-slate-455 text-xs">
+                      No materials mapped to this lesson yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {materials.map((m, idx) => {
+                        const styles = getMaterialTypeStyles(m.type)
+                        const Icon = getMaterialIcon(m.type)
+                        return (
+                          <div key={m.id || idx} className="p-4 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-800 transition-all">
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <Icon className={`w-3.5 h-3.5 ${styles.iconColor} shrink-0`} />
+                                <span className="block text-xs font-semibold text-slate-200 truncate">
+                                  {m.title}
+                                </span>
+                              </div>
+                              {m.note && (
+                                <span className="block text-[10px] text-slate-455 truncate">
+                                  {m.note}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              {['pdf', 'docx', 'csv', 'xlsx'].includes(m.type) && previewSignedUrls[m.id] && (
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(previewSignedUrls[m.id], '_blank')}
+                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-755 text-slate-300 text-[10px] font-bold border border-slate-700 transition-all"
+                                >
+                                  Preview
+                                </button>
+                              )}
+                              {['link', 'markdown', 'json'].includes(m.type) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (m.type === 'link') {
+                                      window.open(m.metadata?.link_url || '#', '_blank')
+                                    } else {
+                                      alert(`Previewing custom content: ${m.title}`)
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-755 text-slate-300 text-[10px] font-bold border border-slate-700 transition-all"
+                                >
+                                  Open
+                                </button>
+                              )}
+                              {downloadAllowed && ['pdf', 'docx', 'csv', 'xlsx', 'json', 'markdown'].includes(m.type) && (
+                                <a
+                                  href={previewSignedUrls[m.id] || '#'}
+                                  download={m.title}
+                                  className="px-2.5 py-1 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold border border-blue-500/20 transition-all"
+                                >
+                                  Download
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-slate-700 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowMaterialsPreview(false)}
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assignment Preview Simulator Modal */}
+      {showAssignmentPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/80 backdrop-blur-sm">
+          <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-blue-500" />
+                  Assignment View Simulator
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  This simulates what students see when completing assignments on this lesson.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAssignmentPreview(false)}
                 className="text-slate-400 hover:text-slate-200 text-xs transition-colors p-1"
                 type="button"
               >
@@ -2662,107 +4525,250 @@ function LessonEditorInner() {
                   <h1 className="text-xl font-bold text-slate-100 mt-1">{title || 'Untitled Lesson'}</h1>
                 </div>
 
-                {/* 1. Deliverables Card CTA */}
+                {/* 1. Deliverables / Assignment Section */}
                 {hasAssignment && (
-                  <div className="border border-indigo-500/20 bg-slate-950/10 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-indigo-400 shrink-0">
-                        <ClipboardList className="w-4 h-4" />
+                  <div className="border border-indigo-500/20 bg-slate-950/20 rounded-3xl p-6 md:p-8 space-y-6">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 shrink-0">
+                          <ClipboardList className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+                            {assignmentForm.title || 'Assignment Deliverables'}
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Max Score: {assignmentForm.maxScore} pts | Files: Max {assignmentForm.maxFiles} ({assignmentForm.maxTotalSizeMb}MB)
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
-                          Lesson Deliverables: {assignmentForm.title || 'Assignment'}
-                        </h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          Max Score: {assignmentForm.maxScore} pts | Files: Max {assignmentForm.maxFiles}
-                        </p>
+                      <div className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider select-none shrink-0 cursor-pointer shadow-lg transition-all hover:scale-[1.02]">
+                        Submit Deliverables
                       </div>
                     </div>
-                    <div className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-[10px] uppercase tracking-wider select-none shrink-0">
-                      Submit Deliverables
-                    </div>
+
+                    {/* Section: Downloadable Data Files */}
+                    {dataFiles.length > 0 && (
+                      <div className="space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <FileCode className="w-3.5 h-3.5 text-blue-500" />
+                          Attached Data Files (For Download)
+                        </h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {dataFiles.map((fileItem, idx) => (
+                            <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-xs font-semibold text-slate-200 truncate">
+                                  {fileItem.name}
+                                </span>
+                                <span className="block text-[9px] text-slate-500">
+                                  {(fileItem.size / 1024).toFixed(1)} KB
+                                </span>
+                              </div>
+                              {fileItem.downloadable && (
+                                <a
+                                  href={fileItem.storage_path ? `/api/storage/teaching-materials/${fileItem.storage_path}` : '#'}
+                                  download
+                                  className="px-2.5 py-1 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold border border-blue-500/20 transition-all shrink-0"
+                                >
+                                  Download
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Section: Reference Materials */}
+                    {referenceFiles.length > 0 && (
+                      <div className="space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                          Reference Materials (For Reading)
+                        </h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {referenceFiles.map((fileItem, idx) => (
+                            <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-xs font-semibold text-slate-200 truncate">
+                                  {fileItem.name}
+                                </span>
+                                <span className="block text-[9px] text-slate-500">
+                                  {(fileItem.size / 1024).toFixed(1)} KB
+                                </span>
+                              </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                {fileItem.previewable && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (fileItem.storage_path) {
+                                        const res = await getSignedUrlAction('teaching-materials', fileItem.storage_path)
+                                        if (res.success && res.signedUrl) {
+                                          window.open(res.signedUrl, '_blank')
+                                        } else {
+                                          alert('Could not open file preview.')
+                                        }
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-350 hover:text-slate-100 text-[9px] font-bold transition-all"
+                                  >
+                                    Preview
+                                  </button>
+                                )}
+                                {fileItem.downloadable && (
+                                  <a
+                                    href={fileItem.storage_path ? `/api/storage/teaching-materials/${fileItem.storage_path}` : '#'}
+                                    download
+                                    className="px-2 py-0.5 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[9px] font-bold border border-blue-500/20 transition-all"
+                                  >
+                                    Download
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Section: Structured Questions List */}
+                    {(() => {
+                      const getAnswerFormat = (question: any, batch: any): 'text' | 'file' | 'both' => {
+                        if (question.answerFormat) return question.answerFormat
+                        return batch?.defaultAnswerFormat || 'text'
+                      }
+
+                      const approvedQs: any[] = []
+                      batches.forEach(b => {
+                        b.questions.forEach(q => {
+                          if (q.status === 'approved') {
+                            approvedQs.push({ ...q, batch: b })
+                          }
+                        })
+                      })
+
+                      if (approvedQs.length === 0) return null
+
+                      return (
+                        <div className="space-y-4 pt-4 border-t border-slate-800">
+                          <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Brain className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
+                            Assignment Questions ({approvedQs.length})
+                          </h5>
+
+                          <div className="space-y-4">
+                            {approvedQs.map((q, idx) => {
+                              const resolvedFormat = q.batch.type === 'multiple_choice' ? 'text' : getAnswerFormat(q, q.batch)
+                              return (
+                                <div key={`q-final-${q.id || idx}-${idx}`} className="p-5 bg-slate-955 border border-slate-855 rounded-2xl space-y-3 text-xs text-slate-200 animate-fade-in">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                                      Question {idx + 1} ({q.batch.type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'} — {q.batch.category === 'theory' ? 'Lý thuyết' : 'Code'})
+                                    </span>
+                                  </div>
+                                  <p className="text-slate-205 font-semibold leading-relaxed">
+                                    {q.content}
+                                  </p>
+
+                                  {/* Answer Format Indicator for Essay questions in Merged Preview */}
+                                  {q.batch.type === 'essay' && (
+                                    <div className="text-[10px] text-slate-450 font-semibold flex items-center gap-1.5 select-none">
+                                      <span>Format:</span>
+                                      {resolvedFormat === 'text' && <span className="text-slate-300 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">📝 Text Only</span>}
+                                      {resolvedFormat === 'file' && <span className="text-slate-300 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">📎 File Upload Only</span>}
+                                      {resolvedFormat === 'both' && <span className="text-slate-300 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">🔀 Both</span>}
+                                    </div>
+                                  )}
+
+                                  {/* Options (if multiple choice) / Response field (if essay) */}
+                                  {q.batch.type === 'essay' ? (
+                                    <div className="space-y-3">
+                                      {/* Text input (for text or both) */}
+                                      {(resolvedFormat === 'text' || resolvedFormat === 'both') && (
+                                        <div className="space-y-1.5">
+                                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                                            Your Answer (Text)
+                                          </label>
+                                          <textarea
+                                            value={simulatedAnswers[idx] || ''}
+                                            onChange={(e) => {
+                                              setSimulatedAnswers(prev => ({ ...prev, [idx]: e.target.value }))
+                                            }}
+                                            placeholder="Type your simulated essay response..."
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-505 h-24 placeholder-slate-600"
+                                          />
+                                          <div className="text-[10px] text-slate-550 text-right">
+                                            {(simulatedAnswers[idx] || '').trim().split(/\s+/).filter(Boolean).length} words
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Or separator (for both) */}
+                                      {resolvedFormat === 'both' && (
+                                        <div className="flex items-center justify-center gap-3">
+                                          <div className="h-px bg-slate-850 flex-1" />
+                                          <span className="text-[9px] text-slate-550 font-bold uppercase tracking-widest">or</span>
+                                          <div className="h-px bg-slate-850 flex-1" />
+                                        </div>
+                                      )}
+
+                                      {/* File upload (for file or both) */}
+                                      {(resolvedFormat === 'file' || resolvedFormat === 'both') && (
+                                        <div className="space-y-1.5">
+                                          <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-widest font-mono">
+                                            {resolvedFormat === 'file' ? 'Upload your file:' : 'Upload file instead:'}
+                                          </label>
+                                          <div className="border border-dashed border-slate-700 bg-slate-900/40 rounded-xl p-4 flex flex-col items-center justify-center text-center space-y-1 select-none">
+                                            <Paperclip className="w-5 h-5 text-slate-400" />
+                                            <span className="text-xs font-semibold text-slate-200">Drag & drop or click to upload</span>
+                                            <span className="text-[9px] text-slate-500 font-mono">Supported: .py, .js, .ts, .pdf, .docx</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : q.options && Array.isArray(q.options) && q.options.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1.5">
+                                      {q.options.map((opt, oIdx) => {
+                                        const letter = String.fromCharCode(65 + oIdx)
+                                        const isSelected = simulatedAnswers[idx] === letter
+                                        return (
+                                          <button
+                                            type="button"
+                                            key={oIdx}
+                                            onClick={() => {
+                                              setSimulatedAnswers(prev => ({ ...prev, [idx]: letter }))
+                                            }}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
+                                              isSelected
+                                                ? 'bg-blue-600/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-bold'
+                                                : 'bg-slate-900 border-slate-850 text-slate-350 hover:bg-slate-850/60 hover:border-slate-800'
+                                            }`}
+                                          >
+                                            <span className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                                              isSelected
+                                                ? 'bg-blue-505 border-blue-505 text-white'
+                                                : 'border-slate-700 text-slate-555'
+                                            }`}>
+                                              {letter}
+                                            </span>
+                                            <span>{opt}</span>
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
-
-                {/* 2. Resources & Repositories list */}
-                <div className="border border-slate-800 bg-slate-950/10 rounded-2xl p-5 space-y-3">
-                  <h3 className="font-bold text-slate-100 text-xs pb-2 border-b border-slate-800">
-                    Resources & Repositories
-                  </h3>
-                  {materials.filter((m) => ['link', 'code_repo'].includes(m.type)).length === 0 ? (
-                    <p className="text-[10px] text-slate-400 italic">No additional links mapped to this lesson.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {materials
-                        .filter((m) => ['link', 'code_repo'].includes(m.type))
-                        .map((m) => {
-                          const isRepo = m.type === 'code_repo'
-                          const styles = getMaterialTypeStyles(m.type)
-                          const Icon = getMaterialIcon(m.type)
-                          return (
-                            <a
-                              key={m.id}
-                              href={m.storage_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800 hover:border-slate-700 transition-all group"
-                            >
-                              <div className={`w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center ${styles.iconColor} transition-colors`}>
-                                <Icon className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <span className="block text-xs font-semibold text-slate-200 truncate group-hover:text-slate-100 transition-colors">
-                                  {m.title}
-                                </span>
-                                <span className={`inline-block text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded border font-semibold mt-1 ${styles.bg}`}>
-                                  {isRepo ? 'Git Repository' : 'External Link'}
-                                </span>
-                              </div>
-                            </a>
-                          )
-                        })}
-                    </div>
-                  )}
-                </div>
-
-                {/* 3. Grid-Mapped File Previews */}
-                <div className={`grid gap-6 ${getGridColsClass(gridLayout)}`}>
-                  {Array.from({ length: getLayoutCellCount(gridLayout) }).map((_, colIdx) => {
-                    const colMaterialsList = Array.isArray(cellMaterials[colIdx]) ? cellMaterials[colIdx] : []
-                    return (
-                      <div key={colIdx} className={`space-y-6 flex flex-col ${getCellSpanClass(gridLayout, colIdx)}`}>
-                        {colMaterialsList.length > 0 ? (
-                          colMaterialsList.map((material: any) => (
-                            <div key={material.id}>
-                              {renderMaterialPreviewCard(material)}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="border border-dashed border-slate-800 bg-slate-900/10 rounded-2xl p-8 min-h-[220px] flex flex-col items-center justify-center text-slate-500 text-xs">
-                            <Upload className="w-5 h-5 mb-2 text-slate-600 animate-pulse" />
-                            <span>Empty Column {colIdx + 1}</span>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* 4. Unplaced Fallback Materials */}
-                {(() => {
-                  const unplaced = materials.filter(m => 
-                    ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type) &&
-                    !Object.values(cellMaterials).some((colList: any) => 
-                      Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
-                    )
-                  )
-                  if (unplaced.length === 0) return null
-                  return (
-                    <div className="pt-8 border-t border-slate-800 grid grid-cols-1 gap-6">
-                      {unplaced.map((m) => renderMaterialPreviewCard(m))}
-                    </div>
-                  )
-                })()}
               </div>
             </div>
 
@@ -2770,10 +4776,1371 @@ function LessonEditorInner() {
             <div className="p-5 border-t border-slate-700 flex justify-end shrink-0">
               <button
                 type="button"
-                onClick={() => setShowStudentPreview(false)}
+                onClick={() => setShowAssignmentPreview(false)}
                 className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
               >
                 Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Classify File Modal */}
+      {classifyModalOpen && classifyFile && (
+        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                Classify Uploaded File
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setClassifyModalOpen(false)
+                  setClassifyFile(null)
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5 text-xs text-slate-205">
+              <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl">
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+                  Selected File
+                </span>
+                <span className="block text-xs font-semibold text-slate-200 truncate">
+                  {classifyFile.name}
+                </span>
+                <span className="block text-[9px] text-slate-400 mt-0.5">
+                  ({(classifyFile.size / 1024).toFixed(1)} KB)
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-slate-405 uppercase tracking-widest">
+                  Classify As
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  <label className={`p-3 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${
+                    classifyType === 'data'
+                      ? 'bg-blue-600/10 border-blue-500 text-slate-100'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900/50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="classify_type"
+                      checked={classifyType === 'data'}
+                      onChange={() => {
+                        setClassifyType('data')
+                        setClassifyDownloadable(true)
+                        setClassifyPreviewable(true)
+                      }}
+                      className="mt-0.5 w-4 h-4 text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-900"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-slate-200">Student Data File</span>
+                      <span className="block text-[10px] text-slate-500 mt-0.5">
+                        Students download this file for assignments (e.g. datasets, CSVs, starting code).
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${
+                    classifyType === 'reference'
+                      ? 'bg-blue-600/10 border-blue-500 text-slate-100'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900/50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="classify_type"
+                      checked={classifyType === 'reference'}
+                      onChange={() => {
+                        setClassifyType('reference')
+                        setClassifyDownloadable(true)
+                        setClassifyPreviewable(true)
+                      }}
+                      className="mt-0.5 w-4 h-4 text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-900"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-slate-200">Reference Material</span>
+                      <span className="block text-[10px] text-slate-500 mt-0.5">
+                        Students read this file inline (e.g. guide PDFs, cheat sheets, guidelines).
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${
+                    classifyType === 'question'
+                      ? 'bg-blue-600/10 border-blue-500 text-slate-100'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900/50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="classify_type"
+                      checked={classifyType === 'question'}
+                      onChange={() => setClassifyType('question')}
+                      className="mt-0.5 w-4 h-4 text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-900"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-slate-200">Assignment Question Sheet (AI Parse)</span>
+                      <span className="block text-[10px] text-slate-500 mt-0.5">
+                        AI extracts questions from this file and appends them to your assignment.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {classifyType !== 'question' && (
+                <div className="space-y-2 pt-2">
+                  <label className="block text-[10px] font-bold text-slate-405 uppercase tracking-widest">
+                    Options
+                  </label>
+                  <div className="flex items-center gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={classifyDownloadable}
+                        onChange={(e) => setClassifyDownloadable(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-900"
+                      />
+                      <span className="text-xs text-slate-305">Allow Download</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={classifyPreviewable}
+                        onChange={(e) => setClassifyPreviewable(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-900"
+                      />
+                      <span className="text-xs text-slate-305">Allow Inline Preview</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setClassifyModalOpen(false)
+                  setClassifyFile(null)
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isParsingFile}
+                onClick={handleConfirmClassification}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg transition-colors flex items-center gap-1.5"
+              >
+                {isParsingFile && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{classifyType === 'question' ? 'AI Parse Questions' : 'Confirm'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Generator Modal */}
+      {showAiModal && (
+        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-blue-500 animate-pulse" />
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+                  AI Assignment Generator
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (modalStep === 3) {
+                    const confirmed = window.confirm('Discard generated questions and close?')
+                    if (!confirmed) return
+                  }
+                  setShowAiModal(false)
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-205 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+
+                  {/* STEP 1: UNIFIED SOURCE MATERIALS & CONFIGURATION */}
+                  {modalStep === 1 && (
+                    <div className="flex-1 overflow-y-auto p-6 w-full flex flex-col justify-between">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 max-w-5xl mx-auto w-full">
+                        {/* Left Column: Source Materials (col-span-5) */}
+                        <div className="md:col-span-5 space-y-4 flex flex-col">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">📚</span>
+                              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-widest">
+                                Source Materials
+                              </h4>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Select materials for the AI to read and reference for the assignment.
+                            </p>
+                          </div>
+
+                          {materials.length === 0 ? (
+                            <div className="flex-1 min-h-[250px] flex items-center justify-center p-8 border border-dashed border-slate-800 bg-slate-950/20 rounded-2xl text-center text-xs text-slate-500">
+                              No materials uploaded for this lesson. The AI will generate questions using the lesson outline title and content.
+                            </div>
+                          ) : (
+                            <div className="space-y-3 flex-1 flex flex-col">
+                              <div className="flex justify-between items-center pb-2 border-b border-slate-800 shrink-0">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                                  Available Handouts / Files
+                                </span>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiSelectedMaterials(materials.map(m => m.id))}
+                                    className="text-[10px] text-blue-500 hover:text-blue-400 font-bold"
+                                  >
+                                    [Select All]
+                                  </button>
+                                  <span className="text-slate-700 text-[10px]">|</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiSelectedMaterials([])}
+                                    className="text-[10px] text-slate-550 hover:text-slate-400 font-bold"
+                                  >
+                                    [Deselect All]
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex-1 max-h-[340px] overflow-y-auto space-y-2 pr-1">
+                                {materials.map((m) => {
+                                  const Icon = getMaterialIcon(m.type)
+                                  const styles = getMaterialTypeStyles(m.type)
+                                  const isSelected = aiSelectedMaterials.includes(m.id)
+                                  return (
+                                    <label
+                                      key={m.id}
+                                      className={`relative flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none group ${
+                                        isSelected
+                                          ? styles.bg + ' border-current shadow-sm ring-1 ring-offset-0 ring-current/25'
+                                          : 'bg-slate-950/30 border-slate-800 hover:bg-slate-900/50 text-slate-400 hover:text-slate-300'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                                        <div className="relative flex items-center justify-center shrink-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setAiSelectedMaterials(prev => [...prev, m.id])
+                                              } else {
+                                                setAiSelectedMaterials(prev => prev.filter(id => id !== m.id))
+                                              }
+                                            }}
+                                            className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-900 cursor-pointer"
+                                          />
+                                        </div>
+                                        <Icon className={`w-4 h-4 ${isSelected ? styles.iconColor : 'text-slate-500'} shrink-0`} />
+                                        <div className="min-w-0">
+                                          <span className={`block text-xs font-semibold truncate ${isSelected ? 'text-slate-100' : 'text-slate-300'}`}>
+                                            {m.title}
+                                          </span>
+                                          <span className="block text-[9px] text-slate-500 uppercase tracking-widest font-mono">
+                                            {m.type}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                              
+                              <div className="pt-2 border-t border-slate-850 shrink-0 text-right">
+                                <span className="text-[10px] text-slate-400 font-bold tracking-wide uppercase font-mono">
+                                  {aiSelectedMaterials.length} of {materials.length} selected
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right Column: Configuration (col-span-7) */}
+                        <div className="md:col-span-7 space-y-6">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">⚙️</span>
+                              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-widest">
+                                Configuration
+                              </h4>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Configure type, category, model, and questions count.
+                            </p>
+                          </div>
+
+                          <div className="bg-slate-950/30 border border-slate-800 p-6 rounded-2xl space-y-5">
+                            {/* Model Selector & Questions Count Row */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                  AI Model
+                                </label>
+                                 <select
+                                   value={selectedModel}
+                                   onChange={(e) => setSelectedModel(e.target.value)}
+                                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors"
+                                 >
+                                   <option value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
+                                   <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
+                                   <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
+                                   <option value="groq/llama-3.3-70b-specdec">Llama 3.3 70B (Groq)</option>
+                                   <option value="openrouter/google/gemini-2.5-flash:free">OpenRouter Gemini 2.5 Flash Free</option>
+                                   <option value="deepseek/deepseek-r1:free">DeepSeek R1 (OpenRouter Free)</option>
+                                   <option value="ollama">Ollama (Local Llama)</option>
+                                 </select>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                  Number of Questions
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiQuestionCount(prev => Math.max(1, prev - 1))}
+                                    className="w-9 h-9 flex items-center justify-center bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 rounded-lg hover:text-slate-200 transition-colors"
+                                  >
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="30"
+                                    value={aiQuestionCount}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 1
+                                      setAiQuestionCount(Math.min(30, Math.max(1, val)))
+                                    }}
+                                    className="w-16 h-9 bg-slate-900 border border-slate-800 rounded-lg text-center text-xs text-slate-100 font-bold focus:outline-none focus:border-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiQuestionCount(prev => Math.min(30, prev + 1))}
+                                    className="w-9 h-9 flex items-center justify-center bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 rounded-lg hover:text-slate-200 transition-colors"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Question Type Visual Cards */}
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Question Type
+                              </label>
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setAiType('multiple_choice')}
+                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                                    aiType === 'multiple_choice'
+                                      ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <div className={`p-2 rounded-lg shrink-0 ${
+                                    aiType === 'multiple_choice'
+                                      ? 'bg-blue-500 text-white'
+                                      : 'bg-slate-800 text-slate-450'
+                                  }`}>
+                                    <ClipboardList className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <span className="block text-xs font-bold">Multiple Choice</span>
+                                    <span className="block text-[9px] opacity-70">Single option selector</span>
+                                  </div>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setAiType('essay')}
+                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                                    aiType === 'essay'
+                                      ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <div className={`p-2 rounded-lg shrink-0 ${
+                                    aiType === 'essay'
+                                      ? 'bg-purple-500 text-white'
+                                      : 'bg-slate-800 text-slate-450'
+                                  }`}>
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <span className="block text-xs font-bold">Essay / Practice</span>
+                                    <span className="block text-[9px] opacity-70">Rich text submission</span>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Category Visual Cards */}
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Category
+                              </label>
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setAiCategory('theory')}
+                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                                    aiCategory === 'theory'
+                                      ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <div className={`p-2 rounded-lg shrink-0 ${
+                                    aiCategory === 'theory'
+                                      ? 'bg-amber-500 text-slate-900'
+                                      : 'bg-slate-800 text-slate-450'
+                                  }`}>
+                                    <Lightbulb className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <span className="block text-xs font-bold">Theory</span>
+                                    <span className="block text-[9px] opacity-70">Conceptual questions</span>
+                                  </div>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setAiCategory('code')}
+                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                                    aiCategory === 'code'
+                                      ? 'bg-emerald-600/10 border-emerald-500 text-white ring-1 ring-emerald-500/30'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <div className={`p-2 rounded-lg shrink-0 ${
+                                    aiCategory === 'code'
+                                      ? 'bg-emerald-500 text-slate-950'
+                                      : 'bg-slate-800 text-slate-450'
+                                  }`}>
+                                    <Heart className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <span className="block text-xs font-bold">Code Practice</span>
+                                    <span className="block text-[9px] opacity-70">Coding & scripting exercises</span>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+
+                            {aiType === 'essay' && (
+                              <div className="space-y-2">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                  Default Answer Format
+                                </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiDefaultAnswerFormat('text')}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
+                                      aiDefaultAnswerFormat === 'text'
+                                        ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <span className="text-lg mb-1">📝</span>
+                                    <span className="block text-xs font-bold">Text Only</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiDefaultAnswerFormat('file')}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
+                                      aiDefaultAnswerFormat === 'file'
+                                        ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <span className="text-lg mb-1">📎</span>
+                                    <span className="block text-xs font-bold">File Only</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setAiDefaultAnswerFormat('both')}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
+                                      aiDefaultAnswerFormat === 'both'
+                                        ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <span className="text-lg mb-1">🔀</span>
+                                    <span className="block text-xs font-bold">Both</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Difficulty Level Button Group */}
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Difficulty Level
+                              </label>
+                              <div className="grid grid-cols-3 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setAiDifficulty('easy')}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
+                                    aiDifficulty === 'easy'
+                                      ? 'bg-emerald-600/10 border-emerald-500 text-white ring-1 ring-emerald-500/30 font-bold'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <span className="block text-xs">🟢 Easy</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiDifficulty('medium')}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
+                                    aiDifficulty === 'medium'
+                                      ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <span className="block text-xs">🔵 Medium</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiDifficulty('hard')}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
+                                    aiDifficulty === 'hard'
+                                      ? 'bg-rose-600/10 border-rose-500 text-white ring-1 ring-rose-500/30 font-bold'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <span className="block text-xs">🔴 Hard</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Output Language Button Group */}
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                                Output Language
+                              </label>
+                              <div className="grid grid-cols-3 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setAiLanguage('vietnamese')}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
+                                    aiLanguage === 'vietnamese'
+                                      ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <span className="block text-xs"> Tiếng Việt</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiLanguage('english')}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
+                                    aiLanguage === 'english'
+                                      ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <span className="block text-xs">🇺🇸 English</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiLanguage('both')}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
+                                    aiLanguage === 'both'
+                                      ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30 font-bold'
+                                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <span className="block text-xs">🌐 Bilingual</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Optional Sample Data Toggle */}
+                            <div className="flex items-center gap-3 pt-2 border-t border-slate-850">
+                              <input
+                                type="checkbox"
+                                id="modal_ai_sample_data"
+                                checked={aiSampleData}
+                                onChange={(e) => setAiSampleData(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-900 cursor-pointer"
+                              />
+                              <label htmlFor="modal_ai_sample_data" className="text-xs text-slate-350 cursor-pointer select-none">
+                                Include sample output or test case templates for student answers
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Centered Large Generate Button Section */}
+                        <div className="col-span-1 md:col-span-12 border-t border-slate-850 pt-6 flex flex-col items-center space-y-3">
+                          {materials.length > 0 && aiSelectedMaterials.length === 0 && (
+                            <span className="text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-4 py-2 rounded-xl flex items-center gap-1.5 animate-bounce">
+                              ⚠️ Please select at least 1 source material to proceed
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            disabled={materials.length > 0 && aiSelectedMaterials.length === 0}
+                            onClick={handleStartGenerating}
+                            className={`group relative px-12 py-4 text-white rounded-2xl text-sm font-bold shadow-xl transition-all duration-300 flex items-center gap-3 overflow-hidden ${
+                              materials.length > 0 && aiSelectedMaterials.length === 0
+                                ? 'bg-slate-800 border border-slate-700 cursor-not-allowed opacity-50'
+                                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 hover:scale-[1.03]'
+                            }`}
+                          >
+                            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <Sparkles className="w-5 h-5 text-white animate-pulse group-hover:rotate-12 transition-transform duration-300" />
+                            <span>Generate Assignment</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+              {/* STEP 2: GENERATING LOAD SCREEN */}
+              {modalStep === 2 && (
+                <div className="flex-1 flex flex-col justify-center items-center p-6 max-w-lg mx-auto w-full animate-fade-in">
+                  <div className="w-full bg-slate-955 border border-slate-800 rounded-3xl p-6 space-y-6">
+                    <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+                      <div className="relative flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-100 uppercase tracking-widest">
+                        Generating Assignment...
+                      </h4>
+                    </div>
+
+                    <div className="space-y-4 text-xs">
+                      {/* Step 1: Reading Materials */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                          {genStage === 'reading' ? (
+                            <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+                          ) : readingDuration !== null ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          ) : (
+                            <span className="w-4 h-4 rounded-full border border-slate-700 inline-block shrink-0" />
+                          )}
+                          <span className={`font-semibold ${genStage === 'reading' ? 'text-slate-100' : 'text-slate-400'}`}>
+                            Reading selected materials...
+                            {genStage === 'reading' && ` (${((genElapsed) / 1000).toFixed(1)}s)`}
+                            {readingDuration !== null && ` (${(readingDuration / 1000).toFixed(1)}s)`}
+                          </span>
+                        </div>
+                        {readingDuration !== null && (
+                          <div className="pl-7 text-[11px] text-slate-500">
+                            ✓ Materials loaded ({(() => {
+                              const selected = materials.filter(m => aiSelectedMaterials.includes(m.id))
+                              const fileCount = selected.length
+                              const totalBytes = selected.reduce((sum, m) => sum + (m.metadata?.file_size || 0), 0)
+                              const sizeStr = totalBytes < 1024 * 1024
+                                ? `${(totalBytes / 1024).toFixed(1)} KB`
+                                : `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`
+                              return `${fileCount} file${fileCount > 1 ? 's' : ''}, ${sizeStr}`
+                            })()})
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Step 2: Generating Questions */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                          {genStage === 'generating' ? (
+                            <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+                          ) : generatingDuration !== null ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                          ) : (
+                            <span className="w-4 h-4 rounded-full border border-slate-700 inline-block shrink-0" />
+                          )}
+                          <span className={`font-semibold ${genStage === 'generating' ? 'text-slate-100' : 'text-slate-400'}`}>
+                            Generating questions...
+                            {genStage === 'generating' && ` (${((genElapsed - (readingDuration || 0)) / 1000).toFixed(1)}s)`}
+                            {generatingDuration !== null && ` (${(generatingDuration / 1000).toFixed(1)}s)`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Step 3: Creating Sample Data */}
+                      {aiSampleData && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-3">
+                            {genStage === 'sample_data' ? (
+                              <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+                            ) : sampleDataDuration !== null ? (
+                              <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                            ) : (
+                              <span className="w-4 h-4 rounded-full border border-slate-700 inline-block shrink-0" />
+                            )}
+                            <span className={`font-semibold ${genStage === 'sample_data' ? 'text-slate-100' : 'text-slate-400'}`}>
+                              Creating sample data...
+                              {genStage === 'sample_data' && ` (${((genElapsed - (readingDuration || 0) - (generatingDuration || 0)) / 1000).toFixed(1)}s)`}
+                              {sampleDataDuration !== null && ` (${(sampleDataDuration / 1000).toFixed(1)}s)`}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-4 border-t border-slate-800 flex justify-between items-center text-[11px] text-slate-500 font-mono">
+                      <span>ELAPSED TIME</span>
+                      <span className="font-bold text-slate-300">{((genElapsed) / 1000).toFixed(1)}s</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: REVIEW & APPROVE MULTIPLE BATCHES */}
+              {modalStep === 3 && batches.length > 0 && (
+                <div className="flex-1 overflow-hidden flex flex-col h-full bg-slate-900 text-slate-100">
+                  {/* Top Bar: Batch Selector tabs */}
+                  <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex gap-2 overflow-x-auto shrink-0">
+                    {batches.map((batch, idx) => {
+                      const isActive = idx === activeBatchIndex
+                      return (
+                        <button
+                          key={batch.id || idx}
+                          type="button"
+                          onClick={() => {
+                            setActiveBatchIndex(idx)
+                            setActiveQuestionIndex(0)
+                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
+                            isActive
+                              ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-sm ring-1 ring-blue-500/25'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>
+                            Batch {idx + 1}: {batch.type === 'multiple_choice' ? 'MC' : 'Essay'} {batch.category === 'theory' ? 'Theory' : 'Code'} ({batch.questions.length} Qs)
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Main List: Scrollable Questions Overview */}
+                  <div className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar">
+                    {(() => {
+                      const activeBatch = batches[activeBatchIndex]
+                      if (!activeBatch || !activeBatch.questions || activeBatch.questions.length === 0) {
+                        return (
+                          <div className="flex-1 flex items-center justify-center text-slate-500 text-xs py-12">
+                            No questions available in this batch.
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div className="space-y-4 max-w-4xl mx-auto">
+                          {activeBatch.questions.map((q, qIdx) => (
+                            <div
+                              key={q.id || qIdx}
+                              className="p-5 bg-slate-955 border border-slate-800 rounded-2xl space-y-4 animate-fade-in relative hover:border-slate-700 transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono">
+                                  Question {qIdx + 1}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {q.source === 'file_import' && (
+                                    <span className="text-[10px] bg-indigo-900/30 text-indigo-400 px-2 py-0.5 rounded font-semibold border border-indigo-500/20 max-w-[200px] truncate">
+                                      Source: {q.source_file || 'File Import'}
+                                    </span>
+                                  )}
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                    q.status === 'approved'
+                                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                      : q.status === 'rejected'
+                                      ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                                      : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                                  }`}>
+                                    {q.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <p className="text-xs font-semibold text-slate-200 leading-relaxed whitespace-pre-wrap">
+                                  {q.content}
+                                </p>
+
+                                {/* Options if MC */}
+                                {q.options && Array.isArray(q.options) && q.options.length > 0 && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1.5">
+                                    {q.options.map((opt, oIdx) => {
+                                      const letter = String.fromCharCode(65 + oIdx)
+                                      const isCorrect = q.answer === letter
+                                      return (
+                                        <div
+                                          key={oIdx}
+                                          className={`flex items-center gap-3 p-3 rounded-xl border text-xs transition-all ${
+                                            isCorrect
+                                              ? 'bg-emerald-600/5 border-emerald-500/30 text-slate-200 font-bold'
+                                              : 'bg-slate-900 border-slate-850 text-slate-400'
+                                          }`}
+                                        >
+                                          <span className={`w-4 h-4 rounded-full border flex items-center justify-center font-extrabold text-[10px] shrink-0 ${
+                                            isCorrect
+                                              ? 'bg-emerald-500 border-emerald-500 text-white'
+                                              : 'border-slate-700 text-slate-550'
+                                          }`}>
+                                            {letter}
+                                          </span>
+                                          <span className={isCorrect ? 'text-slate-200' : ''}>{opt}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Answer */}
+                                {q.answer && (
+                                  <div className="p-3 bg-blue-600/10 border border-blue-500/20 rounded-xl text-xs text-blue-400 font-medium">
+                                    Correct Answer: {q.answer}
+                                  </div>
+                                )}
+
+                                {/* Sample Data attached if exists */}
+                                {q.data && (
+                                  <div className="p-3 bg-slate-900 border border-slate-850 rounded-xl text-[10px] text-slate-450 font-mono overflow-x-auto max-h-40 overflow-y-auto">
+                                    <span className="block font-bold text-slate-355 uppercase tracking-widest mb-1 text-[9px]">Sample Data Attached</span>
+                                    <pre>{JSON.stringify(q.data, null, 2)}</pre>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Answer Format per-question override radio group */}
+                              {activeBatch.type === 'essay' && (
+                                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2 text-xs">
+                                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono select-none">
+                                    Answer Format
+                                  </span>
+                                  <div className="flex flex-wrap gap-x-5 gap-y-2">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-350 hover:text-slate-100 transition-colors">
+                                      <input
+                                        type="radio"
+                                        name={`q-format-${qIdx}-${activeBatch.id}`}
+                                        checked={q.answerFormat === undefined}
+                                        onChange={() => handleQuestionFormatOverride(qIdx, undefined)}
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
+                                      />
+                                      <span>
+                                        Inherited:{' '}
+                                        <strong className="text-slate-200 font-bold uppercase tracking-wider text-[9px] px-1.5 py-0.5 rounded bg-slate-955 border border-slate-800">
+                                          {activeBatch.defaultAnswerFormat === 'text' && '📝 Text Only'}
+                                          {activeBatch.defaultAnswerFormat === 'file' && '📎 File Only'}
+                                          {activeBatch.defaultAnswerFormat === 'both' && '🔀 Both'}
+                                        </strong>
+                                      </span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-350 hover:text-slate-100 transition-colors">
+                                      <input
+                                        type="radio"
+                                        name={`q-format-${qIdx}-${activeBatch.id}`}
+                                        checked={q.answerFormat === 'text'}
+                                        onChange={() => handleQuestionFormatOverride(qIdx, 'text')}
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
+                                      />
+                                      <span>📝 Text Only</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-350 hover:text-slate-100 transition-colors">
+                                      <input
+                                        type="radio"
+                                        name={`q-format-${qIdx}-${activeBatch.id}`}
+                                        checked={q.answerFormat === 'file'}
+                                        onChange={() => handleQuestionFormatOverride(qIdx, 'file')}
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
+                                      />
+                                      <span>📎 File Only</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-350 hover:text-slate-100 transition-colors">
+                                      <input
+                                        type="radio"
+                                        name={`q-format-${qIdx}-${activeBatch.id}`}
+                                        checked={q.answerFormat === 'both'}
+                                        onChange={() => handleQuestionFormatOverride(qIdx, 'both')}
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
+                                      />
+                                      <span>🔀 Both</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Inline action buttons */}
+                              <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-850/60">
+                                <button
+                                  type="button"
+                                  onClick={() => handleInlineApprove(activeBatchIndex, qIdx)}
+                                  className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all ${
+                                    q.status === 'approved'
+                                      ? 'bg-emerald-600 text-white shadow-lg'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-emerald-500 border border-slate-800'
+                                  }`}
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInlineReject(activeBatchIndex, qIdx)}
+                                  className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all ${
+                                    q.status === 'rejected'
+                                      ? 'bg-rose-600 text-white shadow-lg'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-500 border border-slate-800'
+                                  }`}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={regeneratingIndex === qIdx}
+                                  onClick={() => {
+                                    setRegeneratingIndex(qIdx)
+                                    handleRegenerateQuestion(activeBatchIndex, qIdx).finally(() => setRegeneratingIndex(null))
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
+                                >
+                                  <RefreshCw className={`w-3.5 h-3.5 ${regeneratingIndex === qIdx ? 'animate-spin' : ''}`} />
+                                  Regen
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingQuestion({ ...q })
+                                    setEditingBatchIndex(activeBatchIndex)
+                                    setEditingQuestionIndex(qIdx)
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 font-bold text-xs flex items-center gap-1 transition-all"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteQuestion(activeBatchIndex, qIdx)}
+                                  className="px-3 py-1.5 rounded-lg bg-rose-650/10 hover:bg-rose-600/20 text-rose-500 border border-rose-500/20 font-bold text-xs flex items-center gap-1 transition-all ml-auto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Bottom Stats & Actions bar */}
+                  {(() => {
+                    const activeBatch = batches[activeBatchIndex]
+                    if (!activeBatch) return null
+
+                    const totalQs = activeBatch.questions.length
+                    const approvedQs = activeBatch.questions.filter(q => q.status === 'approved').length
+                    const pendingQs = activeBatch.questions.filter(q => q.status === 'pending').length
+                    const rejectedQs = activeBatch.questions.filter(q => q.status === 'rejected').length
+
+                    return (
+                      <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-955 px-6 py-4 shrink-0">
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-400">
+                          <span>Active Batch Stats:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-blue-600/10 border border-blue-500/20 text-blue-400 font-bold">Total: {totalQs}</span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-bold">{approvedQs} Approved</span>
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-500 font-bold">{pendingQs} Pending</span>
+                            <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 font-bold">{rejectedQs} Rejected</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                          <button
+                            type="button"
+                            onClick={handleRegenAllRejected}
+                            className="flex-1 sm:flex-none px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Regen All Rejected
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBatches(prev => {
+                                const next = [...prev]
+                                if (next[activeBatchIndex]) {
+                                  next[activeBatchIndex] = {
+                                    ...next[activeBatchIndex],
+                                    questions: next[activeBatchIndex].questions.map(q => ({ ...q, status: 'approved' as const }))
+                                  }
+                                }
+                                return next
+                              })
+                            }}
+                            className="flex-1 sm:flex-none px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <Check className="w-4 h-4" />
+                            Approve All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveQuestionsToAssignment}
+                            className="flex-1 sm:flex-none px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <FileCheck className="w-4 h-4" />
+                            Save to Assignment
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Summary Modal */}
+      {showBatchSummaryModal && (
+        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[70vh]">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-indigo-500 animate-pulse" />
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+                  📋 All Batches
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBatchSummaryModal(false)
+                  setPreviewBatchIndex(null)
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-205 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar text-xs">
+              {batches.length === 0 ? (
+                <div className="text-center py-16 text-slate-500 text-xs">
+                  No batches generated or imported yet. Create one in Tab 2.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {batches.map((batch, bIdx) => {
+                    const approved = batch.questions.filter(q => q.status === 'approved').length
+                    const pending = batch.questions.filter(q => q.status === 'pending').length
+                    const rejected = batch.questions.filter(q => q.status === 'rejected').length
+                    const typeText = batch.type === 'multiple_choice' ? 'MC' : 'Essay'
+                    const categoryText = batch.category === 'theory' ? 'Theory' : 'Code'
+                    const isFileImport = batch.questions.some(q => q.source === 'file_import')
+                    const sourceText = isFileImport ? `From: ${batch.questions.find(q => q.source_file)?.source_file || 'File'}` : 'AI Generated'
+                    const isExpanded = previewBatchIndex === bIdx
+
+                    return (
+                      <div key={batch.id || bIdx} className="p-4 bg-slate-955/40 border border-slate-800 rounded-xl relative group transition-all hover:border-slate-700 flex flex-col justify-between shadow-sm space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <span className="block text-xs font-bold text-slate-250">
+                              Batch {bIdx + 1}: {typeText} {categoryText} ({batch.questions.length} questions)
+                            </span>
+                            <span className="block text-[10px] text-slate-505 font-medium truncate max-w-[300px]" title={sourceText}>
+                              Source: {sourceText}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewBatchIndex(isExpanded ? null : bIdx)
+                              }}
+                              className="px-2 py-1 rounded bg-slate-900 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-slate-300 hover:text-slate-100 transition-colors animate-fade-in"
+                            >
+                              {isExpanded ? 'Hide Questions' : 'View Questions'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveBatchIndex(bIdx)
+                                setActiveQuestionIndex(0)
+                                setModalStep(3)
+                                setShowAiModal(true)
+                                setShowBatchSummaryModal(false)
+                                setPreviewBatchIndex(null)
+                              }}
+                              className="px-2 py-1 rounded bg-slate-900 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-blue-450 hover:text-blue-400 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleDeleteBatch(bIdx)
+                                if (isExpanded) setPreviewBatchIndex(null)
+                              }}
+                              className="px-2 py-1 rounded bg-rose-650/10 border border-rose-500/20 text-[10px] font-bold text-rose-500 hover:bg-rose-650/20 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-900/60">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            ✅ <strong className="text-emerald-500">{approved}</strong> | ⏳ <strong className="text-amber-500">{pending}</strong> | ✗ <strong className="text-rose-500">{rejected}</strong>
+                          </span>
+                        </div>
+
+                        {/* Inline Read-only Accordion Question Preview */}
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-3 pl-2 animate-fade-in max-h-60 overflow-y-auto custom-scrollbar">
+                            <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Read-only Question Preview:</span>
+                            {batch.questions.map((q, qIdx) => (
+                              <div key={q.id || qIdx} className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] text-slate-405 font-bold font-mono">Q{qIdx + 1}. {q.status.toUpperCase()}</span>
+                                  {q.points && <span className="text-[9px] text-slate-500">{q.points} pts</span>}
+                                </div>
+                                <p className="text-slate-205 text-xs font-semibold leading-relaxed whitespace-pre-wrap">{q.content}</p>
+                                {q.options && Array.isArray(q.options) && q.options.length > 0 && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                                    {q.options.map((opt, oIdx) => (
+                                      <div key={oIdx} className="text-[10px] text-slate-400">
+                                        <strong className="text-blue-500 font-bold">{String.fromCharCode(65 + oIdx)}.</strong> {opt}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {q.answer && (
+                                  <div className="text-[10px] text-emerald-500 font-mono pt-1">
+                                    Answer Key: {q.answer}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-between items-center shrink-0 text-xs font-semibold text-slate-400">
+              <div>
+                Total: <strong className="text-slate-202">{batches.reduce((acc, b) => acc + b.questions.length, 0)}</strong> questions (<strong className="text-emerald-500">{batches.reduce((acc, b) => acc + b.questions.filter(q => q.status === 'approved').length, 0)}</strong> approved)
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBatchSummaryModal(false)
+                  setPreviewBatchIndex(null)
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Question Modal */}
+      {editingQuestion && editingBatchIndex !== null && editingQuestionIndex !== null && (
+        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                Edit Question
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingQuestion(null)
+                  setEditingBatchIndex(null)
+                  setEditingQuestionIndex(null)
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto text-xs text-slate-205">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                  Question Content
+                </label>
+                <textarea
+                  value={editingQuestion.content}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, content: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500 h-24"
+                />
+              </div>
+
+              {editingQuestion.options && Array.isArray(editingQuestion.options) && (
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono flex justify-between items-center">
+                    <span>Options</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const opts = [...(editingQuestion.options || [])]
+                        opts.push(`Option ${opts.length + 1}`)
+                        setEditingQuestion({ ...editingQuestion, options: opts })
+                      }}
+                      className="text-[9px] text-blue-500 hover:text-blue-450 font-bold"
+                    >
+                      + Add Option
+                    </button>
+                  </label>
+                  <div className="space-y-2">
+                    {editingQuestion.options.map((opt, oIdx) => {
+                      const letter = String.fromCharCode(65 + oIdx)
+                      return (
+                        <div key={oIdx} className="flex items-center gap-2">
+                          <span className="font-extrabold text-blue-500 w-4">{letter}.</span>
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) => {
+                              const opts = [...(editingQuestion.options || [])]
+                              opts[oIdx] = e.target.value
+                              setEditingQuestion({ ...editingQuestion, options: opts })
+                            }}
+                            className="flex-1 bg-slate-955 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-250 focus:outline-none focus:border-blue-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const opts = [...(editingQuestion.options || [])]
+                              opts.splice(oIdx, 1)
+                              setEditingQuestion({ ...editingQuestion, options: opts })
+                            }}
+                            className="p-1.5 hover:bg-slate-850 rounded text-red-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    Correct Answer
+                  </label>
+                  {editingQuestion.options && Array.isArray(editingQuestion.options) ? (
+                    <select
+                      value={editingQuestion.answer || 'A'}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      {editingQuestion.options.map((_, oIdx) => {
+                        const letter = String.fromCharCode(65 + oIdx)
+                        return (
+                          <option key={letter} value={letter}>
+                            Option {letter}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editingQuestion.answer || ''}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                      placeholder="Suggested answer/criteria"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    Points (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingQuestion.points || ''}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0
+                      setEditingQuestion({ ...editingQuestion, points: val > 0 ? val : undefined })
+                    }}
+                    className="w-full bg-slate-955 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                    placeholder="e.g. 10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingQuestion(null)
+                  setEditingBatchIndex(null)
+                  setEditingQuestionIndex(null)
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleEditSave(editingBatchIndex, editingQuestionIndex, editingQuestion)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>

@@ -42,7 +42,7 @@ export function Button({
       {...otherProps}
     >
       <div
-        className="absolute inset-0 rounde-[1.75rem]"
+        className="absolute inset-0 rounded-[1.75rem]"
         style={{ borderRadius: `calc(${borderRadius} * 0.96)` }}
       >
         <MovingBorder duration={duration} rx="30%" ry="30%">
@@ -57,7 +57,7 @@ export function Button({
 
       <div
         className={cn(
-          'relative bg-slate-900/[0.] border border-slate-800 backdrop-blur-xl flex items-center justify-center w-full h-full text-sm antialiased',
+          'relative bg-slate-900/10 border border-slate-800 backdrop-blur-xl flex items-center justify-center w-full h-full text-sm antialiased',
           className
         )}
         style={{

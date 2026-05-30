@@ -311,3 +311,39 @@ class RubricGenerationRequest(PilotContract):
 class RubricGenerationResponse(PilotContract):
     criteria: list[JsonObject]
 
+
+class AssignmentQuestionItem(BaseModel):
+    id: int
+    content: str
+    options: list[str] | None = None
+    answer: str | None = None
+    data: Any | None = None
+
+
+class AssignmentGenerationRequest(PilotContract):
+    model_choice: str = "ollama"
+    assignment_type: str  # "multiple_choice" or "essay"
+    category: str  # "theory" or "code"
+    question_count: int
+    generate_sample_data: bool
+    lesson_content: str
+
+
+class AssignmentGenerationResponse(PilotContract):
+    questions: list[AssignmentQuestionItem]
+
+
+class ParseFileQuestionsRequest(PilotContract):
+    model_choice: str = "ollama"
+    file_content: str
+
+
+class SuggestQuestionAnswerRequest(PilotContract):
+    model_choice: str = "ollama"
+    question_content: str
+    materials_text: str | None = None
+    lesson_context: str | None = None
+
+
+class SuggestQuestionAnswerResponse(PilotContract):
+    answer: str

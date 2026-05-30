@@ -14,11 +14,11 @@ const Experience = () => {
         </div>
 
         <div className="w-full grid lg:grid-cols-4 grid-cols-1 gap-10">
-          {workExperience.map((card) => (
+          {workExperience.map((card, idx) => (
             <Button
               key={card.id}
-              //   random duration will be fun , I think , may be not
-              duration={Math.floor(Math.random() * 10000) + 10000}
+              // use index-based staggered duration to prevent hydration mismatch
+              duration={10000 + idx * 2000}
               // remove bg-white dark:bg-slate-900
               className="flex-1 border-neutral-200"
             >

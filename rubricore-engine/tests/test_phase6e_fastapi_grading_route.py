@@ -5,7 +5,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from app.db.models import CriterionResult, GradingResult, ReviewTask, RubricVersion, Submission, SubmissionEvidence
-from app.pilot.fastapi_app import create_app, get_fastapi_db, get_ollama_grading_provider
+from app.pilot.fastapi_app import create_app, get_fastapi_db, get_ai_grading_provider
 
 
 class RecordingSession:
@@ -55,7 +55,7 @@ def test_fastapi_grading_run_route_invokes_local_ai_provider_and_commits_result(
     session = RecordingSession({(Submission, submission.id): submission, (RubricVersion, rubric.id): rubric})
     app = create_app()
     app.dependency_overrides[get_fastapi_db] = lambda: session
-    app.dependency_overrides[get_ollama_grading_provider] = lambda: FakeAIProvider(
+    app.dependency_overrides[get_ai_grading_provider] = lambda: FakeAIProvider(
         {
             "criterion_suggestions": [
                 {

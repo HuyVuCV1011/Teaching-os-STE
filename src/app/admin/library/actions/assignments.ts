@@ -1,7 +1,12 @@
 'use server'
 
 import { getSupabaseServer } from '@/lib/supabase'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import * as fs from 'fs'
+import * as path from 'path'
 
+const execAsync = promisify(exec)
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
 
 export interface AssignmentInput {
@@ -195,7 +200,7 @@ export async function deleteAssignmentAction(id: string) {
 }
 
 // Proxies calling the Python RubriCore engine
-export async function generateSolutionAction(assignmentText: str, modelChoice: string = 'ollama') {
+export async function generateSolutionAction(assignmentText: string, modelChoice: string = 'ollama') {
   try {
     const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-solution`, {
       method: 'POST',
@@ -219,7 +224,7 @@ export async function generateSolutionAction(assignmentText: str, modelChoice: s
   }
 }
 
-export async function generateRubricAction(assignmentText: str, solutionText: str, modelChoice: string = 'ollama') {
+export async function generateRubricAction(assignmentText: string, solutionText: string, modelChoice: string = 'ollama') {
   try {
     const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-rubric`, {
       method: 'POST',
@@ -243,3 +248,248 @@ export async function generateRubricAction(assignmentText: str, solutionText: st
     return { success: false, error: error.message }
   }
 }
+
+export async function generateAssignmentQuestionsAction(params: {
+  modelChoice: string
+  assignmentType: 'multiple_choice' | 'essay'
+  category: 'theory' | 'code'
+  questionCount: number
+  generateSampleData: boolean
+  lessonContent: string
+}) {
+  try {
+    const url = `${RUBICORE_API_URL}/pilot/generate-assignment`;
+    const bodyStr = JSON.stringify({
+      model_choice: params.modelChoice,
+      assignment_type: params.assignmentType,
+      category: params.category,
+      question_count: params.questionCount,
+      generate_sample_data: params.generateSampleData,
+      lesson_content: params.lessonContent,
+    });
+    
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: bodyStr,
+      });
+    } catch (fetchErr: any) {
+      console.error(`Fetch connection failed to ${url}:`, fetchErr);
+      throw new Error(`Failed to connect to AI engine at ${url}. Error: ${fetchErr.message}`);
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      let parsedDetail = '';
+      try {
+        const errJson = JSON.parse(errText);
+        parsedDetail = errJson.detail;
+      } catch {}
+      
+      const errMsg = parsedDetail || errText || `HTTP error ${res.status}`;
+      throw new Error(`AI generation failed (status ${res.status} from ${url}): ${errMsg}`);
+    }
+
+    const data = await res.json();
+    return { success: true, questions: data.questions };
+  } catch (error: any) {
+    console.error('Failed to generate assignment:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function parseAssignmentFileAction(formData: FormData) {
+  let tempFilePath: string | null = null
+  try {
+    const file = formData.get('file') as File | null
+    if (!file) throw new Error('No file provided')
+
+    const modelChoice = (formData.get('modelChoice') as string) || 'gemini-2.5-flash'
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const tempDir = path.join(process.cwd(), 'scratch')
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+    tempFilePath = path.join(tempDir, `upload_${Date.now()}_${file.name}`)
+    fs.writeFileSync(tempFilePath, buffer)
+
+    let extractedText = ''
+
+    if (['docx', 'csv', 'xlsx', 'xls', 'pdf'].includes(ext)) {
+      const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+      const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
+
+      const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
+      if (stderr.trim()) {
+        console.warn(`Python parsing stderr: ${stderr}`)
+      }
+
+      const parsedOutput = JSON.parse(stdout)
+      if (parsedOutput.error) {
+        throw new Error(`Python script error: ${parsedOutput.error}`)
+      }
+
+      extractedText = parsedOutput.extracted_text || ''
+    } else if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+      extractedText = buffer.toString('utf-8')
+    } else {
+      throw new Error(`Unsupported file type for parsing: ${ext}`)
+    }
+
+    // Call Python FastAPI parser route
+    const url = `${RUBICORE_API_URL}/pilot/parse-file-questions`
+    let res
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model_choice: modelChoice,
+          file_content: extractedText,
+        }),
+      })
+    } catch (fetchErr: any) {
+      throw new Error(`Failed to connect to AI engine at ${url}. ${fetchErr.message}`)
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      let parsedDetail = ''
+      try {
+        const errJson = JSON.parse(errText)
+        parsedDetail = errJson.detail
+      } catch {}
+      const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
+      throw new Error(`AI file parsing failed: ${errMsg}`)
+    }
+
+    const data = await res.json()
+    return { 
+      success: true, 
+      questions: data.questions || [],
+      fileName: file.name,
+      fileSize: file.size
+    }
+  } catch (error: any) {
+    console.error('Failed to parse uploaded assignment file:', error)
+    return { success: false, error: error.message }
+  } finally {
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath)
+      } catch (e) {
+        console.error('Failed to delete temp file:', e)
+      }
+    }
+  }
+}
+
+export async function readMaterialsTextAction(materialUrls: string[]) {
+  const supabase = getSupabaseServer(true)
+  const tempDir = path.join(process.cwd(), 'scratch')
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+
+  const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+  const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
+
+  const extractedTexts: string[] = []
+
+  try {
+    for (const urlPath of materialUrls) {
+      const ext = urlPath.split('.').pop()?.toLowerCase() || ''
+      
+      // Download from supabase storage
+      const { data: downloadData, error: downloadError } = await supabase.storage
+        .from('teaching-materials')
+        .download(urlPath)
+
+      if (downloadError || !downloadData) {
+        console.warn(`Failed to download canonical material ${urlPath}:`, downloadError)
+        continue
+      }
+
+      let tempFilePath: string | null = null
+      try {
+        if (['docx', 'csv', 'xlsx', 'xls', 'pdf'].includes(ext)) {
+          const arrayBuffer = await downloadData.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+          tempFilePath = path.join(tempDir, `material_${Date.now()}_${path.basename(urlPath)}`)
+          fs.writeFileSync(tempFilePath, buffer)
+
+          const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
+          if (stderr.trim()) {
+            console.warn(`Python parsing stderr for ${urlPath}: ${stderr}`)
+          }
+
+          const parsedOutput = JSON.parse(stdout)
+          if (parsedOutput.extracted_text) {
+            extractedTexts.push(`--- FILE: ${path.basename(urlPath)} ---\n${parsedOutput.extracted_text}`)
+          }
+        } else if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+          const text = await downloadData.text()
+          extractedTexts.push(`--- FILE: ${path.basename(urlPath)} ---\n${text}`)
+        }
+      } catch (err: any) {
+        console.error(`Error parsing material ${urlPath}:`, err)
+      } finally {
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          try {
+            fs.unlinkSync(tempFilePath)
+          } catch (e) {}
+        }
+      }
+    }
+
+    return { success: true, combinedText: extractedTexts.join('\n\n') }
+  } catch (error: any) {
+    console.error('Failed to read selected materials:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function suggestQuestionAnswerAction(params: {
+  questionContent: string
+  materialsText?: string
+  lessonContext?: string
+  modelChoice?: string
+}) {
+  try {
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/suggest-question-answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_choice: params.modelChoice || 'gemini-2.5-flash',
+        question_content: params.questionContent,
+        materials_text: params.materialsText || null,
+        lesson_context: params.lessonContext || null
+      })
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      let parsedDetail = ''
+      try {
+        const errJson = JSON.parse(errText)
+        parsedDetail = errJson.detail
+      } catch {}
+      const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
+      throw new Error(`AI suggest answer failed: ${errMsg}`)
+    }
+
+    const data = await res.json()
+    return { success: true, answer: data.answer }
+  } catch (error: any) {
+    console.error('Failed to suggest answer:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+

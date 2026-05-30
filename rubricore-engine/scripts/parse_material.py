@@ -254,6 +254,22 @@ def parse_xlsx(xlsx_path):
         "sheet_names": sheet_names
     }, extracted_text
 
+def pdf_to_text(pdf_path):
+    from pypdf import PdfReader
+    reader = PdfReader(pdf_path)
+    text_parts = []
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text_parts.append(page_text)
+    extracted_text = "\n".join(text_parts)
+    return {
+        "viewer_artifact": {
+            "type": "pdf"
+        },
+        "extracted_text": extracted_text
+    }
+
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No file path provided"}), file=sys.stderr)
@@ -277,6 +293,8 @@ def main():
                 },
                 "extracted_text": result["extracted_text"]
             }
+        elif ext == '.pdf':
+            output = pdf_to_text(file_path)
         elif ext == '.csv':
             preview, text = parse_csv(file_path)
             output = {

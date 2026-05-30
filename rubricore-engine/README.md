@@ -73,24 +73,12 @@ graph LR
 The RubriCore background worker evaluates submissions against rubrics using either local models or cloud-based APIs:
 
 *   **Google Gemini API (Recommended)**:
-    *   Provides extremely fast, high-accuracy grading utilizing the `gemini-2.5-flash`, `gemini-2.5-pro`, or `gemini-3.1-flash-lite` models.
+    *   Provides extremely fast, high-accuracy grading utilizing the `gemini-2.5-flash` model.
     *   To use, add your Gemini API Key in `rubricore-engine/.env`:
         ```env
         GEMINI_API_KEY=your_gemini_api_key_here
         ```
-    *   The worker will automatically route requests through the Gemini API if active.
-*   **Groq Cloud API**:
-    *   Offers lightning-fast, high-end inference for open weights models like `llama-3.3-70b-specdec`.
-    *   To use, add your Groq API Key in `rubricore-engine/.env`:
-        ```env
-        GROQ_API_KEY=your_groq_api_key_here
-        ```
-*   **OpenRouter API (Free Tier Models)**:
-    *   Provides access to multiple open models (such as `google/gemini-2.5-flash:free` and `deepseek/deepseek-r1:free`) with auto-fallback.
-    *   To use, add your OpenRouter API Key in `rubricore-engine/.env`:
-        ```env
-        OPENROUTER_API_KEY=your_openrouter_api_key_here
-        ```
+    *   If active, the worker will automatically route requests through the Gemini API.
 *   **Local Ollama (Offline Default)**:
     *   Run grades locally using open-source models for 100% privacy and zero cost.
     *   **Model-Agnostic Support**: The Ollama integration is fully model-agnostic. You can run local models like **DeepSeek-R1** (excellent for logical reasoning and code grading), **Llama 3.3**, or **Qwen 2.5** by pulling them in Ollama and updating the configuration:
@@ -143,3 +131,13 @@ Open [http://localhost:3000](http://localhost:3000) to view the system.
 npm run build
 npm run start
 ```
+
+---
+
+## 📖 Reference & Logic Documentation
+For deep-dives into the architecture and phase planning:
+- [Phase 5C: Production Auth Implementation Plan](docs/logic/18-phase5c-production-auth-implementation-plan.md)
+- [Phase 6B: Auth Provider Adapter](docs/logic/20-phase6b-auth-provider-adapter.md)
+- [Phase 6C: Production Auth Provider Selection](docs/logic/21-phase6c-production-auth-provider-selection.md)
+- [Phase 6D: Current Schema Auth Readiness](docs/logic/22-phase6d-current-schema-auth-readiness.md)
+

@@ -4,238 +4,250 @@ import json
 import logging
 from typing import Any
 
-import httpx
-
 from app.core.config import get_settings
-from app.ai.ollama import OllamaGradingProvider
+from app.ai.gemini import GeminiProvider, GeminiProviderError
+from app.ai.ollama import OllamaGradingProvider, OllamaProviderError
+from app.ai.groq import GroqProvider
+from app.ai.openrouter import OpenRouterProvider
+from app.ai.prompts import (
+    build_assignment_questions_messages,
+    build_grading_messages,
+    build_rubric_messages,
+    build_solution_key_messages,
+    build_parse_questions_messages,
+)
 
 logger = logging.getLogger("rubricore_worker")
 
 
-class GeminiProviderError(RuntimeError):
-    """Raised when Google Gemini API fails or returns invalid output."""
+def get_provider(model_choice: str = "ollama") -> Any:
+    """Factory function to get the appropriate AI provider.
+
+    Routes based on model_choice prefix:
+    - gemini-* -> GeminiProvider
+    - groq/* -> GroqProvider
+    - openrouter/* or deepseek/* -> OpenRouterProvider
+    - otherwise -> local Ollama fallback.
+    """
+    settings = get_settings()
+
+    if model_choice.startswith("gemini"):
+        if not settings.gemini_api_key:
+            logger.warning("Gemini model selected but GEMINI_API_KEY is not set. Falling back to local Ollama.")
+            return OllamaGradingProvider.from_settings(settings)
+        gemini_model = "gemini-2.5-flash" if model_choice == "gemini" else model_choice
+        logger.info("Using Gemini provider (%s) with model %s", settings.gemini_api_key[:8] + "...", gemini_model)
+        return GeminiProvider(api_key=settings.gemini_api_key, model=gemini_model)
+
+    elif model_choice.startswith("groq/"):
+        if not settings.groq_api_key:
+            logger.warning("Groq model selected but GROQ_API_KEY is not set. Falling back to local Ollama.")
+            return OllamaGradingProvider.from_settings(settings)
+        logger.info("Using Groq provider (%s) with model %s", settings.groq_api_key[:8] + "...", model_choice)
+        return GroqProvider(api_key=settings.groq_api_key, model=model_choice)
+
+    elif model_choice.startswith("openrouter/") or model_choice.startswith("deepseek/"):
+        if not settings.openrouter_api_key:
+            logger.warning("OpenRouter/DeepSeek model selected but OPENROUTER_API_KEY is not set. Falling back to local Ollama.")
+            return OllamaGradingProvider.from_settings(settings)
+        logger.info("Using OpenRouter provider (%s) with model %s", settings.openrouter_api_key[:8] + "...", model_choice)
+        return OpenRouterProvider(api_key=settings.openrouter_api_key, model=model_choice)
+
+    logger.info("Using Ollama provider (local)")
+    return OllamaGradingProvider.from_settings(settings)
 
 
-class GeminiProvider:
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-        # Use gemini-1.5-flash as the default fast and capable model
-        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+def generate_solution_key(model_choice: str, assignment_text: str) -> str:
+    """AI generates a draft solution key for the given assignment questions."""
+    provider = get_provider(model_choice)
+    messages = build_solution_key_messages(assignment_text)
+    system_instruction = messages[0]["content"]
+    user_prompt = messages[1]["content"]
 
-    def generate(self, system_instruction: str, user_prompt: str) -> str:
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": user_prompt}
-                    ]
-                }
-            ],
-            "systemInstruction": {
-                "parts": [
-                    {"text": system_instruction}
-                ]
-            },
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "temperature": 0.1
+    raw_json = provider.generate(system_instruction, user_prompt)
+
+    try:
+        data = json.loads(raw_json)
+        return data.get("solution_key", "")
+    except Exception:
+        return raw_json
+
+
+def generate_rubric(model_choice: str, assignment_text: str, solution_text: str) -> dict[str, Any]:
+    """AI generates a complete rubric schema with criteria, weights, and match rules."""
+    provider = get_provider(model_choice)
+    messages = build_rubric_messages(assignment_text, solution_text)
+    system_instruction = messages[0]["content"]
+    user_prompt = messages[1]["content"]
+
+    raw_json = provider.generate(system_instruction, user_prompt)
+
+    try:
+        return json.loads(raw_json)
+    except Exception as e:
+        raise RuntimeError(f"AI output was not valid JSON: {raw_json}") from e
+
+
+def generate_assignment_questions(
+    model_choice: str,
+    assignment_type: str,
+    category: str,
+    question_count: int,
+    generate_sample_data: bool,
+    lesson_content: str,
+) -> dict[str, Any]:
+    """AI generates structured assignment questions based on lesson content."""
+    provider = get_provider(model_choice)
+    messages = build_assignment_questions_messages(
+        assignment_type=assignment_type,
+        category=category,
+        question_count=question_count,
+        generate_sample_data=generate_sample_data,
+        lesson_content=lesson_content,
+    )
+    system_instruction = messages[0]["content"]
+    user_prompt = messages[1]["content"]
+
+    try:
+        raw_json = provider.generate(system_instruction, user_prompt)
+        return _parse_json_response(raw_json)
+    except Exception as api_err:
+        logger.warning("AI generation failed (%s). Falling back to simulated generator.", api_err)
+        return _mock_assignment_questions(assignment_type, question_count, generate_sample_data)
+
+
+def parse_file_questions(
+    model_choice: str,
+    file_content: str,
+) -> dict[str, Any]:
+    """AI parses assignment questions from file content."""
+    provider = get_provider(model_choice)
+    messages = build_parse_questions_messages(file_content)
+    system_instruction = messages[0]["content"]
+    user_prompt = messages[1]["content"]
+
+    try:
+        raw_json = provider.generate(system_instruction, user_prompt)
+        return _parse_json_response(raw_json)
+    except Exception as api_err:
+        logger.warning("AI file parsing failed (%s). Returning empty list.", api_err)
+        return {"questions": []}
+
+
+def _parse_json_response(raw_json: str) -> dict[str, Any]:
+    """Parse JSON from AI response, stripping markdown code fences if present."""
+    cleaned = raw_json.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+
+    try:
+        return json.loads(cleaned.strip())
+    except Exception as e:
+        raise RuntimeError(f"AI output was not valid JSON: {raw_json}") from e
+
+
+def _mock_assignment_questions(
+    assignment_type: str,
+    question_count: int,
+    generate_sample_data: bool,
+) -> dict[str, Any]:
+    """Generate mock assignment questions as fallback when AI fails."""
+    mock_questions = []
+    for i in range(1, question_count + 1):
+        if assignment_type == "multiple_choice":
+            if i % 3 == 1:
+                q_text = "What is the average time complexity of searching an element in a binary search tree (BST)?"
+                opts = ["A. O(n)", "B. O(log n)", "C. O(1)", "D. O(n log n)"]
+                ans = "B"
+            elif i % 3 == 2:
+                q_text = "Which of the following data structures operates on a Last In First Out (LIFO) basis?"
+                opts = ["A. Queue", "B. Stack", "C. Binary Tree", "D. Heap"]
+                ans = "B"
+            else:
+                q_text = "What is the worst-case space complexity of a recursive depth-first search (DFS) algorithm?"
+                opts = ["A. O(1)", "B. O(log n)", "C. O(n)", "D. O(V + E)"]
+                ans = "C"
+        else:
+            if i % 3 == 1:
+                q_text = "Explain the difference between call-by-value and call-by-reference parameter passing."
+                opts = None
+                ans = "Call-by-value passes a copy of the argument's value, meaning changes inside the function do not affect the caller. Call-by-reference passes the address of the actual variable, so changes inside the function directly modify the caller's variable."
+            elif i % 3 == 2:
+                q_text = "Describe how a hash table handles collisions using open addressing vs chaining."
+                opts = None
+                ans = "Open addressing resolves collisions by probing for the next empty slot in the table array. Chaining resolves collisions by maintaining a linked list or bucket structure at each hash index."
+            else:
+                q_text = "Analyze the time complexity of the merge sort algorithm."
+                opts = None
+                ans = "Merge sort is a divide-and-conquer algorithm. It divides the array into halves in O(1) time, recursively sorts them, and merges the sorted halves in O(n) time. The recurrence yields a time complexity of O(n log n) in all cases."
+
+        q_data = None
+        if generate_sample_data:
+            q_data = {
+                "test_case_input": [10, 20, 30],
+                "expected_output": 60,
+                "data_type": "array_integer"
             }
-        }
-        
-        try:
-            with httpx.Client(timeout=120.0) as client:
-                response = client.post(self.api_url, json=payload)
-                response.raise_for_status()
-                response_json = response.json()
-                
-                # Extract text response from Gemini's nested payload structure
-                candidates = response_json.get("candidates", [])
-                if not candidates:
-                    raise GeminiProviderError("Gemini returned no candidates.")
-                    
-                content = candidates[0].get("content", {})
-                parts = content.get("parts", [])
-                if not parts:
-                    raise GeminiProviderError("Gemini candidate content contained no parts.")
-                    
-                text_out = parts[0].get("text", "")
-                if not text_out.strip():
-                    raise GeminiProviderError("Gemini returned empty text output.")
-                    
-                return text_out
-        except Exception as e:
-            logger.error(f"Gemini API invocation failed: {e}")
-            raise GeminiProviderError(f"Failed to query Gemini API: {e}") from e
 
-    def evaluate(self, request_payload: dict[str, Any]) -> dict[str, Any]:
-        from app.ai.ollama import _messages_for_grading, _normalize_local_grading_payload
-        
-        messages = _messages_for_grading(request_payload)
-        system_instruction = messages[0]["content"]
-        user_prompt = messages[1]["content"]
-        
-        raw_output = self.generate(system_instruction, user_prompt)
-        
-        # Clean markdown code block wraps if any
-        cleaned = raw_output.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        elif cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-            
-        try:
-            parsed = json.loads(cleaned.strip())
-        except Exception as e:
-            raise GeminiProviderError(f"Gemini output was not valid JSON: {raw_output}") from e
-            
-        return _normalize_local_grading_payload(parsed, request_payload)
+        mock_questions.append({
+            "id": i,
+            "content": q_text,
+            "options": opts,
+            "answer": ans,
+            "data": q_data
+        })
+
+    return {"questions": mock_questions}
 
 
 class AIBroker:
     """
     Brokers prompt requests to the configured LLM engine.
     Supports local Ollama and Google Gemini.
+
+    Deprecated: Use the module-level functions directly.
+    This class is kept for backward compatibility.
     """
 
     @classmethod
     def get_provider(cls, model_choice: str = "ollama") -> Any:
-        settings = get_settings()
-        
-        # Route to Gemini if selected and API key is present
-        if model_choice.startswith("gemini"):
-            if not settings.gemini_api_key:
-                logger.warning("Gemini model selected but GEMINI_API_KEY is not set in env config. Falling back to local Ollama.")
-                return OllamaGradingProvider.from_settings(settings)
-            return GeminiProvider(api_key=settings.gemini_api_key)
-            
-        # Default to local Ollama
-        return OllamaGradingProvider.from_settings(settings)
+        return get_provider(model_choice)
 
     @classmethod
     def generate_solution_key(cls, model_choice: str, assignment_text: str) -> str:
-        """
-        AI generates a draft solution key for the given assignment questions.
-        """
-        system_instruction = (
-            "You are a teaching assistant helper. Solve the assignment questions provided by the user. "
-            "Write the expected correct answers, code snippets, or essay outlines. "
-            "Output your response as a single valid JSON object with a single root key 'solution_key' containing "
-            "the solution text formatted in Markdown. Do not wrap in markdown code blocks."
-        )
-        
-        user_prompt = (
-            f"Please solve this assignment and write the solution key:\n\n{assignment_text}"
-        )
-        
-        provider = cls.get_provider(model_choice)
-        
-        if isinstance(provider, GeminiProvider):
-            raw_json = provider.generate(system_instruction, user_prompt)
-            try:
-                data = json.loads(raw_json)
-                return data.get("solution_key", "")
-            except Exception:
-                return raw_json
-        else:
-            # Fallback local Ollama evaluation via standard chat prompt
-            payload = {
-                "model": provider.model_name,
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "format": {"type": "object", "properties": {"solution_key": {"type": "string"}}, "required": ["solution_key"]},
-                "stream": False,
-                "options": {"temperature": 0.1}
-            }
-            res = provider._post_chat(payload)
-            try:
-                content = json.loads(res["message"]["content"])
-                return content.get("solution_key", "")
-            except Exception:
-                return res.get("message", {}).get("content", "")
+        return generate_solution_key(model_choice, assignment_text)
 
     @classmethod
     def generate_rubric(cls, model_choice: str, assignment_text: str, solution_text: str) -> dict[str, Any]:
-        """
-        AI generates a complete rubric schema with criteria, weights, and match rules.
-        """
-        system_instruction = (
-            "You are a rubric design assistant. Build a structured grading rubric matrix based on "
-            "the assignment prompt and expected solutions. "
-            "Return only one valid JSON object. Do not include markdown code block syntax. "
-            "The JSON must have a single root key 'criteria' which is an array of objects. "
-            "Each criterion object must contain:\n"
-            "- key: string (a unique URL-safe slug, e.g. 'python-syntax')\n"
-            "- label: string (name of the metric, e.g. 'Python Syntax')\n"
-            "- description: string (what to grade, e.g. 'Verify code structure')\n"
-            "- max_points: number (e.g. 10)\n"
-            "- weight: number (decimal weight, e.g. 1.0)\n"
-            "- evaluation_hints: object containing:\n"
-            "    * rule_type: string ('regex', 'exact', or 'none')\n"
-            "    * expected_value: string (the regex pattern or exact phrase to match, or null if rule_type is 'none')\n"
-            "\n"
-            "Make sure the criteria sum up logically (total max_points * weights should match the total assignment score, usually 100)."
+        return generate_rubric(model_choice, assignment_text, solution_text)
+
+    @classmethod
+    def generate_assignment_questions(
+        cls,
+        model_choice: str,
+        assignment_type: str,
+        category: str,
+        question_count: int,
+        generate_sample_data: bool,
+        lesson_content: str,
+    ) -> dict[str, Any]:
+        return generate_assignment_questions(
+            model_choice,
+            assignment_type,
+            category,
+            question_count,
+            generate_sample_data,
+            lesson_content,
         )
-        
-        user_prompt = (
-            f"ASSIGNMENT PROMPT:\n{assignment_text}\n\n"
-            f"SOLUTION KEY:\n{solution_text}"
-        )
-        
-        provider = cls.get_provider(model_choice)
-        
-        if isinstance(provider, GeminiProvider):
-            raw_json = provider.generate(system_instruction, user_prompt)
-            try:
-                return json.loads(raw_json)
-            except Exception as e:
-                raise RuntimeError(f"Gemini output was not valid JSON: {raw_json}") from e
-        else:
-            # Local Ollama fallback
-            schema = {
-                "type": "object",
-                "required": ["criteria"],
-                "properties": {
-                    "criteria": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["key", "label", "description", "max_points", "weight", "evaluation_hints"],
-                            "properties": {
-                                "key": {"type": "string"},
-                                "label": {"type": "string"},
-                                "description": {"type": "string"},
-                                "max_points": {"type": "integer"},
-                                "weight": {"type": "number"},
-                                "evaluation_hints": {
-                                    "type": "object",
-                                    "required": ["rule_type", "expected_value"],
-                                    "properties": {
-                                        "rule_type": {"type": "string"},
-                                        "expected_value": {"type": ["string", "null"]}
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            payload = {
-                "model": provider.model_name,
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "format": schema,
-                "stream": False,
-                "options": {"temperature": 0.1}
-            }
-            res = provider._post_chat(payload)
-            try:
-                return json.loads(res["message"]["content"])
-            except Exception as e:
-                raise RuntimeError(f"Ollama output was not valid JSON: {res}") from e
+
+    @classmethod
+    def parse_file_questions(
+        cls,
+        model_choice: str,
+        file_content: str,
+    ) -> dict[str, Any]:
+        return parse_file_questions(model_choice, file_content)

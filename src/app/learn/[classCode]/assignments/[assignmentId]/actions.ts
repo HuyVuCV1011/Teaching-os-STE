@@ -3,6 +3,12 @@
 import { getSupabaseServer } from '@/lib/supabase'
 import { cookies } from 'next/headers'
 import { verifyJWT } from '@/lib/jwt'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import * as fs from 'fs'
+import * as path from 'path'
+
+const execAsync = promisify(exec)
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_secret_key_1234567890'
 
@@ -389,4 +395,193 @@ export async function getAssignmentPromptSignedUrlAction(classCode: string, assi
     return { success: false, error: err.message }
   }
 }
+
+export async function parseAssignmentPromptAction(classCode: string, assignmentId: string) {
+  const session = await getVerifiedStudentSession(classCode)
+  if (!session.success) {
+    return { success: false, error: 'Authentication failed' }
+  }
+
+  const supabase = getSupabaseServer(true)
+  let tempFilePath: string | null = null
+
+  try {
+    const { data: assignment, error } = await supabase
+      .from('assignments')
+      .select('prompt_file_path, title')
+      .eq('id', assignmentId)
+      .single()
+
+    if (error || !assignment?.prompt_file_path) {
+      return { success: false, error: 'Assignment prompt file not found' }
+    }
+
+    const filePath = assignment.prompt_file_path
+    const ext = filePath.split('.').pop()?.toLowerCase() || ''
+
+    // Download file from Supabase storage
+    const { data: downloadData, error: downloadError } = await supabase.storage
+      .from('teaching-materials')
+      .download(filePath)
+
+    if (downloadError || !downloadData) {
+      throw new Error(`Failed to download file: ${downloadError?.message || 'No data'}`)
+    }
+
+    if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+      const text = await downloadData.text()
+      if (ext === 'json') {
+        try {
+          return { success: true, fileType: ext, content: JSON.parse(text) }
+        } catch {
+          return { success: true, fileType: ext, content: text }
+        }
+      }
+      return { success: true, fileType: ext, content: text }
+    }
+
+    if (['docx', 'csv', 'xlsx', 'xls'].includes(ext)) {
+      const arrayBuffer = await downloadData.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      const tempDir = path.join(process.cwd(), 'scratch')
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true })
+      }
+      tempFilePath = path.join(tempDir, `prompt_${Date.now()}_${path.basename(filePath)}`)
+      fs.writeFileSync(tempFilePath, buffer)
+
+      const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+      const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
+
+      const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
+      if (stderr.trim()) {
+        console.warn(`Python parsing stderr: ${stderr}`)
+      }
+
+      const parsedOutput = JSON.parse(stdout)
+      if (parsedOutput.error) {
+        throw new Error(`Python script error: ${parsedOutput.error}`)
+      }
+
+      return { success: true, fileType: ext, content: parsedOutput.viewer_artifact }
+    }
+
+    return { success: true, fileType: ext, content: null }
+  } catch (err: any) {
+    console.error('Error parsing assignment prompt file:', err)
+    return { success: false, error: err.message }
+  } finally {
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath)
+      } catch (e) {
+        console.error('Failed to delete temp file:', e)
+      }
+    }
+  }
+}
+
+/**
+ * Secures a temporary signed URL for the student to download or view a material file.
+ */
+export async function getStudentMaterialSignedUrlAction(classCode: string, storagePath: string) {
+  const session = await getVerifiedStudentSession(classCode)
+  if (!session.success) {
+    return { success: false, error: 'Authentication failed' }
+  }
+
+  const supabase = getSupabaseServer(true)
+  try {
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('teaching-materials')
+      .createSignedUrl(storagePath, 3600) // 1 hour
+
+    if (signedError) throw signedError
+
+    return { 
+      success: true, 
+      signedUrl: signedData.signedUrl || signedData.signedURL || signedData.publicUrl || null 
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Downloads and parses any material file for interactive viewer rendering in the student view.
+ */
+export async function parseStudentMaterialAction(classCode: string, storagePath: string) {
+  const session = await getVerifiedStudentSession(classCode)
+  if (!session.success) {
+    return { success: false, error: 'Authentication failed' }
+  }
+
+  const supabase = getSupabaseServer(true)
+  let tempFilePath: string | null = null
+
+  try {
+    const ext = storagePath.split('.').pop()?.toLowerCase() || ''
+
+    // Download file from Supabase storage
+    const { data: downloadData, error: downloadError } = await supabase.storage
+      .from('teaching-materials')
+      .download(storagePath)
+
+    if (downloadError || !downloadData) {
+      throw new Error(`Failed to download file: ${downloadError?.message || 'No data'}`)
+    }
+
+    if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+      const text = await downloadData.text()
+      if (ext === 'json') {
+        try {
+          return { success: true, fileType: ext, content: JSON.parse(text) }
+        } catch {
+          return { success: true, fileType: ext, content: text }
+        }
+      }
+      return { success: true, fileType: ext, content: text }
+    }
+
+    if (['docx', 'csv', 'xlsx', 'xls'].includes(ext)) {
+      const arrayBuffer = await downloadData.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      const tempDir = path.join(process.cwd(), 'scratch')
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true })
+      }
+      tempFilePath = path.join(tempDir, `material_${Date.now()}_${path.basename(storagePath)}`)
+      fs.writeFileSync(tempFilePath, buffer)
+
+      const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+      const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
+
+      const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
+      if (stderr.trim()) {
+        console.warn(`Python parsing stderr: ${stderr}`)
+      }
+
+      const parsedOutput = JSON.parse(stdout)
+      if (parsedOutput.error) {
+        throw new Error(`Python script error: ${parsedOutput.error}`)
+      }
+
+      return { success: true, fileType: ext, content: parsedOutput.viewer_artifact }
+    }
+
+    return { success: true, fileType: ext, content: null }
+  } catch (err: any) {
+    console.error('Error parsing student material file:', err)
+    return { success: false, error: err.message }
+  } finally {
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath)
+      } catch (e) {
+        console.error('Failed to delete temp file:', e)
+      }
+    }
+  }
+}
+
 
