@@ -331,13 +331,14 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
       try {
         const parsedObj = JSON.parse(trimmed)
-        questionsList = parsedObj.questions || []
+        const allQuestions = parsedObj.questions || []
+        questionsList = allQuestions.filter((q: any) => !q.status || q.status === 'approved')
       } catch (err) {}
     } else if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
       try {
         const parsedArr = JSON.parse(trimmed)
         if (Array.isArray(parsedArr)) {
-          questionsList = parsedArr
+          questionsList = parsedArr.filter((q: any) => !q.status || q.status === 'approved')
         }
       } catch (err) {}
     }
@@ -476,7 +477,8 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
               if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
                 try {
                   const parsedObj = JSON.parse(trimmed)
-                  questionsList = parsedObj.questions || []
+                  const allQuestions = parsedObj.questions || []
+                  questionsList = allQuestions.filter((q: any) => !q.status || q.status === 'approved')
                   dataFiles = parsedObj.data_files || []
                   referenceFiles = parsedObj.reference_files || []
                   isNewJsonFormat = true
@@ -487,7 +489,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
                 try {
                   const parsedArr = JSON.parse(trimmed)
                   if (Array.isArray(parsedArr)) {
-                    questionsList = parsedArr
+                    questionsList = parsedArr.filter((q: any) => !q.status || q.status === 'approved')
                   }
                 } catch (e) {
                   console.error('Error parsing assignment instructions array:', e)
