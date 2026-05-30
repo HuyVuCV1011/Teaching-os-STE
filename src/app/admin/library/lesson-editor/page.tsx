@@ -375,6 +375,7 @@ function LessonEditorInner() {
   const [classifyType, setClassifyType] = useState<'data' | 'reference' | 'question'>('data')
   const [classifyDownloadable, setClassifyDownloadable] = useState(true)
   const [classifyPreviewable, setClassifyPreviewable] = useState(true)
+  const [parseDefaultAnswerFormat, setParseDefaultAnswerFormat] = useState<'text' | 'file' | 'both'>('text')
   const [isParsingFile, setIsParsingFile] = useState(false)
 
   // Step 1: Material Selection states
@@ -1947,23 +1948,55 @@ function LessonEditorInner() {
         }
       }
 
-      for (let i = 0; i < missingQs.length; i++) {
-        const q = missingQs[i]
-        const res = await suggestQuestionAnswerAction({
-          questionContent: q.content,
-          materialsText: materialsText || undefined,
-          lessonContext: content || title || undefined,
-          modelChoice: selectedModel
-        })
-
-        if (res.success && res.answer) {
-          updateQuestionInBatches(q.id, {
-            answer: res.answer,
-            answerSource: 'ai_generated'
+      // Query AI suggestions in parallel for ultra-fast, premium performance
+      const promises = missingQs.map(async (q) => {
+        try {
+          const res = await suggestQuestionAnswerAction({
+            questionContent: q.content,
+            materialsText: materialsText || undefined,
+            lessonContext: content || title || undefined,
+            modelChoice: selectedModel
           })
+          if (res.success && res.answer) {
+            return { qId: q.id, answer: res.answer }
+          }
+        } catch (e) {
+          console.error(`AI Suggest failed for question ${q.id}:`, e)
         }
+        return null
+      })
+
+      const results = await Promise.all(promises)
+      const answersMap: { [qId: number]: string } = {}
+      let successfulCount = 0
+
+      results.forEach(res => {
+        if (res) {
+          answersMap[res.qId] = res.answer
+          successfulCount++
+        }
+      })
+
+      if (successfulCount > 0) {
+        setBatches(prev => {
+          return prev.map(b => ({
+            ...b,
+            questions: b.questions.map(q => {
+              if (answersMap[q.id] !== undefined) {
+                return {
+                  ...q,
+                  answer: answersMap[q.id],
+                  answerSource: 'ai_generated'
+                }
+              }
+              return q
+            })
+          }))
+        })
+        alert(`Successfully generated answers for ${successfulCount} question(s)!`)
+      } else {
+        alert('Could not suggest answers for any of the missing questions. Please verify your connection or model options.')
       }
-      alert(`Successfully generated answers for ${missingQs.length} question(s)!`)
     } catch (err: any) {
       alert(`Failed to suggest all answers: ${err.message}`)
     } finally {
@@ -2038,11 +2071,18 @@ function LessonEditorInner() {
             source_file: classifyFile.name
           }))
 
+          const isMCQ = newQuestions.some(q => q.options && q.options.length > 0)
+          const newQuestionsWithFormat = newQuestions.map((q: any) => ({
+            ...q,
+            answerFormat: isMCQ ? 'text' : parseDefaultAnswerFormat
+          }))
+
           const newBatch: BatchItem = {
             id: Date.now(),
-            type: newQuestions.some(q => q.options && q.options.length > 0) ? 'multiple_choice' : 'essay',
+            type: isMCQ ? 'multiple_choice' : 'essay',
             category: 'theory',
-            questions: newQuestions
+            defaultAnswerFormat: isMCQ ? 'text' : parseDefaultAnswerFormat,
+            questions: newQuestionsWithFormat
           }
 
           setBatches(prev => {
@@ -3505,7 +3545,14 @@ function LessonEditorInner() {
                                   <span className="text-[9px] font-bold tracking-wider font-mono">
                                     Q{idx + 1}. {q.batchType === 'multiple_choice' ? 'MCQ' : 'ESSAY'}
                                   </span>
-                                  <span className={`w-2 h-2 rounded-full ${hasAns ? 'bg-emerald-500' : 'bg-amber-500'}`} title={hasAns ? 'Has Answer' : 'Missing Answer'} />
+                                  {hasAns ? (
+                                    <div className="flex items-center gap-1 text-[9px] font-extrabold text-emerald-400 font-mono">
+                                      <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
+                                      <span>SUCCESSFUL</span>
+                                    </div>
+                                  ) : (
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" title="Missing Answer" />
+                                  )}
                                 </div>
                                 <p className="truncate w-full font-sans text-xs opacity-90">{q.content}</p>
                                 
@@ -3651,45 +3698,6 @@ function LessonEditorInner() {
                                   </div>
                                 </div>
                               )}
-                            </div>
-
-                            {/* Simulated student view card preview */}
-                            <div className="p-4 bg-slate-955/20 border border-slate-850/60 rounded-xl space-y-2.5 select-none shadow-sm">
-                              <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono">Simulated Student View Preview:</span>
-                              <div className="p-3.5 bg-slate-955 border border-slate-900 rounded-xl space-y-2">
-                                <span className="block text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider w-fit">
-                                  Question {activeReviewIndex + 1} ({activeQ.batchType === 'multiple_choice' ? 'MCQ' : 'Essay'})
-                                </span>
-                                <p className="font-semibold text-xs text-slate-200">{activeQ.content}</p>
-                                
-                                {activeQ.batchType === 'multiple_choice' ? (
-                                  <div className="grid grid-cols-2 gap-2 mt-2">
-                                    {(activeQ.options || []).map((opt, oIdx) => {
-                                      const letter = String.fromCharCode(65 + oIdx)
-                                      return (
-                                        <div key={letter} className="flex items-center gap-2 p-2 bg-slate-900 border border-slate-855 rounded-lg text-[10px] text-slate-400">
-                                          <span className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center font-bold text-[9px] shrink-0 text-slate-505 bg-slate-955">{letter}</span>
-                                          <span className="truncate">{cleanOptionText(opt, oIdx)}</span>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2 mt-2 pt-2 border-t border-slate-900">
-                                    <div className="text-[9px] text-slate-455 font-semibold flex items-center gap-1.5">
-                                      <span>Format:</span>
-                                      <span className="text-slate-300 font-bold uppercase tracking-wider text-[8px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850">
-                                        {activeQ.answerFormat === 'file' ? '📎 File Only' : activeQ.answerFormat === 'both' ? '🔀 Both' : '📝 Text Only'}
-                                      </span>
-                                    </div>
-                                    <textarea
-                                      disabled
-                                      placeholder="Student types their answer here..."
-                                      className="w-full bg-slate-900 border border-slate-855 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-505 h-10 resize-none"
-                                    />
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           </div>
                         )}
@@ -4901,7 +4909,56 @@ function LessonEditorInner() {
                 </div>
               </div>
 
-              {classifyType !== 'question' && (
+              {classifyType === 'question' ? (
+                <div className="space-y-2 pt-2 border-t border-slate-800/60 mt-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    Parsed Essay Default Answer Format
+                  </label>
+                  <div className="grid grid-cols-3 gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setParseDefaultAnswerFormat('text')}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[64px] ${
+                        parseDefaultAnswerFormat === 'text'
+                          ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                          : 'bg-slate-955 border-slate-800 text-slate-400 hover:bg-slate-900/50 hover:text-slate-205'
+                      }`}
+                    >
+                      <span className="text-base mb-0.5">📝</span>
+                      <span className="block text-[10px] font-bold">Text Only</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setParseDefaultAnswerFormat('file')}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[64px] ${
+                        parseDefaultAnswerFormat === 'file'
+                          ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
+                          : 'bg-slate-955 border-slate-800 text-slate-400 hover:bg-slate-900/50 hover:text-slate-205'
+                      }`}
+                    >
+                      <span className="text-base mb-0.5">📎</span>
+                      <span className="block text-[10px] font-bold">File Only</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setParseDefaultAnswerFormat('both')}
+                      className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[64px] ${
+                        parseDefaultAnswerFormat === 'both'
+                          ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
+                          : 'bg-slate-955 border-slate-800 text-slate-400 hover:bg-slate-900/50 hover:text-slate-205'
+                      }`}
+                    >
+                      <span className="text-base mb-0.5">🔀</span>
+                      <span className="block text-[10px] font-bold">Both</span>
+                    </button>
+                  </div>
+                  <span className="block text-[9px] text-slate-400 font-medium leading-normal pt-1">
+                    If parsed questions do not contain multiple-choice options, they will be classified as essays using this default format.
+                  </span>
+                </div>
+              ) : (
                 <div className="space-y-2 pt-2">
                   <label className="block text-[10px] font-bold text-slate-405 uppercase tracking-widest">
                     Options
