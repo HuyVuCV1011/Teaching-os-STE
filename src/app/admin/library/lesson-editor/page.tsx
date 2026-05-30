@@ -3502,7 +3502,7 @@ function LessonEditorInner() {
                       Review & Finalize Answers
                     </h3>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      Ensure each question has a comprehensive, accurate model answer before publishing. Use AI to suggest missing keys or generate the rubric.
+                      Ensure each question has a comprehensive, accurate model answer before publishing. Use AI to suggest missing keys or edit manually.
                     </p>
                   </div>
                 </div>
@@ -3729,20 +3729,6 @@ function LessonEditorInner() {
                           <Sparkles className="w-4 h-4 text-blue-455" />
                         )}
                         <span>AI Suggest All Missing</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleGenerateRubric}
-                        disabled={isGeneratingRubric || totalApproved === 0}
-                        className="flex-1 py-3 bg-slate-900 hover:bg-slate-855 text-slate-250 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {isGeneratingRubric ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-indigo-505" />
-                        ) : (
-                          <Brain className="w-4 h-4 text-indigo-400" />
-                        )}
-                        <span>AI Generate Rubric</span>
                       </button>
 
                       <button
