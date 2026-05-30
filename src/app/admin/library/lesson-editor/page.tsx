@@ -377,6 +377,7 @@ function LessonEditorInner() {
   const [classifyPreviewable, setClassifyPreviewable] = useState(true)
   const [parseDefaultAnswerFormat, setParseDefaultAnswerFormat] = useState<'text' | 'file' | 'both'>('text')
   const [showEssayFormatModal, setShowEssayFormatModal] = useState(false)
+  const [selectedEssayFormat, setSelectedEssayFormat] = useState<'text' | 'file' | 'both'>('text')
   const [parsedQuestionsTemp, setParsedQuestionsTemp] = useState<any[]>([])
   const [parsedFileNameTemp, setParsedFileNameTemp] = useState<string>('')
   const [isParsingFile, setIsParsingFile] = useState(false)
@@ -2221,26 +2222,24 @@ function LessonEditorInner() {
       if (lessonErr) throw lessonErr
 
       if (hasAssignment) {
-        // Collect approved questions
+        // Collect all assignment questions (approved, pending, rejected) to fully preserve work-in-progress drafts
         const approvedQuestions: any[] = []
         batches.forEach(b => {
           b.questions.forEach(q => {
-            if (q.status === 'approved') {
-              approvedQuestions.push({
-                id: q.id,
-                content: q.content,
-                options: q.options || null,
-                answer: q.answer || null,
-                type: b.type,
-                category: b.category,
-                status: q.status,
-                source: q.source || 'ai_generator',
-                source_file: q.source_file || null,
-                data: q.data || null,
-                answerFormat: b.type === 'multiple_choice' ? 'text' : (q.answerFormat || b.defaultAnswerFormat || 'text'),
-                answerSource: q.answerSource || (q.source === 'file_import' ? 'file_import' : 'ai_generated')
-              })
-            }
+            approvedQuestions.push({
+              id: q.id,
+              content: q.content,
+              options: q.options || null,
+              answer: q.answer || null,
+              type: b.type,
+              category: b.category,
+              status: q.status || 'pending',
+              source: q.source || 'ai_generator',
+              source_file: q.source_file || null,
+              data: q.data || null,
+              answerFormat: b.type === 'multiple_choice' ? 'text' : (q.answerFormat || b.defaultAnswerFormat || 'text'),
+              answerSource: q.answerSource || (q.source === 'file_import' ? 'file_import' : 'ai_generated')
+            })
           })
         })
 
@@ -5037,14 +5036,20 @@ function LessonEditorInner() {
                 <div className="grid grid-cols-1 gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => handleApplyEssayFormat('text')}
-                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                    onClick={() => setSelectedEssayFormat('text')}
+                    className={`p-3 rounded-2xl flex items-start gap-3 text-left transition-all border ${
+                      selectedEssayFormat === 'text'
+                        ? 'bg-blue-600/10 border-blue-500 ring-1 ring-blue-500/30'
+                        : 'bg-slate-955 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-900/50'
+                    }`}
                   >
-                    <div className="p-2 bg-blue-600/10 text-blue-500 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                    <div className={`p-2 rounded-lg shrink-0 transition-colors ${
+                      selectedEssayFormat === 'text' ? 'bg-blue-605 text-white' : 'bg-blue-600/10 text-blue-500'
+                    }`}>
                       📝
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-slate-200">Text Input Only</span>
+                      <span className="block text-xs font-bold text-slate-205">Text Input Only</span>
                       <span className="block text-[9px] text-slate-500 mt-0.5 leading-normal">
                         Students write their essay answers directly inside a rich textarea editor. Ideal for standard written responses.
                       </span>
@@ -5053,14 +5058,20 @@ function LessonEditorInner() {
 
                   <button
                     type="button"
-                    onClick={() => handleApplyEssayFormat('file')}
-                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                    onClick={() => setSelectedEssayFormat('file')}
+                    className={`p-3 rounded-2xl flex items-start gap-3 text-left transition-all border ${
+                      selectedEssayFormat === 'file'
+                        ? 'bg-amber-600/10 border-amber-500 ring-1 ring-amber-500/30'
+                        : 'bg-slate-955 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-900/50'
+                    }`}
                   >
-                    <div className="p-2 bg-amber-600/10 text-amber-500 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0">
+                    <div className={`p-2 rounded-lg shrink-0 transition-colors ${
+                      selectedEssayFormat === 'file' ? 'bg-amber-605 text-white' : 'bg-amber-600/10 text-amber-500'
+                    }`}>
                       📎
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-slate-200">File Upload Only</span>
+                      <span className="block text-xs font-bold text-slate-205">File Upload Only</span>
                       <span className="block text-[9px] text-slate-500 mt-0.5 leading-normal">
                         Students upload a file submission (PDF, DOCX, ZIP, source code) to answer the questions. Ideal for lab reports or projects.
                       </span>
@@ -5069,14 +5080,20 @@ function LessonEditorInner() {
 
                   <button
                     type="button"
-                    onClick={() => handleApplyEssayFormat('both')}
-                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                    onClick={() => setSelectedEssayFormat('both')}
+                    className={`p-3 rounded-2xl flex items-start gap-3 text-left transition-all border ${
+                      selectedEssayFormat === 'both'
+                        ? 'bg-purple-600/10 border-purple-500 ring-1 ring-purple-500/30'
+                        : 'bg-slate-955 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-900/50'
+                    }`}
                   >
-                    <div className="p-2 bg-purple-600/10 text-purple-500 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0">
+                    <div className={`p-2 rounded-lg shrink-0 transition-colors ${
+                      selectedEssayFormat === 'both' ? 'bg-purple-605 text-white' : 'bg-purple-600/10 text-purple-500'
+                    }`}>
                       🔀
                     </div>
                     <div>
-                      <span className="block text-xs font-bold text-slate-200">Both Options Allowed</span>
+                      <span className="block text-xs font-bold text-slate-205">Both Options Allowed</span>
                       <span className="block text-[9px] text-slate-500 mt-0.5 leading-normal">
                         Give students maximum flexibility: they can choose to write manually, upload a file, or do both.
                       </span>
@@ -5087,7 +5104,7 @@ function LessonEditorInner() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end shrink-0">
+            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -5098,6 +5115,14 @@ function LessonEditorInner() {
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
               >
                 Cancel & Discard
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyEssayFormat(selectedEssayFormat)}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg transition-colors flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5 text-blue-200" />
+                <span>Confirm & Proceed</span>
               </button>
             </div>
           </div>
