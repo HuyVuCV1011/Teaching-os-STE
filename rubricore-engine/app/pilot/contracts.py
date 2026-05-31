@@ -317,6 +317,8 @@ class AssignmentQuestionItem(BaseModel):
     content: str
     options: list[str] | None = None
     answer: str | None = None
+    answer_source: Literal["file_import"] | None = None
+    type: Literal["multiple_choice", "essay"] | None = None
     data: Any | None = None
 
 
@@ -347,3 +349,24 @@ class SuggestQuestionAnswerRequest(PilotContract):
 
 class SuggestQuestionAnswerResponse(PilotContract):
     answer: str
+
+
+class SuggestBatchQuestionItem(BaseModel):
+    id: int
+    content: str
+
+
+class SuggestBatchQuestionAnswersRequest(PilotContract):
+    model_choice: str = "ollama"
+    questions: list[SuggestBatchQuestionItem]
+    materials_text: str | None = None
+    lesson_context: str | None = None
+
+
+class BatchAnswerItem(BaseModel):
+    id: int
+    answer: str
+
+
+class SuggestBatchQuestionAnswersResponse(PilotContract):
+    answers: list[BatchAnswerItem]

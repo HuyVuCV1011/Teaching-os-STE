@@ -130,8 +130,42 @@ def parse_file_questions(
         raw_json = provider.generate(system_instruction, user_prompt)
         return _parse_json_response(raw_json)
     except Exception as api_err:
-        logger.warning("AI file parsing failed (%s). Returning empty list.", api_err)
-        return {"questions": []}
+        logger.error("AI file parsing failed: %s", api_err)
+        raise
+
+
+def suggest_batch_question_answers(
+    model_choice: str,
+    questions: list[dict[str, Any]],
+    materials_text: str | None = None,
+    lesson_context: str | None = None,
+) -> dict[str, Any]:
+    """AI generates suggested answers for multiple questions in one request."""
+    provider = get_provider(model_choice)
+
+    prompt = "We have a list of questions that need correct sample answers/solutions.\n"
+    if materials_text:
+        prompt += f"\nSource Materials Context:\n{materials_text}\n"
+    if lesson_context:
+        prompt += f"\nLesson Topic/Overview Context:\n{lesson_context}\n"
+
+    prompt += "\nHere are the questions:\n"
+    prompt += json.dumps(questions, indent=2)
+    prompt += "\n\nPlease suggest a precise, accurate, and comprehensive correct answer or expected solution for each question. "
+    prompt += "You must respond with a JSON object in the exact format shown below. "
+    prompt += "Do not include any introductory or trailing text outside of the JSON block. "
+    prompt += "Output must be valid JSON.\n\n"
+    prompt += "Format:\n{\n  \"answers\": [\n    {\n      \"id\": 1,\n      \"answer\": \"Sample answer text...\"\n    }\n  ]\n}"
+
+    raw_response = provider.generate(
+        "You are an expert teaching assistant helping write clear and correct sample answers for lesson assignments. You always output valid, parseable JSON conformant to the requested format.",
+        prompt,
+    )
+
+    try:
+        return _parse_json_response(raw_response)
+    except Exception as e:
+        raise RuntimeError(f"AI batch suggest failed to parse response: {e}") from e
 
 
 def _parse_json_response(raw_json: str) -> dict[str, Any]:
@@ -251,3 +285,18 @@ class AIBroker:
         file_content: str,
     ) -> dict[str, Any]:
         return parse_file_questions(model_choice, file_content)
+
+    @classmethod
+    def suggest_batch_question_answers(
+        cls,
+        model_choice: str,
+        questions: list[dict[str, Any]],
+        materials_text: str | None = None,
+        lesson_context: str | None = None,
+    ) -> dict[str, Any]:
+        return suggest_batch_question_answers(
+            model_choice,
+            questions,
+            materials_text,
+            lesson_context,
+        )

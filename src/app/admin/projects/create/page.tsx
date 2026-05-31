@@ -1,106 +1,17 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import NextImage from 'next/image'
-import Select, { SingleValue } from 'react-select'
-import ReactFlow, {
-  Controls,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  Node,
-  Edge,
-  MarkerType,
-  Connection,
-  ReactFlowProvider,
-  useReactFlow,
-} from 'reactflow'
-import dagre from 'dagre'
-import 'reactflow/dist/style.css'
-import {
-  FileSpreadsheet,
-  MailIcon,
-  FolderKanban,
-  Database,
-  Split,
-  UserRound,
-  LayoutDashboard,
-  ChartArea,
-  FileText,
-  Shuffle,
-  MailCheck,
-  Plus,
-  Briefcase,
-  ArrowLeft,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { CustomNode } from '@/components/ui/FlowDiagram'
-import RichTextEditor from '@/components/RichTextEditor'
+import { supabase } from '@/lib/supabase'
+import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow'
+import { Plus, ArrowLeft } from 'lucide-react'
 
-interface IconOption {
-  value: string
-  label: string
-  icon: string
-}
-
-interface NodeTypeOption {
-  value: string
-  label: string
-}
-
-interface NodeIconOption {
-  readonly value: string
-  label: string
-  icon: React.ComponentType<{ size?: number }>
-}
-
-interface ProductOption {
-  value: string
-  label: string
-}
-
-function hasCycle(nodes: any[], edges: any[]): boolean {
-  const adj: Record<string, string[]> = {}
-  for (const node of nodes) {
-    adj[node.id] = []
-  }
-  for (const edge of edges) {
-    if (adj[edge.source]) {
-      adj[edge.source].push(edge.target)
-    }
-  }
-
-  const visited: Record<string, boolean> = {}
-  const recStack: Record<string, boolean> = {}
-
-  function dfs(nodeId: string): boolean {
-    if (!visited[nodeId]) {
-      visited[nodeId] = true
-      recStack[nodeId] = true
-
-      const neighbors = adj[nodeId] || []
-      for (const neighbor of neighbors) {
-        if (!visited[neighbor] && dfs(neighbor)) {
-          return true
-        } else if (recStack[neighbor]) {
-          return true
-        }
-      }
-    }
-    recStack[nodeId] = false
-    return false
-  }
-
-  for (const node of nodes) {
-    if (!visited[node.id] && dfs(node.id)) {
-      return true
-    }
-  }
-  return false
-}
+// Import shared helpers and components
+import { hasCycle } from '../utils/projectUtils'
+import { ProjectDetailsForm } from '../components/ProjectDetailsForm'
+import { ProcessDiagramWorkspace, nodeIconOptions } from '../components/ProcessDiagramWorkspace'
+import { MediaAttachments } from '../components/MediaAttachments'
+import { LinksTaxonomy } from '../components/LinksTaxonomy'
 
 function CreateProjectPageContent() {
   const router = useRouter()
@@ -112,108 +23,18 @@ function CreateProjectPageContent() {
   const [productOption, setProductOption] = useState<string | null>(null)
   const [iframeLink, setIframeLink] = useState<string | null>(null)
   const [youtubeLink, setYoutubeLink] = useState<string | null>(null)
+
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null)
-  const [nodeConfig, setNodeConfig] = useState({
-    id: '',
-    type: 'source',
-    label: '',
-    description: '',
-    icon: 'FileSpreadsheet',
-  })
-
-  const reactFlowInstance = useReactFlow()
-
-  const onPaneDoubleClick = useCallback(
-    (event: React.MouseEvent) => {
-      const paneBounds = event.currentTarget.getBoundingClientRect()
-      const position = reactFlowInstance.project({
-        x: event.clientX - paneBounds.left,
-        y: event.clientY - paneBounds.top,
-      })
-      const newNodeId = `node-${nodes.length + 1}`
-      const newNode: Node = {
-        id: newNodeId,
-        type: 'customNode',
-        data: {
-          type: nodeConfig.type || 'source',
-          label: nodeConfig.label || 'Nút Mới',
-          description: nodeConfig.description || '',
-          icon: nodeIconOptions.find((opt) => opt.value === nodeConfig.icon)?.icon || FileSpreadsheet,
-        },
-        position,
-      }
-      setNodes((nds) => [...nds, newNode])
-    },
-    [reactFlowInstance, nodes.length, nodeConfig, setNodes]
-  )
-
-  const iconOptions: IconOption[] = [
-    { value: 'power-bi', label: 'Power BI', icon: '/images/tools/power-bi.svg' },
-    { value: 'excel', label: 'Excel', icon: '/images/tools/excel.svg' },
-    { value: 'python', label: 'Python', icon: '/images/tools/python.svg' },
-  ]
-
-  const nodeTypeOptions: NodeTypeOption[] = [
-    { value: 'source', label: 'Source' },
-    { value: 'dashboard', label: 'Dashboard' },
-    { value: 'actor', label: 'Actor' },
-    { value: 'decision', label: 'Decision' },
-    { value: 'action', label: 'Action' },
-  ]
-
-  const nodeIconOptions: NodeIconOption[] = [
-    { value: 'FileSpreadsheet', label: 'Spreadsheet', icon: FileSpreadsheet },
-    { value: 'MailIcon', label: 'Mail', icon: MailIcon },
-    { value: 'FolderKanban', label: 'Kanban', icon: FolderKanban },
-    { value: 'Database', label: 'Database', icon: Database },
-    { value: 'Split', label: 'Split', icon: Split },
-    { value: 'UserRound', label: 'User', icon: UserRound },
-    { value: 'LayoutDashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { value: 'ChartArea', label: 'Chart', icon: ChartArea },
-    { value: 'FileText', label: 'Text', icon: FileText },
-    { value: 'Shuffle', label: 'Shuffle', icon: Shuffle },
-    { value: 'MailCheck', label: 'Mail Check', icon: MailCheck },
-  ]
-
-  const productOptions: ProductOption[] = [
-    { value: 'student', label: 'Học viên (Student)' },
-    { value: 'customer', label: 'Khách hàng (Client)' },
-  ]
-
-  const handleFileChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setter: React.Dispatch<React.SetStateAction<File[]>>,
-    accept: string
-  ) => {
-    const selectedFiles = Array.from(e.target.files || [])
-    if (selectedFiles.length > 2) {
-      alert('Bạn chỉ có thể tải lên tối đa 2 tệp.')
-      return
-    }
-    for (const file of selectedFiles) {
-      const isImage = accept === 'image/*' && file.type.startsWith('image/')
-      const isPdf = accept === 'application/pdf' && file.name.toLowerCase().endsWith('.pdf')
-      if (!(isImage || isPdf)) {
-        alert(`Loại tệp không hợp lệ.`)
-        return
-      }
-      if (file.size > 100 * 1024 * 1024) {
-        alert('Kích thước tệp vượt quá giới hạn 100MB.')
-        return
-      }
-    }
-    setter(selectedFiles)
-  }
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const uploadFilesToStorage = async (
-    files: File[],
+    filesList: File[],
     projectId: string,
     bucket: string
   ): Promise<string[]> => {
     const urls: string[] = []
-    for (const file of files) {
+    for (const file of filesList) {
       const fileName = `${projectId}/${Date.now()}-${file.name}`
       const { error: uploadError } = await supabase.storage
         .from(bucket)
@@ -229,103 +50,16 @@ function CreateProjectPageContent() {
     return urls
   }
 
-  const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-    const dagreGraph = new dagre.graphlib.Graph()
-    dagreGraph.setDefaultEdgeLabel(() => ({}))
-    dagreGraph.setGraph({ rankdir: 'LR', nodesep: 200, ranksep: 100 })
-
-    nodes.forEach((node) => dagreGraph.setNode(node.id, { width: 200, height: 60 }))
-    edges.forEach((edge) => dagreGraph.setEdge(edge.source, edge.target))
-    dagre.layout(dagreGraph)
-
-    return {
-      nodes: nodes.map((node) => {
-        const { x, y } = dagreGraph.node(node.id)
-        return { ...node, position: { x, y } }
-      }),
-      edges: edges.map((edge) => ({
-        ...edge,
-        style: { strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed },
-      })),
-    }
-  }
-
-  const addNode = () => {
-    const newNode: Node = {
-      id: `node-${nodes.length + 1}`,
-      type: 'customNode',
-      data: {
-        type: nodeConfig.type,
-        label: nodeConfig.label || 'Nút Mới',
-        description: nodeConfig.description,
-        icon: nodeIconOptions.find((opt) => opt.value === nodeConfig.icon)?.icon,
-      },
-      position: { x: 0, y: 0 },
-    }
-    const { nodes: layoutedNodes } = getLayoutedElements([...nodes, newNode], edges)
-    setNodes(layoutedNodes)
-    setNodeConfig({ id: '', type: 'source', label: '', description: '', icon: 'FileSpreadsheet' })
-  }
-
-  const updateNode = () => {
-    if (selectedNode) {
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === selectedNode.id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  type: nodeConfig.type,
-                  label: nodeConfig.label,
-                  description: nodeConfig.description,
-                  icon: nodeIconOptions.find((opt) => opt.value === nodeConfig.icon)?.icon,
-                },
-              }
-            : node
-        )
-      )
-      setSelectedNode(null)
-      setNodeConfig({ id: '', type: 'source', label: '', description: '', icon: 'FileSpreadsheet' })
-    }
-  }
-
-  const deleteNode = () => {
-    if (selectedNode) {
-      setNodes((nds) => nds.filter((node) => node.id !== selectedNode.id))
-      setEdges((eds) => eds.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id))
-      setSelectedNode(null)
-      setNodeConfig({ id: '', type: 'source', label: '', description: '', icon: 'FileSpreadsheet' })
-    }
-  }
-
-  const onConnect = useCallback(
-    (params: Connection) =>
-      setEdges((eds) => addEdge({ ...params, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
-    [setEdges]
-  )
-
-  const onNodeClick = (_event: React.MouseEvent, node: Node) => {
-    setSelectedNode(node)
-    setNodeConfig({
-      id: node.id,
-      type: node.data.type || 'source',
-      label: node.data.label || '',
-      description: node.data.description || '',
-      icon: nodeIconOptions.find((opt) => opt.icon === node.data.icon)?.value || 'FileSpreadsheet',
-    })
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (hasCycle(nodes, edges)) {
-      if (!confirm('Warning: The process diagram contains circular loops (cycles). This may cause layout engine issues. Save anyway?')) {
+      if (!confirm('Warning: The process diagram contains circular loops (cycles). Save anyway?')) {
         return
       }
     }
 
+    setIsSubmitting(true)
     const projectId = crypto.randomUUID()
 
     try {
@@ -367,6 +101,8 @@ function CreateProjectPageContent() {
       router.push('/admin/projects')
     } catch (err: any) {
       alert(`Submission failed: ${err.message}`)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -389,246 +125,44 @@ function CreateProjectPageContent() {
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Side: Metadata Forms */}
+        {/* Left Side: Metadata & Flow Diagrams */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Project Title
-              </label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Data Pipeline Integration Showcase"
-                className="bg-slate-950 border-slate-700 focus:border-blue-500 text-white"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-450 uppercase tracking-wider mb-2">
-                Detailed Description (Rich HTML editor)
-              </label>
-              <RichTextEditor content={description} onChange={setDescription} />
-            </div>
-          </div>
-
-          {/* Flow Diagram Workspace */}
-          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Process Diagram Workspace
-            </label>
-            <div className="border border-slate-700 bg-slate-950 rounded-xl overflow-hidden" style={{ height: '400px' }}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onNodeClick={onNodeClick}
-                onPaneDoubleClick={onPaneDoubleClick}
-                nodeTypes={{ customNode: CustomNode }}
-                fitView
-              >
-                <Controls className="bg-slate-900 border-slate-700 text-slate-400" />
-              </ReactFlow>
-            </div>
-
-            <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-700 space-y-3.5">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block">
-                {selectedNode ? `Node Properties (${selectedNode.id})` : 'Node Configurator'}
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input
-                  placeholder="Label text"
-                  value={nodeConfig.label}
-                  onChange={(e) => setNodeConfig({ ...nodeConfig, label: e.target.value })}
-                  className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-white"
-                />
-                <input
-                  placeholder="Subtext details"
-                  value={nodeConfig.description}
-                  onChange={(e) => setNodeConfig({ ...nodeConfig, description: e.target.value })}
-                  className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="block text-[10px] text-slate-550 mb-1">Node Type</span>
-                  <select
-                    value={nodeConfig.type}
-                    onChange={(e) => setNodeConfig({ ...nodeConfig, type: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-white"
-                  >
-                    {nodeTypeOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-slate-550 mb-1">Node Icon</span>
-                  <select
-                    value={nodeConfig.icon}
-                    onChange={(e) => setNodeConfig({ ...nodeConfig, icon: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-white"
-                  >
-                    {nodeIconOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-2.5 justify-end">
-                <button
-                  type="button"
-                  onClick={addNode}
-                  className="px-3 py-1.5 rounded bg-slate-900 border border-slate-500 hover:border-slate-400 text-xs font-semibold text-slate-300"
-                >
-                  Add Node
-                </button>
-                {selectedNode && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={updateNode}
-                      className="px-3 py-1.5 rounded bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/20 text-xs font-semibold text-blue-600"
-                    >
-                      Update
-                    </button>
-                    <button
-                      type="button"
-                      onClick={deleteNode}
-                      className="px-3 py-1.5 rounded bg-rose-600/10 border border-rose-500/20 hover:bg-rose-600/20 text-xs font-semibold text-rose-450"
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          <ProjectDetailsForm
+            title={title}
+            setTitle={setTitle}
+            description={description}
+            setDescription={setDescription}
+          />
+          <ProcessDiagramWorkspace
+            nodes={nodes}
+            setNodes={setNodes}
+            onNodesChange={onNodesChange}
+            edges={edges}
+            setEdges={setEdges}
+            onEdgesChange={onEdgesChange}
+          />
         </div>
 
-        {/* Right Side: Media Asset Controls */}
+        {/* Right Side: Media & Settings */}
         <div className="space-y-6">
-          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
-            <h3 className="font-bold text-white text-sm">Media Attachments</h3>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Cover Image Thumbnail (Max 2 for comparison slider)
-              </label>
-              <Input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => handleFileChange(e, setThumbnails, 'image/*')}
-                className="bg-slate-950 border-slate-700 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                PDF Document (Max 2 for slider comparison)
-              </label>
-              <Input
-                type="file"
-                accept="application/pdf"
-                multiple
-                onChange={(e) => handleFileChange(e, setFiles, 'application/pdf')}
-                className="bg-slate-950 border-slate-700 text-slate-400 file:bg-blue-600/10 file:text-blue-600 file:border-0 hover:file:bg-blue-600/20 text-xs file:py-1 file:px-2.5 file:rounded"
-              />
-            </div>
-          </div>
-
-          <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 space-y-4">
-            <h3 className="font-bold text-white text-sm">Links & Taxonomy</h3>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Target Category
-              </label>
-              <select
-                required
-                value={productOption || ''}
-                onChange={(e) => setProductOption(e.target.value || null)}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
-              >
-                <option value="">Select category</option>
-                <option value="student">Student Project</option>
-                <option value="customer">Client Showcase</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Interactive Iframe Link
-              </label>
-              <Input
-                value={iframeLink || ''}
-                onChange={(e) => setIframeLink(e.target.value || null)}
-                placeholder="https://app.powerbi.com/view..."
-                className="bg-slate-950 border-slate-700 text-xs text-white"
-                type="url"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                YouTube Embed URL
-              </label>
-              <Input
-                value={youtubeLink || ''}
-                onChange={(e) => setYoutubeLink(e.target.value || null)}
-                placeholder="https://www.youtube.com/embed/..."
-                className="bg-slate-950 border-slate-700 text-xs text-white"
-                type="url"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Technology Icons
-              </label>
-              <Select
-                isMulti
-                options={iconOptions}
-                onChange={(selected) => setIcons(selected.map((opt) => opt.value))}
-                formatOptionLabel={(option) => (
-                  <div className="flex items-center gap-2 text-xs">
-                    <NextImage src={option.icon} alt={option.label} width={16} height={16} className="w-4 h-4" />
-                    <span>{option.label}</span>
-                  </div>
-                )}
-                styles={{
-                  control: (base) => ({
-                    ...base,
-                    backgroundColor: 'rgb(2, 6, 23)',
-                    borderColor: 'rgb(30, 41, 59)',
-                    color: 'white',
-                  }),
-                  menu: (base) => ({
-                    ...base,
-                    backgroundColor: 'rgb(2, 6, 23)',
-                  }),
-                  option: (base, state) => ({
-                    ...base,
-                    backgroundColor: state.isFocused ? 'rgb(30, 41, 59)' : 'transparent',
-                    color: 'white',
-                  }),
-                }}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors shadow-md shadow-blue-500/10"
-            >
-              Publish Project
-            </button>
-          </div>
+          <MediaAttachments
+            thumbnails={thumbnails}
+            setThumbnails={setThumbnails}
+            files={files}
+            setFiles={setFiles}
+          />
+          <LinksTaxonomy
+            productOption={productOption}
+            setProductOption={setProductOption}
+            iframeLink={iframeLink}
+            setIframeLink={setIframeLink}
+            youtubeLink={youtubeLink}
+            setYoutubeLink={setYoutubeLink}
+            icons={icons}
+            setIcons={setIcons}
+            isSubmitting={isSubmitting}
+            submitButtonText="Publish Project"
+          />
         </div>
       </form>
     </div>

@@ -64,6 +64,9 @@ from app.pilot.contracts import (
     ParseFileQuestionsRequest,
     SuggestQuestionAnswerRequest,
     SuggestQuestionAnswerResponse,
+    SuggestBatchQuestionAnswersRequest,
+    SuggestBatchQuestionAnswersResponse,
+    BatchAnswerItem,
 )
 from app.pilot.db_loaders import (
     load_criterion_result_for_review_action_context,
@@ -221,6 +224,30 @@ def create_app() -> FastAPI:
             return SuggestQuestionAnswerResponse(answer=ans.strip())
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI answer suggest failed: {e}")
+
+    @app.post(
+        "/pilot/suggest-batch-question-answers",
+        response_model=SuggestBatchQuestionAnswersResponse,
+    )
+    def suggest_batch_question_answers_route(
+        request: SuggestBatchQuestionAnswersRequest,
+    ) -> SuggestBatchQuestionAnswersResponse:
+        try:
+            questions_payload = [q.model_dump() for q in request.questions]
+            res = AIBroker.suggest_batch_question_answers(
+                model_choice=request.model_choice,
+                questions=questions_payload,
+                materials_text=request.materials_text,
+                lesson_context=request.lesson_context,
+            )
+            answers_list = res.get("answers", [])
+            batch_answers = [
+                BatchAnswerItem(id=ans.get("id"), answer=ans.get("answer", ""))
+                for ans in answers_list
+            ]
+            return SuggestBatchQuestionAnswersResponse(answers=batch_answers)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI batch answer suggest failed: {e}")
 
     @app.post(
         "/pilot/evaluation/public-baseline",
@@ -625,5 +652,4 @@ def _load_demo_grading_context(db: Session) -> DemoGradingContextResponse | None
 
 
 app = create_app()
-
 

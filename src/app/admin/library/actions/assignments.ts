@@ -166,6 +166,9 @@ export async function saveAssignmentAction(input: AssignmentInput) {
         .select()
 
       if (error) throw error
+      if (!data || data.length === 0) {
+        throw new Error('Assignment update did not match any existing row.')
+      }
       return { success: true, data, rubricId: activeRubricId }
     } else {
       // Insert
@@ -492,4 +495,39 @@ export async function suggestQuestionAnswerAction(params: {
   }
 }
 
+export async function suggestBatchQuestionAnswersAction(params: {
+  questions: Array<{ id: number; content: string }>
+  materialsText?: string
+  lessonContext?: string
+  modelChoice?: string
+}) {
+  try {
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/suggest-batch-question-answers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_choice: params.modelChoice || 'gemini-2.5-flash',
+        questions: params.questions,
+        materials_text: params.materialsText || null,
+        lesson_context: params.lessonContext || null
+      })
+    })
 
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      let parsedDetail = ''
+      try {
+        const errJson = JSON.parse(errText)
+        parsedDetail = errJson.detail
+      } catch {}
+      const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
+      throw new Error(`AI batch suggest answers failed: ${errMsg}`)
+    }
+
+    const data = await res.json()
+    return { success: true, answers: data.answers }
+  } catch (error: any) {
+    console.error('Failed to suggest batch answers:', error)
+    return { success: false, error: error.message }
+  }
+}

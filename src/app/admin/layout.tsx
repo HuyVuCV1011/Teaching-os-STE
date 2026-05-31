@@ -39,8 +39,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ShieldCheck className="w-4 h-4 text-white" />
             </div>
             <div>
-              <span className="font-bold tracking-tight text-white block text-xs">Teaching OS</span>
-              <span className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold block">Admin Panel</span>
+              <span className="font-bold tracking-tight text-slate-100 block text-xs">Teaching OS</span>
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Admin Panel</span>
             </div>
           </div>
 
@@ -94,16 +94,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen relative z-20">
         {/* Top Header Bar */}
-        <header className="h-16 border-b border-slate-700 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
+        <header className="h-16 border-b border-slate-800 bg-slate-950/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500">System Mode:</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Live & Secure
+            <span className="text-xs font-semibold text-slate-500">System Status:</span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-sm flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live & Secure
             </span>
           </div>
           <Link
             href="/"
-            className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5"
+            className="text-xs font-semibold text-slate-500 hover:text-slate-100 transition-colors flex items-center gap-1.5 bg-slate-900 border border-slate-800/60 px-2.5 py-1.5 rounded-lg shadow-sm"
           >
             Return to Showcase
           </Link>

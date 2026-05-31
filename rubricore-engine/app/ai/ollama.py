@@ -39,6 +39,20 @@ class OllamaGradingProvider:
             timeout_seconds=settings.ollama_timeout_seconds,
         )
 
+    def generate(self, system_instruction: str, user_prompt: str) -> str:
+        """Send a prompt to Ollama and return the raw text response."""
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_prompt}
+            ],
+            "stream": False,
+            "options": {"temperature": 0.1},
+        }
+        response_payload = self._post_chat(payload)
+        return _message_content(response_payload)
+
     def evaluate(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         payload = {
             "model": self.model_name,

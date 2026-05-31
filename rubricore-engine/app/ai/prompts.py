@@ -135,9 +135,11 @@ def build_parse_questions_messages(file_content: str) -> list[dict[str, str]]:
                 "- id: integer (starting from 1)\n"
                 "- content: string (the question text or task description)\n"
                 "- options: array of strings (e.g. ['A. ...', 'B. ...', 'C. ...', 'D. ...']) if multiple choice, otherwise null\n"
-                "- answer: string (the correct answer key/letter if multiple choice, or correct answer/rubric outline if essay)\n"
+                "- answer: string or null. Only extract an answer when the source file explicitly contains an answer key, sample solution, rubric outline, or teacher solution for that exact question. Do not invent or solve missing answers during parsing.\n"
+                "- answer_source: string or null. Use 'file_import' when answer was explicitly extracted from the source file; otherwise null.\n"
                 "- type: string ('multiple_choice' or 'essay')\n"
                 "- data: object or null\n\n"
+                "This task is extraction, not answer generation. If a question has no explicit answer in the file, set answer to null and answer_source to null.\n"
                 "If no questions are found, return the JSON with an empty list for 'questions'."
             ),
         },
