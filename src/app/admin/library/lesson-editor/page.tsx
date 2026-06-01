@@ -256,6 +256,8 @@ function LessonEditorInner() {
               getSandboxResult={getSandboxResult}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
+              batches={batches}
+              assignmentForm={assignmentForm}
             />
           )}
 

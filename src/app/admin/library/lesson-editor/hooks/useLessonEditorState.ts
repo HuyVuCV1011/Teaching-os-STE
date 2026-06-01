@@ -74,6 +74,50 @@ export function cleanOptionText(opt: string, index: number): string {
   return opt
 }
 
+export function mapCriteriaToQuestions(criteria: any[], batches: BatchItem[]): any[] {
+  const approvedEssayQs: QuestionItem[] = []
+  batches.forEach(b => {
+    b.questions.forEach(q => {
+      if (q.status === 'approved' && b.type === 'essay') {
+        approvedEssayQs.push(q)
+      }
+    })
+  })
+
+  return criteria.map((c, cIdx) => {
+    if (c.questionId) return c
+
+    let questionId = undefined
+    const labelText = c.label || c.name || ''
+    const keyText = c.key || ''
+    const descText = c.description || ''
+
+    const match = labelText.match(/(?:Question|Q|Câu)\s*(\d+)/i) || 
+                  keyText.match(/(?:question|q|crit-q)\s*(\d+)/i) || 
+                  descText.match(/(?:Question|Q|Câu)\s*(\d+)/i)
+
+    if (match && match[1]) {
+      const idx = parseInt(match[1]) - 1
+      if (idx >= 0 && idx < approvedEssayQs.length) {
+        questionId = approvedEssayQs[idx].id
+      }
+    }
+
+    if (!questionId && approvedEssayQs.length > 0) {
+      if (criteria.length === approvedEssayQs.length) {
+        questionId = approvedEssayQs[cIdx].id
+      } else {
+        questionId = approvedEssayQs[0].id
+      }
+    }
+
+    return {
+      ...c,
+      questionId
+    }
+  })
+}
+
 export interface QuestionItem {
   id: number
   content: string
@@ -568,6 +612,7 @@ export function useLessonEditorState() {
 
   async function fetchLessonDetails(preferredAssignmentId?: string) {
     setLoading(true)
+    let loadedBatches: BatchItem[] = []
     try {
       const [
         { data: lessonData },
@@ -697,6 +742,7 @@ export function useLessonEditorState() {
                 }
               })
               setBatches(groupedBatches)
+              loadedBatches = groupedBatches
             } else if (instr.startsWith('[')) {
               const parsed = JSON.parse(instr)
               if (Array.isArray(parsed) && parsed.length > 0) {
@@ -713,13 +759,15 @@ export function useLessonEditorState() {
                   source_file: null
                 }))
                 const hasOptions = questions.some(q => q.options && q.options.length > 0)
-                setBatches([{
+                const parsedBatch: BatchItem = {
                   id: Date.now(),
                   type: hasOptions ? 'multiple_choice' : 'essay',
                   category: 'theory',
                   defaultAnswerFormat: questions[0]?.answerFormat || 'text',
                   questions
-                }])
+                }
+                setBatches([parsedBatch])
+                loadedBatches = [parsedBatch]
                 setDataFiles([])
                 setReferenceFiles([])
               }
@@ -739,7 +787,7 @@ export function useLessonEditorState() {
             weight: c.weight,
             evaluation_hints: c.evaluation_hints || { rule_type: 'none', expected_value: null }
           }))
-          setCriteriaList(formatted)
+          setCriteriaList(mapCriteriaToQuestions(formatted, loadedBatches))
         }
       } else {
         setHasAssignment(false)
@@ -1018,7 +1066,7 @@ export function useLessonEditorState() {
             weight: c.weight || 1.0,
             evaluation_hints: c.evaluation_hints || c.evaluationHints || { rule_type: 'none', expected_value: null }
           }))
-          setCriteriaList(newCriteria)
+          setCriteriaList(mapCriteriaToQuestions(newCriteria, batches))
           alert('AI Rubric generated successfully from finalized questions and answers!')
         } else {
           alert(`AI Rubric generation failed: ${res.error || 'No criteria returned'}`)
@@ -1718,7 +1766,7 @@ export function useLessonEditorState() {
           weight: c.weight || 1.0,
           evaluation_hints: c.evaluation_hints || c.evaluationHints || { rule_type: 'none', expected_value: null }
         }))
-        setCriteriaList(newCriteria)
+        setCriteriaList(mapCriteriaToQuestions(newCriteria, batches))
         alert('Rubric successfully generated from questions & answers! Check Tab 4.')
       } else {
         alert(`Rubric generation failed: ${res.error || 'No criteria returned'}`)
