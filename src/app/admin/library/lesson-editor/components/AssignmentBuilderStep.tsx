@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Sparkles, Upload } from 'lucide-react'
+import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 
 interface AssignmentFileItem {
   name: string
@@ -58,6 +59,9 @@ interface AssignmentBuilderStepProps {
   setClassifyDownloadable: (val: boolean) => void
   setClassifyPreviewable: (val: boolean) => void
   setClassifyModalOpen: (val: boolean) => void
+  pinnedChunks?: any[]
+  setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
+  setActiveBatchIndex: (val: number) => void
 }
 
 export function AssignmentBuilderStep({
@@ -83,8 +87,13 @@ export function AssignmentBuilderStep({
   setClassifyType,
   setClassifyDownloadable,
   setClassifyPreviewable,
-  setClassifyModalOpen
+  setClassifyModalOpen,
+  pinnedChunks = [],
+  setPinnedChunks,
+  setActiveBatchIndex
 }: AssignmentBuilderStepProps) {
+  const [isRAGDrawerOpen, setIsRAGDrawerOpen] = useState(false)
+
   return (
     <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
       <div className="flex justify-between items-center pb-3 border-b border-slate-700">
@@ -152,17 +161,27 @@ export function AssignmentBuilderStep({
                   Let our advanced AI engine automatically generate structured, curriculum-aligned homework questions based on your Tab 1 handouts, lecture content, difficulty parameters, and custom target languages.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setModalStep(1)
-                  setShowAiModal(true)
-                }}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/30"
-              >
-                <Sparkles className="w-4 h-4 text-blue-200" />
-                <span>Open AI Generator</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRAGDrawerOpen(true)}
+                  className="w-1/2 py-2 bg-slate-900 border border-slate-800 hover:border-slate-750 text-slate-350 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors focus-visible:outline-none"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-blue-500 animate-pulse animate-duration-1000" />
+                  <span>RAG Drawer ({pinnedChunks.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalStep(1)
+                    setShowAiModal(true)
+                  }}
+                  className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/30"
+                >
+                  <Sparkles className="w-4 h-4 text-blue-200" />
+                  <span>AI Gen</span>
+                </button>
+              </div>
             </div>
 
             {/* Right Column: Upload File Extractor */}
@@ -520,6 +539,21 @@ export function AssignmentBuilderStep({
           This lesson does not have any assignment. Enable it above to configure.
         </div>
       )}
+      <SemanticSearchDrawer
+        isOpen={isRAGDrawerOpen}
+        onClose={() => setIsRAGDrawerOpen(false)}
+        onPinChunk={(chunk) => {
+          if (setPinnedChunks && !pinnedChunks.some(pc => pc.chunk_id === chunk.chunk_id)) {
+            setPinnedChunks([...pinnedChunks, chunk])
+          }
+        }}
+        pinnedChunks={pinnedChunks}
+        onUnpinChunk={(chunkId) => {
+          if (setPinnedChunks) {
+            setPinnedChunks(pinnedChunks.filter(pc => pc.chunk_id !== chunkId))
+          }
+        }}
+      />
     </div>
   )
 }

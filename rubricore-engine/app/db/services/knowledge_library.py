@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -625,6 +625,22 @@ def create_knowledge_chunks(
         db.add(chunk)
         chunks.append(chunk)
 
+    # Automatically generate vector embeddings in batch using text-embedding-004
+    try:
+        from app.core.config import get_settings
+        from app.ai.gemini import GeminiProvider
+        
+        settings = get_settings()
+        if settings.gemini_api_key and chunks:
+            provider = GeminiProvider(api_key=settings.gemini_api_key)
+            contents = [c.content for c in chunks]
+            embeddings = provider.embed_batch(contents)
+            for chunk, emb in zip(chunks, embeddings):
+                chunk.embedding = emb
+            print(f"--- [RAG FLYWHEEL] Successfully generated vector embeddings for {len(chunks)} chunks.")
+    except Exception as e:
+        print(f"--- [RAG FLYWHEEL WARNING] Batch embedding generation failed or bypassed: {e}")
+
     db.flush()
     _audit_knowledge_event(
         db,
@@ -657,42 +673,121 @@ def retrieve_candidate_chunks(
     limit: int = 10,
 ) -> list[RetrievedKnowledgeChunk]:
     terms = _query_terms(query)
-    if not terms:
-        return []
-
-    statement = (
-        select(KnowledgeChunk)
-        .join(KnowledgeSource, KnowledgeChunk.knowledge_source_id == KnowledgeSource.id)
-        .where(
-            KnowledgeChunk.organization_id == organization_id,
-            KnowledgeChunk.status == "active",
-            KnowledgeSource.status == "active",
-            KnowledgeSource.access_scope.in_({normalize_access_scope(scope) for scope in allowed_access_scopes}),
-        )
-        .order_by(KnowledgeChunk.position)
-    )
+    
+    # Base query filters
+    base_filters = [
+        KnowledgeChunk.organization_id == organization_id,
+        KnowledgeChunk.status == "active",
+        KnowledgeSource.status == "active",
+        KnowledgeSource.access_scope.in_({normalize_access_scope(scope) for scope in allowed_access_scopes}),
+    ]
     if source_ids is not None:
-        statement = statement.where(KnowledgeChunk.knowledge_source_id.in_(source_ids))
+        base_filters.append(KnowledgeChunk.knowledge_source_id.in_(source_ids))
 
-    chunks = list(db.scalars(statement))
-    ranked: list[RetrievedKnowledgeChunk] = []
-    for chunk in chunks:
-        content_lower = chunk.content.lower()
-        heading_text = " ".join(str(item) for item in chunk.heading_path).lower()
-        matched_terms = [term for term in terms if term in content_lower or term in heading_text]
-        if not matched_terms:
-            continue
-        score = len(matched_terms) + sum(1 for term in matched_terms if term in heading_text)
-        ranked.append(
+    # 1. Vector Search Query via Cosine Distance
+    vector_results: list[KnowledgeChunk] = []
+    try:
+        from app.core.config import get_settings
+        from app.ai.gemini import GeminiProvider
+        
+        settings = get_settings()
+        if settings.gemini_api_key and query.strip():
+            provider = GeminiProvider(api_key=settings.gemini_api_key)
+            query_vector = provider.embed(query)
+            query_vector_str = f"[{','.join(map(str, query_vector))}]"
+            
+            # Query top semantic matches using pgvector distance
+            vec_statement = (
+                select(KnowledgeChunk)
+                .join(KnowledgeSource, KnowledgeChunk.knowledge_source_id == KnowledgeSource.id)
+                .where(*base_filters)
+                .order_by(text(f"embedding <=> '{query_vector_str}'"))
+                .limit(limit * 2)
+            )
+            vector_results = list(db.scalars(vec_statement))
+    except Exception as e:
+        print(f"--- [RAG SYSTEM WARNING] Vector semantic retrieval failed: {e}. Cascading to keyword search.")
+
+    # 2. Keyword Search Query (Original matching logic)
+    keyword_results: list[RetrievedKnowledgeChunk] = []
+    if terms:
+        kw_statement = (
+            select(KnowledgeChunk)
+            .join(KnowledgeSource, KnowledgeChunk.knowledge_source_id == KnowledgeSource.id)
+            .where(*base_filters)
+            .order_by(KnowledgeChunk.position)
+        )
+        all_chunks = list(db.scalars(kw_statement))
+        for chunk in all_chunks:
+            content_lower = chunk.content.lower()
+            heading_text = " ".join(str(item) for item in chunk.heading_path).lower()
+            matched_terms = [term for term in terms if term in content_lower or term in heading_text]
+            if not matched_terms:
+                continue
+            score = len(matched_terms) + sum(1 for term in matched_terms if term in heading_text)
+            keyword_results.append(
+                RetrievedKnowledgeChunk(
+                    chunk=chunk,
+                    score=score,
+                    matched_terms=matched_terms,
+                    citation=citation_for_chunk(chunk),
+                )
+            )
+        keyword_results = sorted(keyword_results, key=lambda item: (-item.score, item.chunk.position))
+
+    # 3. Reciprocal Rank Fusion (RRF) Combination
+    K = 60
+    rrf_scores: dict[uuid.UUID, float] = {}
+    chunk_map: dict[uuid.UUID, KnowledgeChunk] = {}
+    matched_terms_map: dict[uuid.UUID, set[str]] = {}
+    citation_map: dict[uuid.UUID, dict[str, Any]] = {}
+
+    # Rank Vector items
+    for rank, chunk in enumerate(vector_results):
+        cid = chunk.id
+        if cid not in rrf_scores:
+            rrf_scores[cid] = 0.0
+        rrf_scores[cid] += 1.0 / (K + rank + 1)
+        
+        if cid not in chunk_map:
+            chunk_map[cid] = chunk
+            matched_terms_map[cid] = set()
+            citation_map[cid] = citation_for_chunk(chunk)
+
+    # Rank Keyword items
+    for rank, retrieved in enumerate(keyword_results):
+        cid = retrieved.chunk.id
+        if cid not in rrf_scores:
+            rrf_scores[cid] = 0.0
+        rrf_scores[cid] += 1.0 / (K + rank + 1)
+        
+        if cid not in chunk_map:
+            chunk_map[cid] = retrieved.chunk
+            matched_terms_map[cid] = set(retrieved.matched_terms)
+            citation_map[cid] = retrieved.citation
+        else:
+            matched_terms_map[cid].update(retrieved.matched_terms)
+
+    # Map RRF scores and prepare final list
+    combined_results: list[RetrievedKnowledgeChunk] = []
+    for cid, rrf_score in rrf_scores.items():
+        combined_results.append(
             RetrievedKnowledgeChunk(
-                chunk=chunk,
-                score=score,
-                matched_terms=matched_terms,
-                citation=citation_for_chunk(chunk),
+                chunk=chunk_map[cid],
+                score=rrf_score,
+                matched_terms=[t for t in terms if t in matched_terms_map[cid]],
+                citation=citation_map[cid],
             )
         )
 
-    return sorted(ranked, key=lambda item: (-item.score, item.chunk.position))[:limit]
+    # Sort final hybrid lists by RRF score descending
+    combined_results = sorted(combined_results, key=lambda item: (-item.score, item.chunk.position))
+
+    if not combined_results:
+        # Complete fallback to pure keyword matching
+        return keyword_results[:limit]
+
+    return combined_results[:limit]
 
 
 def citation_for_chunk(chunk: KnowledgeChunk) -> dict[str, Any]:

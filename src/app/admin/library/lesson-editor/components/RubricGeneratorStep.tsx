@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Loader2, Brain, Plus, Trash2, Code as CodeIcon, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertCircle, Sparkles } from 'lucide-react'
+import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 
 interface Criteria {
   key: string
@@ -53,6 +54,8 @@ interface RubricGeneratorStepProps {
   setSelectedModel: (val: string) => void
   batches: BatchItem[]
   assignmentForm: any
+  pinnedChunks?: any[]
+  setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
 }
 
 // 📋 Reusable Inline Regex Match Sandbox for each Essay Card
@@ -143,6 +146,17 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
     </div>
   )
 }
+const AI_MODEL_OPTIONS = [
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
+  { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (Google)' },
+  { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
+  { value: 'groq/llama-3.1-8b-instant', label: 'Llama 3.1 8B (Groq)' },
+  { value: 'openrouter/deepseek/deepseek-chat', label: 'DeepSeek V3 (OpenRouter)' },
+  { value: 'openrouter/google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (OpenRouter)' },
+  { value: 'openrouter/meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free (OpenRouter)' },
+  { value: 'ollama', label: 'Ollama (Local Llama)' },
+]
 
 export function RubricGeneratorStep({
   criteriaList,
@@ -152,8 +166,11 @@ export function RubricGeneratorStep({
   selectedModel,
   setSelectedModel,
   batches,
-  assignmentForm
+  assignmentForm,
+  pinnedChunks = [],
+  setPinnedChunks
 }: RubricGeneratorStepProps) {
+  const [isRAGDrawerOpen, setIsRAGDrawerOpen] = useState(false)
   const [mcqExpanded, setMcqExpanded] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Record<number, boolean>>({})
   const [currentStageIdx, setCurrentStageIdx] = useState(0)
@@ -341,6 +358,13 @@ export function RubricGeneratorStep({
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+            <button
+              onClick={() => setIsRAGDrawerOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-350 flex items-center gap-1 transition-colors focus-visible:outline-none"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
+              <span>RAG ({pinnedChunks.length})</span>
+            </button>
             <button
               onClick={handleGenerateAIRubric}
               disabled={generatingRubric}
@@ -672,6 +696,21 @@ export function RubricGeneratorStep({
           </div>
         )}
       </div>
+      <SemanticSearchDrawer
+        isOpen={isRAGDrawerOpen}
+        onClose={() => setIsRAGDrawerOpen(false)}
+        onPinChunk={(chunk) => {
+          if (setPinnedChunks && !pinnedChunks.some(pc => pc.chunk_id === chunk.chunk_id)) {
+            setPinnedChunks([...pinnedChunks, chunk])
+          }
+        }}
+        pinnedChunks={pinnedChunks}
+        onUnpinChunk={(chunkId) => {
+          if (setPinnedChunks) {
+            setPinnedChunks(pinnedChunks.filter(pc => pc.chunk_id !== chunkId))
+          }
+        }}
+      />
     </div>
   )
 }

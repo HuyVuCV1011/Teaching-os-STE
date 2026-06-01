@@ -10,6 +10,7 @@ import { BookOpen, ClipboardList, Sparkles, FolderOpen } from 'lucide-react'
 import { CourseRegistrySidebar } from './components/CourseRegistrySidebar'
 import { SyllabusTimelineCanvas } from './components/SyllabusTimelineCanvas'
 import { SubjectsTaxonomyBento } from './components/SubjectsTaxonomyBento'
+import { KnowledgeBaseTab } from './components/KnowledgeBaseTab'
 
 function AdminLibraryContent() {
   const router = useRouter()
@@ -322,6 +323,18 @@ function AdminLibraryContent() {
           <FolderOpen className="w-4 h-4" />
           <span>Subjects Taxonomy</span>
         </button>
+
+        <button
+          onClick={() => handleTabChange('knowledge')}
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+            activeTab === 'knowledge'
+              ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
+              : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Knowledge Base</span>
+        </button>
       </div>
 
       {/* Tab Content Workspace */}
@@ -380,6 +393,10 @@ function AdminLibraryContent() {
                 setSubjectForm={setSubjectForm}
                 handleCreateSubject={handleCreateSubject}
               />
+            )}
+
+            {activeTab === 'knowledge' && (
+              <KnowledgeBaseTab />
             )}
           </>
         )}

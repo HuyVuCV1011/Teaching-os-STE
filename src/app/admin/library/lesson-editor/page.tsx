@@ -19,6 +19,8 @@ function LessonEditorInner() {
     saving,
     currentStep,
     setCurrentStep,
+    pinnedChunks,
+    setPinnedChunks,
     lesson,
     title,
     setTitle,
@@ -70,6 +72,7 @@ function LessonEditorInner() {
     setActiveReviewQsIdx,
     selectedModel,
     setSelectedModel,
+    setActiveBatchIndex,
     suggestingAnsIdx,
     isSuggestingAll,
     simulatedAnswers,
@@ -218,6 +221,9 @@ function LessonEditorInner() {
               setClassifyDownloadable={setClassifyDownloadable}
               setClassifyPreviewable={setClassifyPreviewable}
               setClassifyModalOpen={setClassifyModalOpen}
+              pinnedChunks={pinnedChunks}
+              setPinnedChunks={setPinnedChunks}
+              setActiveBatchIndex={setActiveBatchIndex}
             />
           )}
 
@@ -240,6 +246,8 @@ function LessonEditorInner() {
               handleSuggestAllMissingAnswers={handleSuggestAllMissingAnswers}
               handleSaveComposer={handleSaveComposer}
               updateQuestionInBatches={updateQuestionInBatches}
+              pinnedChunks={pinnedChunks}
+              setPinnedChunks={setPinnedChunks}
             />
           )}
 
@@ -258,6 +266,8 @@ function LessonEditorInner() {
               setSelectedModel={setSelectedModel}
               batches={batches}
               assignmentForm={assignmentForm}
+              pinnedChunks={pinnedChunks}
+              setPinnedChunks={setPinnedChunks}
             />
           )}
 

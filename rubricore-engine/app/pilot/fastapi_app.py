@@ -6,7 +6,7 @@ import logging
 from typing import Annotated, Any, cast
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import select
@@ -41,7 +41,8 @@ from app.db.services.subject_packs import subject_pack_summary
 from app.db.session import get_db
 from app.pilot.api_adapters import public_evaluation_baseline_adapter, validate_fixture_manifest_adapter
 from app.pilot.auth_provider import AuthProvider, PilotAuthProviderError, PilotHeaderAuthProvider
-from app.pilot.authz import PilotAuthContext, PilotAuthorizationError
+from app.pilot.authz import PilotAuthContext, PilotAuthorizationError, PilotRole
+from pydantic import BaseModel, Field
 from app.pilot.contracts import (
     ApiErrorResponse,
     EvaluationBaselineRequest,
@@ -392,6 +393,131 @@ def create_app() -> FastAPI:
             return raw_output
         except Exception as exc:
             raise _api_http_exception(400, code="grading_error", message=str(exc))
+
+    class KnowledgeSearchRequest(BaseModel):
+        query: str
+        limit: int = 10
+        allowed_access_scopes: list[str] = ["organization"]
+        source_ids: list[UUID] | None = None
+
+    @app.post(
+        "/pilot/knowledge/upload",
+    )
+    async def upload_knowledge_route(
+        title: str = Form(...),
+        access_scope: str = Form("organization"),
+        file: UploadFile = File(...),
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)] = None,
+        db: Annotated[Session, Depends(get_fastapi_db)] = None,
+    ):
+        if not auth_context:
+            raise HTTPException(status_code=401, detail="Authentication context missing.")
+
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to upload knowledge.")
+
+        try:
+            content_bytes = await file.read()
+            content = content_bytes.decode("utf-8", errors="ignore")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
+
+        import uuid
+        from app.db.services.knowledge_library import (
+            register_knowledge_source,
+            convert_knowledge_source_to_markdown,
+            create_knowledge_chunks,
+            _source_format_from_filename,
+            convert_plain_text_to_markdown,
+        )
+
+        try:
+            storage_uri = f"upload://knowledge/{uuid.uuid4()}/{file.filename}"
+            source = register_knowledge_source(
+                db,
+                organization_id=auth_context.organization_id,
+                title=title,
+                source_filename=file.filename,
+                source_storage_uri=storage_uri,
+                owner_user_id=auth_context.actor_user_id,
+                access_scope=access_scope,
+                source_type="knowledge_library",
+            )
+            source.status = "active"
+            source.conversion_status = "converted"
+            db.flush()
+
+            converted_artifact = convert_knowledge_source_to_markdown(
+                db,
+                knowledge_source=source,
+                source_filename=file.filename,
+                source_content=content,
+            )
+            if converted_artifact:
+                source.converted_markdown_artifact_id = converted_artifact.id
+                db.flush()
+
+            source_format = _source_format_from_filename(file.filename)
+            markdown_content = content if source_format == "markdown" else convert_plain_text_to_markdown(content, title=source.title)
+            
+            chunks = create_knowledge_chunks(
+                db,
+                knowledge_source=source,
+                markdown_content=markdown_content,
+            )
+            db.commit()
+            
+            return {
+                "status": "success",
+                "knowledge_source_id": str(source.id),
+                "chunks_count": len(chunks)
+            }
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to ingest knowledge: {e}")
+
+    @app.post(
+        "/pilot/knowledge/search",
+    )
+    def search_knowledge_route(
+        request: KnowledgeSearchRequest,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ):
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to search knowledge.")
+
+        from app.db.services.knowledge_library import retrieve_candidate_chunks
+
+        try:
+            allowed_scopes = set(request.allowed_access_scopes)
+            source_ids_set = set(request.source_ids) if request.source_ids else None
+            
+            retrieved = retrieve_candidate_chunks(
+                db,
+                organization_id=auth_context.organization_id,
+                query=request.query,
+                allowed_access_scopes=allowed_scopes,
+                source_ids=source_ids_set,
+                limit=request.limit,
+            )
+
+            results = []
+            for r in retrieved:
+                results.append({
+                    "chunk_id": str(r.chunk.id),
+                    "knowledge_source_id": str(r.chunk.knowledge_source_id),
+                    "heading_path": list(r.chunk.heading_path),
+                    "content": r.chunk.content,
+                    "score": r.score,
+                    "matched_terms": r.matched_terms,
+                    "citation": r.citation,
+                })
+            return {"status": "success", "results": results}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Knowledge search failed: {e}")
 
     return app
 

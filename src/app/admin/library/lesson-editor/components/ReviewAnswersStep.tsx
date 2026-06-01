@@ -1,9 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { ClipboardList, CheckCircle, Sparkles, Loader2, Eye, FileCode, BookOpen, Brain, Paperclip, FileCheck } from 'lucide-react'
 import { getSignedUrlAction } from '@/app/admin/library/actions/materials'
 import { cleanOptionText } from '../hooks/useLessonEditorState'
+import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 
 const AI_MODEL_OPTIONS = [
   { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
@@ -31,6 +32,7 @@ interface QuestionItem {
   points?: number
   batchDefaultFormat?: 'text' | 'file' | 'both'
   batchType?: 'multiple_choice' | 'essay'
+  category?: string
 }
 
 interface BatchItem {
@@ -68,6 +70,8 @@ interface ReviewAnswersStepProps {
   handleSuggestAllMissingAnswers: () => Promise<void>
   handleSaveComposer: (mode: 'draft' | 'official') => Promise<void>
   updateQuestionInBatches: (qId: number, fields: Partial<QuestionItem>) => void
+  pinnedChunks?: any[]
+  setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
 }
 
 export function ReviewAnswersStep({
@@ -87,13 +91,16 @@ export function ReviewAnswersStep({
   handleSuggestAnswer,
   handleSuggestAllMissingAnswers,
   handleSaveComposer,
-  updateQuestionInBatches
+  updateQuestionInBatches,
+  pinnedChunks = [],
+  setPinnedChunks
 }: ReviewAnswersStepProps) {
+  const [isRAGDrawerOpen, setIsRAGDrawerOpen] = useState(false)
   const approvedQs: QuestionItem[] = []
   batches.forEach(b => {
     b.questions.forEach(q => {
       if (q.status === 'approved') {
-        approvedQs.push({ ...q, batchDefaultFormat: b.defaultAnswerFormat, batchType: b.type })
+        approvedQs.push({ ...q, batchDefaultFormat: b.defaultAnswerFormat, batchType: b.type, category: b.category })
       }
     })
   })
@@ -327,9 +334,17 @@ export function ReviewAnswersStep({
               </select>
               <button
                 type="button"
+                onClick={() => setIsRAGDrawerOpen(true)}
+                className="py-3 px-4 bg-slate-900 hover:bg-slate-850 text-slate-350 border border-slate-800 hover:border-slate-755 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-1.5 focus-visible:outline-none"
+              >
+                <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
+                <span>RAG ({pinnedChunks.length})</span>
+              </button>
+              <button
+                type="button"
                 onClick={handleSuggestAllMissingAnswers}
                 disabled={isSuggestingAll || withoutAnswers === 0}
-                className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-705 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
               >
                 {isSuggestingAll ? (
                   <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -487,6 +502,11 @@ export function ReviewAnswersStep({
                           <span className="text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono">
                             Question {idx + 1} ({q.batchType === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'} — {q.source === 'file_import' ? 'File Import' : 'AI Generated'})
                           </span>
+                          {q.source === 'ai_generator' && pinnedChunks.length > 0 && (
+                            <span className="text-[9px] bg-blue-50 border border-blue-200 text-blue-650 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-blue-500 animate-pulse" /> Semantic Cited
+                            </span>
+                          )}
                         </div>
                         <p className="text-slate-200 font-semibold leading-relaxed whitespace-pre-wrap">
                           {q.content}
@@ -580,6 +600,21 @@ export function ReviewAnswersStep({
           </div>
         </div>
       )}
+      <SemanticSearchDrawer
+        isOpen={isRAGDrawerOpen}
+        onClose={() => setIsRAGDrawerOpen(false)}
+        onPinChunk={(chunk) => {
+          if (setPinnedChunks && !pinnedChunks.some(pc => pc.chunk_id === chunk.chunk_id)) {
+            setPinnedChunks([...pinnedChunks, chunk])
+          }
+        }}
+        pinnedChunks={pinnedChunks}
+        onUnpinChunk={(chunkId) => {
+          if (setPinnedChunks) {
+            setPinnedChunks(pinnedChunks.filter(pc => pc.chunk_id !== chunkId))
+          }
+        }}
+      />
     </div>
   )
 }

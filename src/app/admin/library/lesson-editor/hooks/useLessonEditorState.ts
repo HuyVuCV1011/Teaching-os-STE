@@ -23,6 +23,7 @@ import {
   suggestQuestionAnswerAction,
   suggestBatchQuestionAnswersAction
 } from '@/app/admin/library/actions/assignments'
+import { uploadKnowledgeAction } from '@/app/admin/library/actions/knowledge'
 
 export function htmlToMarkdown(html: string): string {
   if (!html) return ''
@@ -155,6 +156,7 @@ export function useLessonEditorState() {
   const lessonId = searchParams.get('lessonId')
 
   const [loading, setLoading] = useState(true)
+  const [pinnedChunks, setPinnedChunks] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -1029,7 +1031,12 @@ export function useLessonEditorState() {
     }
     setGeneratingSolution(true)
     try {
-      const res = await generateSolutionAction(assignmentForm.instructions, selectedModel)
+      const instructionsWithRag = assignmentForm.instructions + (
+        pinnedChunks && pinnedChunks.length > 0
+          ? `\n\n<knowledge_dossier>\n${pinnedChunks.map(pc => pc.content).join('\n\n')}\n</knowledge_dossier>`
+          : ''
+      )
+      const res = await generateSolutionAction(instructionsWithRag, selectedModel)
       if (!res.success) throw new Error(res.error)
       setSolutionText(res.solutionKey || '')
       alert('AI Solution Key Draft generated! Review it under Tab 3.')
@@ -1056,7 +1063,13 @@ export function useLessonEditorState() {
         const assignmentText = approvedQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
         const solutionText = approvedQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
 
-        const res = await generateRubricAction(assignmentText, solutionText, selectedModel)
+        const assignmentTextWithRag = assignmentText + (
+          pinnedChunks && pinnedChunks.length > 0
+            ? `\n\n<knowledge_dossier>\n${pinnedChunks.map(pc => pc.content).join('\n\n')}\n</knowledge_dossier>`
+            : ''
+        )
+
+        const res = await generateRubricAction(assignmentTextWithRag, solutionText, selectedModel)
         if (res.success && res.criteria) {
           const newCriteria = res.criteria.map((c: any) => ({
             key: c.key || `crit-${Date.now()}-${Math.random()}`,
@@ -1091,7 +1104,12 @@ export function useLessonEditorState() {
 
     setGeneratingRubric(true)
     try {
-      const res = await generateRubricAction(assignmentForm.instructions, finalSolText, selectedModel)
+      const instructionsWithRag = assignmentForm.instructions + (
+        pinnedChunks && pinnedChunks.length > 0
+          ? `\n\n<knowledge_dossier>\n${pinnedChunks.map(pc => pc.content).join('\n\n')}\n</knowledge_dossier>`
+          : ''
+      )
+      const res = await generateRubricAction(instructionsWithRag, finalSolText, selectedModel)
       if (!res.success) throw new Error(res.error)
       setCriteriaList(res.criteria || [])
       alert('AI Rubric generated! Review and tweak it below.')
@@ -1199,7 +1217,15 @@ export function useLessonEditorState() {
       const difficultyText = aiDifficulty === 'easy' ? 'Easy (conceptual, basic definitions)' : aiDifficulty === 'hard' ? 'Hard (advanced code architecture, deep analysis)' : 'Medium (balanced application & details)'
       const languageText = aiLanguage === 'english' ? 'English ONLY' : aiLanguage === 'vietnamese' ? 'Vietnamese ONLY' : 'Bilingual (Vietnamese & English)'
 
-      const combinedPayload = `AI INSTRUCTION CRITICAL:\n- Generate all questions and answers in ${languageText} language.\n- Set the overall difficulty level of questions to ${difficultyText}.\n\nSOURCE LESSON CONTENT/MATERIALS:\n${combinedContent}`
+      let r = combinedContent
+      if (pinnedChunks && pinnedChunks.length > 0) {
+        const ragContext = pinnedChunks.map(pc => (
+          `<knowledge_dossier>\nSource: ${pc.citation?.knowledge_source_title || 'Pedagogical Guide'}\nChunk Key: ${pc.citation?.chunk_key || ''}\nContent: ${pc.content}\n</knowledge_dossier>`
+        )).join('\n\n')
+        r += `\n\nADDITIONAL RAG PEDAGOGICAL NOTES:\n${ragContext}`
+      }
+
+      const combinedPayload = `AI INSTRUCTION CRITICAL:\n- Generate all questions and answers in ${languageText} language.\n- Set the overall difficulty level of questions to ${difficultyText}.\n\nSOURCE LESSON CONTENT/MATERIALS:\n${r}`
 
       const res = await clientGenerateQuestions({
         modelChoice: selectedModel,
@@ -1756,7 +1782,13 @@ export function useLessonEditorState() {
       const assignmentText = approvedQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
       const solutionText = approvedQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
 
-      const res = await generateRubricAction(assignmentText, solutionText, selectedModel)
+      const assignmentTextWithRag = assignmentText + (
+        pinnedChunks && pinnedChunks.length > 0
+          ? `\n\n<knowledge_dossier>\n${pinnedChunks.map(pc => pc.content).join('\n\n')}\n</knowledge_dossier>`
+          : ''
+      )
+
+      const res = await generateRubricAction(assignmentTextWithRag, solutionText, selectedModel)
       if (res.success && res.criteria) {
         const newCriteria = res.criteria.map((c: any) => ({
           key: c.key || `crit-${Date.now()}-${Math.random()}`,
@@ -2202,6 +2234,54 @@ export function useLessonEditorState() {
       }
 
       alert('Composer updated successfully! Lesson details, assignment rules, and rubric criteria saved.')
+
+      // Trigger RAG Ingestion Flywheel
+      try {
+        const docTitle = `${title} (Pedagogical Synapse)`;
+        let md = `# Lesson: ${title}\n\n`;
+        
+        const cleanContent = typeof content === 'string' && content.startsWith('{')
+          ? 'Lecture Content outline configured'
+          : content;
+        md += `## Lecture Materials\n\n${htmlToMarkdown(cleanContent || '')}\n\n`;
+
+        if (hasAssignment) {
+          md += `## Assignment Question Sets\n\n`;
+          batches.forEach((b, bIdx) => {
+            md += `### Batch ${bIdx + 1}: ${b.type === 'multiple_choice' ? 'Multiple Choice' : 'Essay'}\n\n`;
+            b.questions.forEach((q, qIdx) => {
+              if (q.status === 'approved') {
+                md += `#### Question ${qIdx + 1}\n${q.content}\n\n`;
+                if (q.answer) {
+                  md += `**Expected Answer:** ${q.answer}\n\n`;
+                }
+              }
+            });
+          });
+
+          if (criteriaList && criteriaList.length > 0) {
+            md += `## Grading Rubric Matrix\n\n`;
+            criteriaList.forEach((c) => {
+              md += `- **${c.label}** (Max Points: ${c.max_points}, Weight: ${c.weight}): ${c.description}\n`;
+            });
+          }
+        }
+
+        const ingestRes = await uploadKnowledgeAction(
+          docTitle,
+          'organization',
+          `flywheel_lesson_${lessonId}.md`,
+          md
+        );
+        if (ingestRes.success) {
+          console.log(`--- [RAG FLYWHEEL] Automatically ingested approved lesson and assignment flywheel node.`);
+        } else {
+          console.warn(`--- [RAG FLYWHEEL WARNING] Automated Ingestion failed:`, ingestRes.error);
+        }
+      } catch (flywheelErr) {
+        console.error('--- [RAG FLYWHEEL WARNING] Automated Ingestion crashed:', flywheelErr);
+      }
+
       setIsDirty(false)
       await fetchLessonDetails(hasAssignment ? savedAssignmentIdForReload : undefined)
       setIsDirty(false)
@@ -2235,6 +2315,8 @@ export function useLessonEditorState() {
     uploading,
     currentStep,
     setCurrentStep,
+    pinnedChunks,
+    setPinnedChunks,
     isDirty,
     setIsDirty,
     initialLoaded,

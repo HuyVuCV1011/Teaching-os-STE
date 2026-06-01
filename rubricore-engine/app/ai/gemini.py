@@ -85,6 +85,49 @@ class GeminiProvider:
         raw_output = self.generate(system_instruction, user_prompt)
         return _parse_gemini_json(raw_output)
 
+    def embed(self, text: str) -> list[float]:
+        """Generate high-dimensional vector embeddings for a given text using text-embedding-004."""
+        url = f"{GEMINI_API_BASE}/text-embedding-004:embedContent?key={self.api_key}"
+        payload = {
+            "model": "models/text-embedding-004",
+            "content": {
+                "parts": [{"text": text}]
+            }
+        }
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+            res_json = response.json()
+            return res_json["embedding"]["values"]
+        except Exception as e:
+            logger.error(f"Gemini embedding API failed: {e}")
+            raise GeminiProviderError(f"Failed to generate embedding: {e}") from e
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Generate vector embeddings for a batch of texts using batchEmbedContents."""
+        if not texts:
+            return []
+        url = f"{GEMINI_API_BASE}/text-embedding-004:batchEmbedContents?key={self.api_key}"
+        requests_payload = [
+            {
+                "model": "models/text-embedding-004",
+                "content": {
+                    "parts": [{"text": t}]
+                }
+            } for t in texts
+        ]
+        payload = {"requests": requests_payload}
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+            res_json = response.json()
+            return [emb["values"] for emb in res_json["embeddings"]]
+        except Exception as e:
+            logger.error(f"Gemini batch embedding API failed: {e}")
+            raise GeminiProviderError(f"Failed to generate batch embeddings: {e}") from e
+
     def evaluate(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         """Evaluate a grading request using Gemini."""
         from app.ai.prompts import build_grading_messages

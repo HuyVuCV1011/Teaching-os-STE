@@ -140,6 +140,34 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
   const [syllabusNodes, setSyllabusNodes] = useState<Node[]>([])
   const [syllabusEdges, setSyllabusEdges] = useState<Edge[]>([])
 
+  const onNodesChange = (changes: any[]) => {
+    setSyllabusNodes((nds) => {
+      let nextNodes = [...nds]
+      changes.forEach((change) => {
+        if (change.type === 'position') {
+          nextNodes = nextNodes.map((node) => {
+            if (node.id === change.id) {
+              return {
+                ...node,
+                position: change.position || node.position
+              }
+            }
+            return node
+          })
+        }
+      })
+
+      // Save custom positions
+      const positions = nextNodes.reduce((acc: any, node) => {
+        acc[node.id] = node.position
+        return acc
+      }, {})
+      localStorage.setItem(`roadmap_pos_${classCode}_${courseSlug}`, JSON.stringify(positions))
+
+      return nextNodes
+    })
+  }
+
   useEffect(() => {
     async function loadRoadmap() {
       try {
@@ -284,7 +312,29 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           rawEdges
         )
 
-        setSyllabusNodes(layoutedNodes)
+        // Check local storage for custom positions
+        const savedPosKey = `roadmap_pos_${classCode}_${courseSlug}`
+        let savedPositions: Record<string, { x: number; y: number }> = {}
+        try {
+          const stored = localStorage.getItem(savedPosKey)
+          if (stored) {
+            savedPositions = JSON.parse(stored)
+          }
+        } catch (e) {
+          console.error('Failed to parse saved roadmap positions', e)
+        }
+
+        const nodesWithSavedPositions = layoutedNodes.map(node => {
+          if (savedPositions[node.id]) {
+            return {
+              ...node,
+              position: savedPositions[node.id]
+            }
+          }
+          return node
+        })
+
+        setSyllabusNodes(nodesWithSavedPositions)
         setSyllabusEdges(layoutedEdges)
       } catch (err) {
         console.error('Failed to parse syllabus tree:', err)
@@ -298,17 +348,31 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center gap-3">
-        <Link
-          href={`/learn/${classCode}/dashboard`}
-          className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <div>
-          <span className="text-xs text-slate-500 font-semibold">Course Roadmap</span>
-          <h1 className="text-2xl font-bold text-white mt-0.5">{courseTitle || 'Loading...'}</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/learn/${classCode}/dashboard`}
+            className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <span className="text-xs text-slate-500 font-semibold">Course Roadmap</span>
+            <h1 className="text-2xl font-bold text-white mt-0.5">{courseTitle || 'Loading...'}</h1>
+          </div>
         </div>
+
+        {syllabusNodes.length > 0 && (
+          <button
+            onClick={() => {
+              localStorage.removeItem(`roadmap_pos_${classCode}_${courseSlug}`)
+              window.location.reload()
+            }}
+            className="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 bg-slate-900 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all cursor-pointer focus-visible:outline-none"
+          >
+            Reset Grid Layout
+          </button>
+        )}
       </div>
 
       <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-950/50 backdrop-blur-xl overflow-hidden relative shadow-2xl">
@@ -326,12 +390,13 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
             nodes={syllabusNodes}
             edges={syllabusEdges}
             nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
             fitView
             fitViewOptions={{ padding: 0.3 }}
             nodesConnectable={false}
-            nodesDraggable={false}
-            zoomOnScroll={false}
-            zoomOnPinch={false}
+            nodesDraggable={true}
+            zoomOnScroll={true}
+            zoomOnPinch={true}
             zoomOnDoubleClick={false}
             panOnDrag={true}
           />

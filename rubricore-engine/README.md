@@ -35,6 +35,8 @@
 *   **🌐 Public Showcase Layer**: An elegant portfolio displaying consulting projects, student case studies, process mapping diagrams (React Flow), and visual before/after dashboard comparison sliders.
 *   **🔑 Student Learning Gateway**: A secure area gated by class-code authorization and HTTP-Only cookies, allowing students to access course roadmaps, view materials, and submit assignments securely.
 *   **🛠️ Admin CMS & Grading Terminal**: A centralized management workspace where administrators configure classes, assign syllabi, author lesson content using a guided stepper wizard, reorder syllabus modules/lessons dynamically, and evaluate homework against frozen rubric snapshots.
+*   **🧠 Self-Evolving RAG & Knowledge Base CMS**: A production-grade telemetry panel (`pgvector` + HNSW cosine index) supporting drag-and-drop file ingestion, a real-time playground, and visual semantic search drawer overrides to guide lesson composition.
+*   **📟 Retro-Terminal AI Grading Dossier**: A high-impact CRT electron-beam console displaying ASCII confidence ratings, granular selection grids, and structured telemetry injections for AI-assisted grading assessments.
 *   **⚡ Multi-Format Materials Pipeline**: Automatically processes PDF, DOCX, CSV, and XLSX deliverables, creating polished web readviews and preview grids.
 
 ---
@@ -65,6 +67,28 @@ graph LR
 2.  **Class Operations**: Admins setup cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes.
 3.  **Rubric Snapshotting**: Captures a frozen criteria snapshot upon saving assignments to prevent grading drift.
 4.  **Assessment**: Submissions land on `/admin/grading` where admins score homework using criteria-based rubrics.
+
+---
+
+## 🧠 Self-Evolving RAG & Tactical CRT Telemetry
+
+### 1. The Pedagogical Flywheel Ingestion
+Rather than relying solely on static syllabus uploads (such as textbook PDFs or programming guides), the system features a **Self-Evolving Ingestion Flywheel**. 
+When an administrator designs and approves a lesson structure:
+1. The system aggregates the core lesson body, grading rubrics, assignment questions, and expected answers into a unified Markdown guide.
+2. This guide is sent asynchronously to the RubriCore backend, chunked, and vector-embedded using **Gemini text-embedding-004** inside our PostgreSQL `pgvector` store.
+3. Over time, future generative pipelines (rubric compositions and assignment builders) query this RAG dataset, meaning the AI naturally aligns with the teacher's exact grading standards, pedagogy strictness, and instructional style.
+
+### 2. Reciprocal Rank Fusion (RRF) Hybrid Search
+The system implements a state-of-the-art **RRF hybrid retrieval** query that fuses two complementary strategies:
+* **Vector Semantic Scan**: Searches structural HNSW cosine-similarity coordinates mapped from deep-learning embeddings.
+* **Fallback Keyword Regex Match**: Ensures direct keyword queries (e.g. particular programming structures like `try-except` or precise syntax rules) are matched exactly even if semantic embeddings are temporarily offline.
+
+### 3. Monochromatic Retro CRT Dossier
+To bring exceptional visual clarity and tactical precision to teachers, grading suggestions are loaded in a high-contrast monochromatic console modal styled like a classic **phosphor screen scanline terminal**:
+* **Confidence Bar charts**: ASCII block graphs (e.g., `[████████░░] 80% HIGH_CONF`) illustrating the AI model's assessment security.
+* **Score Injection Matrix**: Detailed criterion selectors allowing teachers to cherry-pick which recommendations to feed directly into the canvas.
+* **Transmission Stream**: Monochrome terminal tabs showcasing parsed student answers and connected datasets.
 
 ---
 
