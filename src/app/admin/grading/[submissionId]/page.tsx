@@ -234,6 +234,33 @@ export default function GradingPage({ params }: GradingPageProps) {
     }
   }
 
+  const handleSuggestAIScores = async () => {
+    setAiGrading(true)
+    try {
+      const res = await suggestAIScoresAction(submissionId, selectedModel)
+      if (res.success && res.suggestions) {
+        setSuggestions(res.suggestions)
+        
+        // Pre-fill scores and feedbacks immediately
+        const updatedScores = { ...scores }
+        const updatedFeedbacks = { ...feedbacks }
+        res.suggestions.forEach((s: any) => {
+          updatedScores[s.rubric_criterion_id] = parseFloat(s.suggested_score)
+          updatedFeedbacks[s.rubric_criterion_id] = s.suggested_feedback || ''
+        })
+        setScores(updatedScores)
+        setFeedbacks(updatedFeedbacks)
+        alert('AI grading suggestions generated and pre-filled! Please review and justify any overrides before saving.')
+      } else {
+        alert(`Failed to get suggestions: ${res.error}`)
+      }
+    } catch (err: any) {
+      alert(`AI suggestion error: ${err.message}`)
+    } finally {
+      setAiGrading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400">
