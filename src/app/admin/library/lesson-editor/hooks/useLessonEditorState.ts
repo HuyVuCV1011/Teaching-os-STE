@@ -993,6 +993,44 @@ export function useLessonEditorState() {
   }
 
   const handleGenerateAIRubric = async () => {
+    const approvedQs: QuestionItem[] = []
+    batches.forEach(b => {
+      b.questions.forEach(q => {
+        if (q.status === 'approved') {
+          approvedQs.push(q)
+        }
+      })
+    })
+
+    if (approvedQs.length > 0) {
+      setGeneratingRubric(true)
+      try {
+        const assignmentText = approvedQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
+        const solutionText = approvedQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
+
+        const res = await generateRubricAction(assignmentText, solutionText, selectedModel)
+        if (res.success && res.criteria) {
+          const newCriteria = res.criteria.map((c: any) => ({
+            key: c.key || `crit-${Date.now()}-${Math.random()}`,
+            label: c.label || c.name || 'Criterion',
+            description: c.description || '',
+            max_points: c.max_points || c.maxPoints || 10,
+            weight: c.weight || 1.0,
+            evaluation_hints: c.evaluation_hints || c.evaluationHints || { rule_type: 'none', expected_value: null }
+          }))
+          setCriteriaList(newCriteria)
+          alert('AI Rubric generated successfully from finalized questions and answers!')
+        } else {
+          alert(`AI Rubric generation failed: ${res.error || 'No criteria returned'}`)
+        }
+      } catch (err: any) {
+        alert(`AI Rubric generation failed: ${err.message}`)
+      } finally {
+        setGeneratingRubric(false)
+      }
+      return
+    }
+
     if (!assignmentForm.instructions) {
       alert('Please fill out assignment instructions first.')
       return

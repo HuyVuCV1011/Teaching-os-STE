@@ -200,8 +200,8 @@ export function ReviewAnswersStep({
               {activeQ && (
                 <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar text-xs">
                   {/* Answer Detail Header Block */}
-                  <div className="p-4 bg-slate-900 border border-slate-850 rounded-xl space-y-2 text-xs">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-950">
+                  <div className="p-4 bg-slate-900 border border-slate-850 rounded-xl text-xs">
+                    <div className="flex justify-between items-center">
                       <div>
                         <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono">Current Answer:</span>
                         <span className="text-slate-200 font-bold">
@@ -223,31 +223,6 @@ export function ReviewAnswersStep({
                       }`}>
                         Source: {activeQ.answerSource === 'teacher_edit' ? 'Teacher Edit' : activeQ.answerSource === 'file_import' ? 'File Import' : activeQ.answerSource === 'ai_generated' ? 'AI Generated' : 'Not Set'}
                       </span>
-                    </div>
-
-                    <div className="flex justify-end items-center gap-2 pt-1">
-                      <select
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 hover:border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
-                      >
-                        {AI_MODEL_OPTIONS.map(option => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => handleSuggestAnswer(activeReviewIndex)}
-                        disabled={suggestingAnsIdx === activeReviewIndex}
-                        className="px-2.5 py-1 rounded bg-slate-950 hover:bg-slate-900 text-[10px] text-blue-600 hover:text-blue-700 font-bold border border-slate-800 hover:border-slate-700 transition-colors flex items-center gap-1 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
-                      >
-                        {suggestingAnsIdx === activeReviewIndex ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-3 h-3 text-indigo-500" />
-                        )}
-                        <span>Suggest AI</span>
-                      </button>
                     </div>
                   </div>
 

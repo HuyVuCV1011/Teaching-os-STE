@@ -15,6 +15,18 @@ interface Criteria {
   }
 }
 
+const AI_MODEL_OPTIONS = [
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
+  { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (Google)' },
+  { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
+  { value: 'groq/llama-3.1-8b-instant', label: 'Llama 3.1 8B (Groq)' },
+  { value: 'openrouter/deepseek/deepseek-chat', label: 'DeepSeek V3 (OpenRouter)' },
+  { value: 'openrouter/google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (OpenRouter)' },
+  { value: 'openrouter/meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free (OpenRouter)' },
+  { value: 'ollama', label: 'Ollama (Local Llama)' },
+]
+
 interface RubricGeneratorStepProps {
   criteriaList: Criteria[]
   setCriteriaList: React.Dispatch<React.SetStateAction<Criteria[]>>
@@ -25,6 +37,8 @@ interface RubricGeneratorStepProps {
   sandboxInput: string
   setSandboxInput: (val: string) => void
   getSandboxResult: () => boolean | null
+  selectedModel: string
+  setSelectedModel: (val: string) => void
 }
 
 export function RubricGeneratorStep({
@@ -36,15 +50,46 @@ export function RubricGeneratorStep({
   setSandboxCriterionIdx,
   sandboxInput,
   setSandboxInput,
-  getSandboxResult
+  getSandboxResult,
+  selectedModel,
+  setSelectedModel
 }: RubricGeneratorStepProps) {
+  const [currentStageIdx, setCurrentStageIdx] = React.useState(0)
+  const stages = [
+    { label: 'Analyzing assignment questions & model answers', icon: '🔍' },
+    { label: 'Calibrating scoring weights and point distributions', icon: '⚖️' },
+    { label: 'Formulating qualitative evaluation guidelines', icon: '🧠' },
+    { label: 'Constructing automated regex match patterns', icon: '⚙️' },
+    { label: 'Verifying rubric schema structures', icon: '✨' }
+  ]
+
+  React.useEffect(() => {
+    if (!generatingRubric) {
+      setCurrentStageIdx(0)
+      return
+    }
+    const interval = setInterval(() => {
+      setCurrentStageIdx((prev) => (prev < stages.length - 1 ? prev + 1 : prev))
+    }, 3200)
+    return () => clearInterval(interval)
+  }, [generatingRubric])
+
   return (
     <div className="bg-slate-900/10 border border-slate-700 p-6 rounded-2xl space-y-6">
       <div className="flex justify-between items-center pb-3 border-b border-slate-700">
         <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
           AI Rubric Matrix Setup
         </h3>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-350 hover:border-slate-600 transition-colors cursor-pointer focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+          >
+            {AI_MODEL_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
           <button
             onClick={handleGenerateAIRubric}
             disabled={generatingRubric}
@@ -64,7 +109,55 @@ export function RubricGeneratorStep({
         </div>
       </div>
 
-      {criteriaList.length === 0 ? (
+      {generatingRubric ? (
+        <div className="p-8 border border-slate-700 bg-slate-950/50 rounded-2xl flex flex-col items-center justify-center space-y-6 text-center py-16 animate-fade-in select-none">
+          <div className="relative w-16 h-16 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-500/10 border-t-blue-600 animate-spin" />
+            <Brain className="w-6 h-6 text-blue-600 animate-pulse" />
+          </div>
+          <div className="space-y-1.5 max-w-md">
+            <h4 className="text-sm font-bold text-slate-105 uppercase tracking-wider font-sans">
+              AI Rubric Synthesis In Progress
+            </h4>
+            <p className="text-[11px] text-slate-400 font-mono">
+              Selected Model: <span className="text-blue-600 font-bold uppercase tracking-wider">{selectedModel}</span>
+            </p>
+          </div>
+          
+          <div className="w-full max-w-sm space-y-3 pt-4 border-t border-slate-800">
+            {stages.map((stage, idx) => {
+              const isPending = idx > currentStageIdx
+              const isActive = idx === currentStageIdx
+              const isCompleted = idx < currentStageIdx
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`flex items-center gap-3 text-left transition-all duration-300 px-3 py-2 rounded-xl border ${
+                    isActive 
+                      ? 'bg-blue-600/5 border-blue-500/30 text-slate-100 font-semibold ring-1 ring-blue-500/10 scale-[1.02]' 
+                      : isCompleted
+                      ? 'bg-emerald-500/5 border-emerald-500/10 text-slate-400'
+                      : 'bg-transparent border-transparent text-slate-500 opacity-50'
+                  }`}
+                >
+                  <div className="text-xs shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 border border-slate-800">
+                    {isCompleted ? (
+                      <span className="text-[10px] text-emerald-600 font-bold">✓</span>
+                    ) : isActive ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" />
+                    ) : (
+                      <span className="text-[9px] font-mono text-slate-600">{idx + 1}</span>
+                    )}
+                  </div>
+                  <span className="text-xs flex-1 truncate">{stage.label}</span>
+                  <span className="text-xs shrink-0">{stage.icon}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : criteriaList.length === 0 ? (
         <div className="text-center py-16 text-slate-500 text-xs">
           Rubric is empty. Click "Generate Rubric" or add criteria manually.
         </div>

@@ -254,6 +254,8 @@ function LessonEditorInner() {
               sandboxInput={sandboxInput}
               setSandboxInput={setSandboxInput}
               getSandboxResult={getSandboxResult}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
             />
           )}
 
