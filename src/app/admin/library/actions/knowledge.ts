@@ -144,27 +144,3 @@ export async function searchKnowledgeAction(
   }
 }
 
-/**
- * Deletes a RAG knowledge source and all its active chunks from the database.
- */
-export async function deleteKnowledgeAction(sourceId: string) {
-  try {
-    await checkAdminAuth()
-    const supabase = getSupabaseServer(true)
-
-    // Direct deletion from knowledge_sources cascades to knowledge_chunks automatically via database foreign keys!
-    const { error } = await supabase
-      .from('knowledge_sources')
-      .delete()
-      .eq('id', sourceId)
-
-    if (error) {
-      throw error
-    }
-
-    return { success: true }
-  } catch (error: any) {
-    console.error('Failed to delete knowledge source:', error)
-    return { success: false, error: error.message }
-  }
-}

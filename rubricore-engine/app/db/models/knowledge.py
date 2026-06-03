@@ -1,6 +1,8 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text, UniqueConstraint
+import sqlalchemy as sa
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text, UniqueConstraint, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,6 +49,29 @@ class KnowledgeSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
+class Vector(sa.types.UserDefinedType):
+    def get_col_spec(self, **kw):
+        return "vector(768)"
+
+    def bind_processor(self, dialect):
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, list):
+                return f"[{','.join(map(str, value))}]"
+            return value
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                return [float(x) for x in value.strip('[]').split(',')]
+            return value
+        return process
+
+
 class KnowledgeChunk(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "knowledge_chunks"
 
@@ -61,6 +86,8 @@ class KnowledgeChunk(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     character_count: Mapped[int] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="active")
     metadata_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector, nullable=True)
+
 
     __table_args__ = (
         UniqueConstraint("knowledge_source_id", "position", name="uq_knowledge_chunks_source_position"),
@@ -110,4 +137,102 @@ class RubricSuggestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_rubric_suggestions_assessment_item", "target_assessment_item_id"),
         Index("ix_rubric_suggestions_created_by", "created_by_user_id"),
         Index("ix_rubric_suggestions_reviewed_by", "reviewed_by_user_id"),
+    )
+
+
+class KnowledgeDomain(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "knowledge_domains"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_knowledge_domains_org", "organization_id"),
+        UniqueConstraint("organization_id", "name", name="uq_domains_org_name"),
+    )
+
+
+class KnowledgeTopic(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "knowledge_topics"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    subject_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("subjects.id"))
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_knowledge_topics_org", "organization_id"),
+        Index("ix_knowledge_topics_parent", "parent_id"),
+        Index("ix_knowledge_topics_subject", "subject_id"),
+    )
+
+
+class RefinedKnowledgeEntry(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "refined_knowledge_entries"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
+    subject_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("subjects.id", ondelete="CASCADE"), nullable=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    knowledge_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    prerequisites: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    version: Mapped[int] = mapped_column(nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="active")
+    embedding: Mapped[list[float] | None] = mapped_column(Vector, nullable=True)
+
+    __table_args__ = (
+        Index("ix_refined_knowledge_entries_org", "organization_id"),
+        Index("ix_refined_knowledge_entries_topic", "topic_id"),
+        Index("ix_refined_knowledge_entries_subject", "subject_id"),
+    )
+
+
+class RefinedKnowledgeLink(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "refined_knowledge_links"
+
+    entry_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("refined_knowledge_entries.id", ondelete="CASCADE"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_refined_knowledge_links_entry", "entry_id"),
+        Index("ix_refined_knowledge_links_source", "source_id"),
+    )
+
+
+class KnowledgeTag(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "knowledge_tags"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_tags_org_name"),
+    )
+
+
+class ConceptTag(Base):
+    __tablename__ = "concept_tags"
+
+    concept_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("refined_knowledge_entries.id", ondelete="CASCADE"), primary_key=True)
+    tag_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("knowledge_tags.id", ondelete="CASCADE"), primary_key=True)
+
+    __table_args__ = (
+        Index("ix_concept_tags_concept", "concept_id"),
+        Index("ix_concept_tags_tag", "tag_id"),
     )

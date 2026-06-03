@@ -144,7 +144,7 @@ export default function AdminProjectsPage() {
               <tbody className="divide-y divide-slate-850/60 bg-slate-950/20 text-sm">
                 {projects.map((project) => (
                   <tr key={project.id} className="hover:bg-slate-900/20 transition-colors">
-                    <td className="py-4 px-6 font-semibold text-white max-w-xs truncate">
+                    <td className="py-4 px-6 font-semibold text-slate-100 max-w-xs truncate">
                       {project.title}
                     </td>
                     <td className="py-4 px-6 text-slate-400 max-w-md truncate">

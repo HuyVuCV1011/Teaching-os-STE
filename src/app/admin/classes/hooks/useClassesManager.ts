@@ -18,8 +18,10 @@ export function useClassesManager(initialAction: string | null) {
     status: 'upcoming',
     start_date: '',
     end_date: '',
+    course_id: '', // Added primary course selection
   })
   const [showClassForm, setShowClassForm] = useState(initialAction === 'new')
+  const [editingClassId, setEditingClassId] = useState<string | null>(null)
 
   // Cohort Mapping / Course Mapping State
   const [selectedClass, setSelectedClass] = useState<any | null>(null)
@@ -176,8 +178,8 @@ export function useClassesManager(initialAction: string | null) {
         { data: classesData },
         { data: coursesData },
       ] = await Promise.all([
-        supabase.from('classes').select('*').order('created_at', { ascending: false }),
-        supabase.from('courses').select('*').neq('status', 'archived').order('title'),
+        supabase.from('classes').select('*, courses(id, title, subjects(id, name))').order('created_at', { ascending: false }),
+        supabase.from('courses').select('*, subjects(id, name)').neq('status', 'archived').order('title'),
       ])
 
       setClasses(classesData || [])
@@ -189,13 +191,56 @@ export function useClassesManager(initialAction: string | null) {
     }
   }
 
-  const handleCreateClass = async (e: React.FormEvent) => {
+  const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!classForm.name || !classForm.class_code || !classForm.start_date || !classForm.end_date) return
 
     try {
-      const { error } = await supabase.from('classes').insert([classForm])
-      if (error) throw error
+      let classId = editingClassId
+      const cohortPayload = {
+        name: classForm.name,
+        class_code: classForm.class_code,
+        status: classForm.status,
+        start_date: classForm.start_date,
+        end_date: classForm.end_date,
+        course_id: classForm.course_id || null,
+      }
+
+      if (editingClassId) {
+        const { error } = await supabase
+          .from('classes')
+          .update(cohortPayload)
+          .eq('id', editingClassId)
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase
+          .from('classes')
+          .insert([cohortPayload])
+          .select()
+          .single()
+        if (error) throw error
+        classId = data.id
+      }
+
+      // Automatically map primary course to class_courses join table
+      if (classForm.course_id && classId) {
+        const { data: existingMap } = await supabase
+          .from('class_courses')
+          .select('id')
+          .eq('class_id', classId)
+          .eq('course_id', classForm.course_id)
+          .maybeSingle()
+
+        if (!existingMap) {
+          const { error: mapError } = await supabase.from('class_courses').insert([
+            {
+              class_id: classId,
+              course_id: classForm.course_id,
+            },
+          ])
+          if (mapError) console.error('Failed to auto-map course:', mapError)
+        }
+      }
 
       setClassForm({
         name: '',
@@ -203,14 +248,62 @@ export function useClassesManager(initialAction: string | null) {
         status: 'upcoming',
         start_date: '',
         end_date: '',
+        course_id: '',
       })
+      setEditingClassId(null)
       setShowClassForm(false)
-      fetchData()
+      
+      // Refresh list
+      await fetchData()
+
+      // Refresh selected class view if we edited it
+      if (classId && selectedClass?.id === classId) {
+        const { data: updatedClass } = await supabase
+          .from('classes')
+          .select('*, courses(id, title, subjects(id, name))')
+          .eq('id', classId)
+          .single()
+        if (updatedClass) {
+          setSelectedClass(updatedClass)
+          // Refetch lesson schedule layout since primary course might have changed
+          await handleSelectClass(updatedClass)
+        }
+      }
+
       router.replace('/admin/classes')
     } catch (err: any) {
-      alert(`Failed to create class cohort: ${err.message}`)
+      alert(`Failed to save class cohort: ${err.message}`)
     }
   }
+
+  const triggerEditClass = (cohort: any) => {
+    setEditingClassId(cohort.id)
+    setClassForm({
+      name: cohort.name || '',
+      class_code: cohort.class_code || '',
+      status: cohort.status || 'upcoming',
+      start_date: cohort.start_date || '',
+      end_date: cohort.end_date || '',
+      course_id: cohort.course_id || '',
+    })
+    setShowClassForm(true)
+  }
+
+  const cancelEditClass = () => {
+    setEditingClassId(null)
+    setClassForm({
+      name: '',
+      class_code: '',
+      status: 'upcoming',
+      start_date: '',
+      end_date: '',
+      course_id: '',
+    })
+    setShowClassForm(false)
+  }
+
+  // Alias to preserve component references
+  const handleCreateClass = handleSaveClass;
 
   const handleDeleteClass = async (classId: string) => {
     if (!confirm('Are you sure you want to delete this cohort? All student submissions and scheduling will be removed.')) return
@@ -236,7 +329,7 @@ export function useClassesManager(initialAction: string | null) {
     try {
       const { data: mappedCourses } = await supabase
         .from('class_courses')
-        .select('*, courses(id, title, slug)')
+        .select('*, courses(id, title, slug, subject_id, subjects(id, name))')
         .eq('class_id', cohort.id)
 
       setClassCourses(mappedCourses || [])
@@ -482,6 +575,10 @@ export function useClassesManager(initialAction: string | null) {
     analyticsAssignments,
     analyticsLoading,
     handleCreateClass,
+    handleSaveClass,
+    editingClassId,
+    triggerEditClass,
+    cancelEditClass,
     handleDeleteClass,
     handleSelectClass,
     handleEnrollStudent,

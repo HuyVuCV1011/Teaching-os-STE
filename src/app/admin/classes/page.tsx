@@ -35,6 +35,7 @@ function AdminClassesContent() {
         {/* Cohorts Left Sidebar */}
         <CohortSidebar
           classes={manager.classes}
+          courses={manager.courses}
           selectedClass={manager.selectedClass}
           showClassForm={manager.showClassForm}
           setShowClassForm={manager.setShowClassForm}
@@ -43,6 +44,9 @@ function AdminClassesContent() {
           handleCreateClass={manager.handleCreateClass}
           handleDeleteClass={manager.handleDeleteClass}
           handleSelectClass={manager.handleSelectClass}
+          editingClassId={manager.editingClassId}
+          triggerEditClass={manager.triggerEditClass}
+          cancelEditClass={manager.cancelEditClass}
         />
 
         {/* Cohorts Active Workspace */}

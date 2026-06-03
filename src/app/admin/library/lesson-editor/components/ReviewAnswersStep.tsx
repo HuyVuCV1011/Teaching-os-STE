@@ -321,52 +321,58 @@ export function ReviewAnswersStep({
           </div>
 
           {/* Action Row */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <div className="flex-1 flex gap-2 items-stretch">
+          <div className="flex flex-col lg:flex-row gap-3 pt-2 w-full items-stretch">
+            {/* Model Selector */}
+            <div className="flex-1 min-w-[200px]">
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-400 hover:border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                className="w-full h-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-400 hover:border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
               >
                 {AI_MODEL_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => setIsRAGDrawerOpen(true)}
-                className="py-3 px-4 bg-slate-900 hover:bg-slate-850 text-slate-350 border border-slate-800 hover:border-slate-755 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-1.5 focus-visible:outline-none"
-              >
-                <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
-                <span>RAG ({pinnedChunks.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSuggestAllMissingAnswers}
-                disabled={isSuggestingAll || withoutAnswers === 0}
-                className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-705 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
-              >
-                {isSuggestingAll ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                ) : (
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                )}
-                <span>AI Suggest All Missing</span>
-              </button>
             </div>
 
+            {/* RAG button */}
             <button
               type="button"
-              onClick={() => handleSaveComposer('official')}
+              onClick={() => setIsRAGDrawerOpen(true)}
+              className="py-3 px-4 bg-slate-900 hover:bg-slate-850 text-slate-350 border border-slate-800 hover:border-slate-755 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-1.5 focus-visible:outline-none whitespace-nowrap"
+            >
+              <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
+              <span>RAG ({pinnedChunks.length})</span>
+            </button>
+
+            {/* AI Suggest All Missing button */}
+            <button
+              type="button"
+              onClick={handleSuggestAllMissingAnswers}
+              disabled={isSuggestingAll || withoutAnswers === 0}
+              className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-705 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 whitespace-nowrap"
+            >
+              {isSuggestingAll ? (
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              ) : (
+                <Sparkles className="w-4 h-4 text-blue-600" />
+              )}
+              <span>AI Suggest All Missing</span>
+            </button>
+
+            {/* Save Draft button */}
+            <button
+              type="button"
+              onClick={() => handleSaveComposer('draft')}
               disabled={saving}
-              className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/30"
+              className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-705 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 whitespace-nowrap"
             >
               {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
               ) : (
-                <FileCheck className="w-4 h-4 text-blue-200" />
+                <FileCheck className="w-4 h-4 text-blue-500" />
               )}
-              <span>Finalize & Save</span>
+              <span>Save Draft</span>
             </button>
           </div>
 
@@ -572,7 +578,7 @@ export function ReviewAnswersStep({
                                   onClick={() => {
                                     setSimulatedAnswers(prev => ({ ...prev, [idx]: letter }))
                                   }}
-                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
+                                  className={`flex items-center gap-3 p-3 rounded-xl border text-left text-sm font-semibold transition-all duration-200 ${
                                     isSelected
                                       ? 'bg-blue-600/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-bold'
                                       : 'bg-slate-900 border-slate-850 text-slate-350 hover:bg-slate-850/60 hover:border-slate-800'

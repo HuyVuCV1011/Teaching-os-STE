@@ -296,6 +296,7 @@ class DemoGradingContextResponse(PilotContract):
 class SolutionGenerationRequest(PilotContract):
     model_choice: str = "ollama"
     assignment_text: str
+    knowledge_dossier: str | None = None
 
 
 class SolutionGenerationResponse(PilotContract):
@@ -306,6 +307,7 @@ class RubricGenerationRequest(PilotContract):
     model_choice: str = "ollama"
     assignment_text: str
     solution_text: str
+    knowledge_dossier: str | None = None
 
 
 class RubricGenerationResponse(PilotContract):
@@ -329,6 +331,7 @@ class AssignmentGenerationRequest(PilotContract):
     question_count: int
     generate_sample_data: bool
     lesson_content: str
+    knowledge_dossier: str | None = None
 
 
 class AssignmentGenerationResponse(PilotContract):

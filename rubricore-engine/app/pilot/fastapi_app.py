@@ -143,6 +143,7 @@ def create_app() -> FastAPI:
             solution = AIBroker.generate_solution_key(
                 model_choice=request.model_choice,
                 assignment_text=request.assignment_text,
+                knowledge_dossier=request.knowledge_dossier,
             )
             return SolutionGenerationResponse(solution_key=solution)
         except Exception as e:
@@ -160,6 +161,7 @@ def create_app() -> FastAPI:
                 model_choice=request.model_choice,
                 assignment_text=request.assignment_text,
                 solution_text=request.solution_text,
+                knowledge_dossier=request.knowledge_dossier,
             )
             criteria_list = rubric.get("criteria", [])
             return RubricGenerationResponse(criteria=criteria_list)
@@ -181,6 +183,7 @@ def create_app() -> FastAPI:
                 question_count=request.question_count,
                 generate_sample_data=request.generate_sample_data,
                 lesson_content=request.lesson_content,
+                knowledge_dossier=request.knowledge_dossier,
             )
             questions_list = res.get("questions", [])
             return AssignmentGenerationResponse(questions=questions_list)
@@ -489,35 +492,174 @@ def create_app() -> FastAPI:
         if not any(r in allowed_roles for r in auth_context.roles):
             raise HTTPException(status_code=403, detail="Unauthorized to search knowledge.")
 
-        from app.db.services.knowledge_library import retrieve_candidate_chunks
+        from sqlalchemy import select, text
+        from app.core.config import get_settings
+        from app.ai.gemini import GeminiProvider
+        from app.db.models.knowledge import RefinedKnowledgeEntry, KnowledgeTopic
+
+        settings = get_settings()
+        results = []
+        
+        if settings.gemini_api_key and request.query.strip():
+            try:
+                provider = GeminiProvider(api_key=settings.gemini_api_key)
+                query_vector = provider.embed(request.query)
+                query_vector_str = f"[{','.join(map(str, query_vector))}]"
+                
+                # Perform cosine similarity search on refined_knowledge_entries
+                statement = (
+                    select(RefinedKnowledgeEntry)
+                    .where(
+                        RefinedKnowledgeEntry.organization_id == auth_context.organization_id,
+                        RefinedKnowledgeEntry.status == "active"
+                    )
+                    .order_by(text(f"embedding <=> '{query_vector_str}'"))
+                    .limit(request.limit)
+                )
+                entries = list(db.scalars(statement))
+                
+                for idx, entry in enumerate(entries):
+                    topic_name = "General"
+                    if entry.topic_id:
+                        topic = db.get(KnowledgeTopic, entry.topic_id)
+                        if topic:
+                            topic_name = topic.name
+                            
+                    results.append({
+                        "chunk_id": str(entry.id),
+                        "knowledge_source_id": str(entry.topic_id or ""),
+                        "heading_path": [topic_name],
+                        "content": f"## {entry.title}\n*{entry.summary}*\n\n{entry.content}",
+                        "score": float(idx + 1),
+                        "matched_terms": [],
+                        "citation": {"knowledge_source_title": f"Topic: {topic_name}"},
+                    })
+            except Exception as e:
+                logger.error("Failed vector search on refined entries: %s", e)
+                # Fallback to keyword search
+                terms = request.query.lower().split()
+                statement = (
+                    select(RefinedKnowledgeEntry)
+                    .where(
+                        RefinedKnowledgeEntry.organization_id == auth_context.organization_id,
+                        RefinedKnowledgeEntry.status == "active"
+                    )
+                )
+                all_entries = list(db.scalars(statement))
+                kw_results = []
+                for entry in all_entries:
+                    content_lower = (entry.title + " " + (entry.summary or "") + " " + entry.content).lower()
+                    matched = [t for t in terms if t in content_lower]
+                    if matched:
+                        kw_results.append((len(matched), entry))
+                kw_results.sort(key=lambda x: x[0], reverse=True)
+                for score, entry in kw_results[:request.limit]:
+                    topic_name = "General"
+                    if entry.topic_id:
+                        topic = db.get(KnowledgeTopic, entry.topic_id)
+                        if topic:
+                            topic_name = topic.name
+                    results.append({
+                        "chunk_id": str(entry.id),
+                        "knowledge_source_id": str(entry.topic_id or ""),
+                        "heading_path": [topic_name],
+                        "content": f"## {entry.title}\n*{entry.summary}*\n\n{entry.content}",
+                        "score": float(score),
+                        "matched_terms": [],
+                        "citation": {"knowledge_source_title": f"Topic: {topic_name}"},
+                    })
+        
+        return {"status": "success", "results": results}
+
+
+    class EmbedRequest(BaseModel):
+        contents: list[str]
+
+    @app.post(
+        "/pilot/knowledge/embed",
+    )
+    async def embed_route(
+        request: EmbedRequest,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+    ):
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to generate embeddings.")
+
+        from app.core.config import get_settings
+        from app.ai.gemini import GeminiProvider
+
+        settings = get_settings()
+        if not settings.gemini_api_key:
+            raise HTTPException(status_code=500, detail="Gemini API Key not configured.")
 
         try:
-            allowed_scopes = set(request.allowed_access_scopes)
-            source_ids_set = set(request.source_ids) if request.source_ids else None
-            
-            retrieved = retrieve_candidate_chunks(
-                db,
-                organization_id=auth_context.organization_id,
-                query=request.query,
-                allowed_access_scopes=allowed_scopes,
-                source_ids=source_ids_set,
-                limit=request.limit,
+            provider = GeminiProvider(api_key=settings.gemini_api_key)
+            embeddings = provider.embed_batch(request.contents)
+            return {"status": "success", "embeddings": embeddings}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate embeddings: {e}")
+
+
+    class RefinedKnowledgeSourceRequest(BaseModel):
+        id: UUID
+        type: str
+        title: str
+        content: str
+
+    class RefineKnowledgeRequest(BaseModel):
+        subject_id: UUID | None = None
+        sources: list[RefinedKnowledgeSourceRequest]
+        existing_concepts: list[dict[str, Any]]
+        model_choice: str = "gemini-2.5-flash"
+
+    @app.post(
+        "/pilot/knowledge/refine",
+    )
+    async def refine_knowledge_route(
+        request: RefineKnowledgeRequest,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+    ):
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to refine knowledge.")
+
+        from app.ai.broker import generate_refined_knowledge
+        from app.core.config import get_settings
+        from app.ai.gemini import GeminiProvider
+
+        try:
+            sources_payload = [s.model_dump(mode="json") for s in request.sources]
+            refined_data = generate_refined_knowledge(
+                model_choice=request.model_choice,
+                sources=sources_payload,
+                existing_concepts=request.existing_concepts,
             )
 
-            results = []
-            for r in retrieved:
-                results.append({
-                    "chunk_id": str(r.chunk.id),
-                    "knowledge_source_id": str(r.chunk.knowledge_source_id),
-                    "heading_path": list(r.chunk.heading_path),
-                    "content": r.chunk.content,
-                    "score": r.score,
-                    "matched_terms": r.matched_terms,
-                    "citation": r.citation,
-                })
-            return {"status": "success", "results": results}
+            # Generate embeddings for each concept's content in batch using text-embedding-004
+            settings = get_settings()
+            if settings.gemini_api_key and refined_data.get("entries"):
+                provider = GeminiProvider(api_key=settings.gemini_api_key)
+                contents = []
+                for entry in refined_data["entries"]:
+                    # Create a search context combining title, summary, and content
+                    concept_text = f"Title: {entry.get('title', '')}\nSummary: {entry.get('summary', '')}\nContent:\n{entry.get('content', '')}"
+                    contents.append(concept_text)
+                
+                try:
+                    embeddings = provider.embed_batch(contents)
+                    for entry, emb in zip(refined_data["entries"], embeddings):
+                        entry["embedding"] = emb
+                except Exception as emb_err:
+                    logger.warning("Failed to generate batch embeddings for refined concepts: %s", emb_err)
+            
+            return {
+                "status": "success",
+                "entries": refined_data.get("entries", [])
+            }
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Knowledge search failed: {e}")
+            logger.error("Failed to refine knowledge in FastAPI: %s", e)
+            raise HTTPException(status_code=500, detail=str(e))
 
     return app
 

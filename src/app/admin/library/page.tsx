@@ -10,7 +10,56 @@ import { BookOpen, ClipboardList, Sparkles, FolderOpen } from 'lucide-react'
 import { CourseRegistrySidebar } from './components/CourseRegistrySidebar'
 import { SyllabusTimelineCanvas } from './components/SyllabusTimelineCanvas'
 import { SubjectsTaxonomyBento } from './components/SubjectsTaxonomyBento'
-import { KnowledgeBaseTab } from './components/KnowledgeBaseTab'
+import { RefinedKnowledgeTab } from './components/RefinedKnowledgeTab'
+
+interface Subject {
+  id: string
+  name: string
+  slug: string
+  description?: string
+}
+
+interface Course {
+  id: string
+  title: string
+  slug: string
+  subject_id: string
+  description?: string
+  status: string
+  subjects?: {
+    name: string
+  }
+}
+
+interface Lesson {
+  id: string
+  module_id: string
+  title: string
+  order_index: number
+  content: string
+}
+
+interface Module {
+  id: string
+  course_id: string
+  title: string
+  order_index: number
+  lessons?: Lesson[]
+}
+
+interface SubjectForm {
+  name: string
+  slug: string
+  description: string
+}
+
+interface CourseForm {
+  title: string
+  slug: string
+  subject_id: string
+  description: string
+  status: string
+}
 
 function AdminLibraryContent() {
   const router = useRouter()
@@ -21,25 +70,20 @@ function AdminLibraryContent() {
   const [loading, setLoading] = useState(true)
 
   // Database lists
-  const [subjects, setSubjects] = useState<any[]>([])
-  const [courses, setCourses] = useState<any[]>([])
-  const [rubrics, setRubrics] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
 
   // Form states
-  const [subjectForm, setSubjectForm] = useState({ name: '', slug: '', description: '' })
-  const [courseForm, setCourseForm] = useState({ title: '', slug: '', subject_id: '', description: '', status: 'draft' })
-  
-  // Rubrics & criteria form states (preserved from original database mappings)
-  const [rubricForm, setRubricForm] = useState({ title: '', description: '' })
-  const [criteria, setCriteria] = useState<any[]>([{ name: '', max_points: 10, weight: 1.0 }])
+  const [subjectForm, setSubjectForm] = useState<SubjectForm>({ name: '', slug: '', description: '' })
+  const [courseForm, setCourseForm] = useState<CourseForm>({ title: '', slug: '', subject_id: '', description: '', status: 'draft' })
 
   // UI state
   const [showSubjectForm, setShowSubjectForm] = useState(false)
   const [showCourseForm, setShowCourseForm] = useState(false)
 
   // Syllabus configuration state
-  const [selectedCourse, setSelectedCourse] = useState<any | null>(null)
-  const [courseModules, setCourseModules] = useState<any[]>([])
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [courseModules, setCourseModules] = useState<Module[]>([])
   const [moduleForm, setModuleForm] = useState({ title: '', order_index: 1 })
   const [lessonForm, setLessonForm] = useState({ title: '', order_index: 1, moduleId: '' })
   const [showModuleForm, setShowModuleForm] = useState(false)
@@ -57,16 +101,13 @@ function AdminLibraryContent() {
       const [
         { data: subjectsData },
         { data: coursesData },
-        { data: rubricsData },
       ] = await Promise.all([
         supabase.from('subjects').select('*').order('name'),
         supabase.from('courses').select('*, subjects(name)').neq('status', 'archived').order('created_at', { ascending: false }),
-        supabase.from('rubrics').select('*, rubric_criteria(*)').order('created_at', { ascending: false }),
       ])
 
-      setSubjects(subjectsData || [])
-      setCourses(coursesData || [])
-      setRubrics(rubricsData || [])
+      setSubjects((subjectsData || []) as Subject[])
+      setCourses((coursesData || []) as Course[])
     } catch (error) {
       console.error('Error fetching CMS data:', error)
     } finally {
@@ -92,8 +133,9 @@ function AdminLibraryContent() {
       setSubjectForm({ name: '', slug: '', description: '' })
       setShowSubjectForm(false)
       fetchData()
-    } catch (err: any) {
-      alert(`Failed to create subject: ${err.message}`)
+    } catch (err) {
+      const error = err as Error
+      alert(`Failed to create subject: ${error.message}`)
     }
   }
 
@@ -109,13 +151,14 @@ function AdminLibraryContent() {
       setCourseForm({ title: '', slug: '', subject_id: '', description: '', status: 'draft' })
       setShowCourseForm(false)
       fetchData()
-    } catch (err: any) {
-      alert(`Failed to create course: ${err.message}`)
+    } catch (err) {
+      const error = err as Error
+      alert(`Failed to create course: ${error.message}`)
     }
   }
 
   // Fetch course modules and lessons for syllabus mapper
-  const handleSelectCourse = async (course: any) => {
+  const handleSelectCourse = async (course: Course) => {
     setSelectedCourse(course)
     setLoading(true)
     try {
@@ -126,7 +169,7 @@ function AdminLibraryContent() {
         .order('order_index')
         .order('order_index', { foreignTable: 'lessons', ascending: true })
 
-      setCourseModules(modulesData || [])
+      setCourseModules((modulesData || []) as Module[])
     } catch (error) {
       console.error('Error fetching modules:', error)
     } finally {
@@ -151,8 +194,9 @@ function AdminLibraryContent() {
       setModuleForm({ title: '', order_index: courseModules.length + 2 })
       setShowModuleForm(false)
       handleSelectCourse(selectedCourse)
-    } catch (err: any) {
-      alert(`Failed to add module: ${err.message}`)
+    } catch (err) {
+      const error = err as Error
+      alert(`Failed to add module: ${error.message}`)
     }
   }
 
@@ -183,10 +227,11 @@ function AdminLibraryContent() {
       if (redirectToEditor && newLessonId) {
         router.push(`/admin/library/lesson-editor?lessonId=${newLessonId}`)
       } else {
-        handleSelectCourse(selectedCourse)
+        handleSelectCourse(selectedCourse!)
       }
-    } catch (err: any) {
-      alert(`Failed to add lesson: ${err.message}`)
+    } catch (err) {
+      const error = err as Error
+      alert(`Failed to add lesson: ${error.message}`)
     }
   }
 
@@ -219,9 +264,12 @@ function AdminLibraryContent() {
         .eq('id', targetMod.id)
       if (err2) throw err2
 
-      await handleSelectCourse(selectedCourse)
-    } catch (err: any) {
-      alert(`Failed to move module: ${err.message}`)
+      if (selectedCourse) {
+        await handleSelectCourse(selectedCourse)
+      }
+    } catch (err) {
+      const error = err as Error
+      alert(`Failed to move module: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -229,10 +277,10 @@ function AdminLibraryContent() {
 
   // Move Lesson (Up / Down)
   const handleMoveLesson = async (lessonId: string, direction: 'up' | 'down') => {
-    let targetModule: any = null
+    let targetModule: Module | null = null
     let currentIdx = -1
     for (const mod of courseModules) {
-      currentIdx = mod.lessons?.findIndex((l: any) => l.id === lessonId) ?? -1
+      currentIdx = mod.lessons?.findIndex((l) => l.id === lessonId) ?? -1
       if (currentIdx !== -1) {
         targetModule = mod
         break
@@ -242,10 +290,11 @@ function AdminLibraryContent() {
     if (!targetModule || currentIdx === -1) return
 
     const targetIdx = direction === 'up' ? currentIdx - 1 : currentIdx + 1
-    if (targetIdx < 0 || targetIdx >= targetModule.lessons.length) return
+    const lessonsList = targetModule.lessons || []
+    if (targetIdx < 0 || targetIdx >= lessonsList.length) return
 
-    const currentLess = targetModule.lessons[currentIdx]
-    const targetLess = targetModule.lessons[targetIdx]
+    const currentLess = lessonsList[currentIdx]
+    const targetLess = lessonsList[targetIdx]
 
     // Swap order indices
     const currentOrder = currentLess.order_index
@@ -265,9 +314,12 @@ function AdminLibraryContent() {
         .eq('id', targetLess.id)
       if (err2) throw err2
 
-      await handleSelectCourse(selectedCourse)
-    } catch (err: any) {
-      alert(`Failed to move lesson: ${err.message}`)
+      if (selectedCourse) {
+        await handleSelectCourse(selectedCourse)
+      }
+    } catch (err) {
+      const error = err as Error
+      alert(`Failed to move lesson: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -281,7 +333,7 @@ function AdminLibraryContent() {
           <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-blue-500/5 to-indigo-500/5 pointer-events-none" />
           <div className="relative z-10 space-y-1">
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 flex items-center gap-3">
-              <Sparkles className="w-7 h-7 text-blue-600 animate-pulse shrink-0" /> Educational CMS Workspace
+              <Sparkles className="w-7 h-7 text-blue-650 animate-pulse shrink-0" /> Educational CMS Workspace
             </h1>
             <p className="text-slate-500 text-sm font-medium leading-relaxed">
               Configure course syllabus mapping, subjects taxonomy, and reusable lesson structures.
@@ -289,11 +341,11 @@ function AdminLibraryContent() {
           </div>
           <Link
             href="/admin/library/assignments"
-            className="group px-5 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700 text-slate-100 font-semibold text-sm transition-all duration-300 flex items-center gap-2.5 shadow-sm active:scale-[0.98] z-10 shrink-0"
+            className="group px-5 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800/85 hover:border-slate-700 text-slate-100 font-semibold text-sm transition-all duration-300 flex items-center gap-2.5 shadow-sm active:scale-[0.98] z-10 shrink-0"
           >
-            <ClipboardList className="w-4 h-4 text-blue-600 transition-transform group-hover:scale-110" /> 
+            <ClipboardList className="w-4 h-4 text-blue-650 transition-transform group-hover:scale-110" /> 
             <span>Manage Assignments</span>
-            <span className="w-5 h-5 rounded-full bg-blue-500/10 text-[10px] text-blue-600 flex items-center justify-center font-bold">→</span>
+            <span className="w-5 h-5 rounded-full bg-blue-500/10 text-[10px] text-blue-650 flex items-center justify-center font-bold">→</span>
           </Link>
         </div>
       </div>
@@ -396,7 +448,7 @@ function AdminLibraryContent() {
             )}
 
             {activeTab === 'knowledge' && (
-              <KnowledgeBaseTab />
+              <RefinedKnowledgeTab />
             )}
           </>
         )}

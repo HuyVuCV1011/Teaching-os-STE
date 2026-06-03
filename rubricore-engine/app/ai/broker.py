@@ -15,6 +15,7 @@ from app.ai.prompts import (
     build_rubric_messages,
     build_solution_key_messages,
     build_parse_questions_messages,
+    build_refined_knowledge_extraction_messages,
 )
 
 logger = logging.getLogger("rubricore_worker")
@@ -57,10 +58,10 @@ def get_provider(model_choice: str = "ollama") -> Any:
     return OllamaGradingProvider.from_settings(settings)
 
 
-def generate_solution_key(model_choice: str, assignment_text: str) -> str:
+def generate_solution_key(model_choice: str, assignment_text: str, knowledge_dossier: str | None = None) -> str:
     """AI generates a draft solution key for the given assignment questions."""
     provider = get_provider(model_choice)
-    messages = build_solution_key_messages(assignment_text)
+    messages = build_solution_key_messages(assignment_text, knowledge_dossier)
     system_instruction = messages[0]["content"]
     user_prompt = messages[1]["content"]
 
@@ -73,10 +74,10 @@ def generate_solution_key(model_choice: str, assignment_text: str) -> str:
         return raw_json
 
 
-def generate_rubric(model_choice: str, assignment_text: str, solution_text: str) -> dict[str, Any]:
+def generate_rubric(model_choice: str, assignment_text: str, solution_text: str, knowledge_dossier: str | None = None) -> dict[str, Any]:
     """AI generates a complete rubric schema with criteria, weights, and match rules."""
     provider = get_provider(model_choice)
-    messages = build_rubric_messages(assignment_text, solution_text)
+    messages = build_rubric_messages(assignment_text, solution_text, knowledge_dossier)
     system_instruction = messages[0]["content"]
     user_prompt = messages[1]["content"]
 
@@ -95,6 +96,7 @@ def generate_assignment_questions(
     question_count: int,
     generate_sample_data: bool,
     lesson_content: str,
+    knowledge_dossier: str | None = None,
 ) -> dict[str, Any]:
     """AI generates structured assignment questions based on lesson content."""
     provider = get_provider(model_choice)
@@ -104,6 +106,7 @@ def generate_assignment_questions(
         question_count=question_count,
         generate_sample_data=generate_sample_data,
         lesson_content=lesson_content,
+        knowledge_dossier=knowledge_dossier,
     )
     system_instruction = messages[0]["content"]
     user_prompt = messages[1]["content"]
@@ -166,6 +169,25 @@ def suggest_batch_question_answers(
         return _parse_json_response(raw_response)
     except Exception as e:
         raise RuntimeError(f"AI batch suggest failed to parse response: {e}") from e
+
+
+def generate_refined_knowledge(
+    model_choice: str,
+    sources: list[dict[str, Any]],
+    existing_concepts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """AI extracts refined concepts from raw sources, deduplicating using existing context."""
+    provider = get_provider(model_choice)
+    messages = build_refined_knowledge_extraction_messages(sources, existing_concepts)
+    system_instruction = messages[0]["content"]
+    user_prompt = messages[1]["content"]
+
+    try:
+        raw_json = provider.generate(system_instruction, user_prompt)
+        return _parse_json_response(raw_json)
+    except Exception as e:
+        logger.error("AI concept refinement failed: %s", e)
+        raise RuntimeError(f"AI concept refinement failed: {e}") from e
 
 
 def _parse_json_response(raw_json: str) -> dict[str, Any]:
@@ -242,9 +264,6 @@ class AIBroker:
     """
     Brokers prompt requests to the configured LLM engine.
     Supports local Ollama and Google Gemini.
-
-    Deprecated: Use the module-level functions directly.
-    This class is kept for backward compatibility.
     """
 
     @classmethod
@@ -252,12 +271,12 @@ class AIBroker:
         return get_provider(model_choice)
 
     @classmethod
-    def generate_solution_key(cls, model_choice: str, assignment_text: str) -> str:
-        return generate_solution_key(model_choice, assignment_text)
+    def generate_solution_key(cls, model_choice: str, assignment_text: str, knowledge_dossier: str | None = None) -> str:
+        return generate_solution_key(model_choice, assignment_text, knowledge_dossier)
 
     @classmethod
-    def generate_rubric(cls, model_choice: str, assignment_text: str, solution_text: str) -> dict[str, Any]:
-        return generate_rubric(model_choice, assignment_text, solution_text)
+    def generate_rubric(cls, model_choice: str, assignment_text: str, solution_text: str, knowledge_dossier: str | None = None) -> dict[str, Any]:
+        return generate_rubric(model_choice, assignment_text, solution_text, knowledge_dossier)
 
     @classmethod
     def generate_assignment_questions(
@@ -268,6 +287,7 @@ class AIBroker:
         question_count: int,
         generate_sample_data: bool,
         lesson_content: str,
+        knowledge_dossier: str | None = None,
     ) -> dict[str, Any]:
         return generate_assignment_questions(
             model_choice,
@@ -276,6 +296,7 @@ class AIBroker:
             question_count,
             generate_sample_data,
             lesson_content,
+            knowledge_dossier,
         )
 
     @classmethod
@@ -300,3 +321,12 @@ class AIBroker:
             materials_text,
             lesson_context,
         )
+
+    @classmethod
+    def generate_refined_knowledge(
+        cls,
+        model_choice: str,
+        sources: list[dict[str, Any]],
+        existing_concepts: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        return generate_refined_knowledge(model_choice, sources, existing_concepts)

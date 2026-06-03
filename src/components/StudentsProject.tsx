@@ -51,7 +51,7 @@ const StudentsProject = () => {
   }
 
   return (
-    <section className="section" id="projects">
+    <section className="section">
       <div className="container">
         <div className="section-head">
           <h2 className="section-title">Sản phẩm của học viên.</h2>

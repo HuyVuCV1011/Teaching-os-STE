@@ -17,8 +17,10 @@ export default function Home() {
       <Header />
       <Hero />
       <Experience />
-      <ConsultingProject />
-      <StudentsProject />
+      <div id="projects">
+        <ConsultingProject />
+        <StudentsProject />
+      </div>
     </main>
   )
 }

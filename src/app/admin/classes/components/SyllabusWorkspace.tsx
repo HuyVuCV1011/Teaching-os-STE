@@ -48,6 +48,17 @@ export function SyllabusWorkspace({
   setBulkForm,
   handleBulkSchedule,
 }: SyllabusWorkspaceProps) {
+  // Group courses by subject taxonomy
+  const availableCourses = courses.filter((co) => !classCourses.some((cc) => cc.course_id === co.id))
+  const coursesBySubject: Record<string, any[]> = {}
+  availableCourses.forEach((course) => {
+    const subjectName = course.subjects?.name || 'General Courses'
+    if (!coursesBySubject[subjectName]) {
+      coursesBySubject[subjectName] = []
+    }
+    coursesBySubject[subjectName].push(course)
+  })
+
   return (
     <div className="space-y-8">
       {/* Mapped Courses section */}
@@ -65,13 +76,15 @@ export function SyllabusWorkspace({
             className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
           >
             <option value="">Choose Course to Assign</option>
-            {courses
-              .filter((co) => !classCourses.some((cc) => cc.course_id === co.id))
-              .map((co) => (
-                <option key={co.id} value={co.id}>
-                  {co.title}
-                </option>
-              ))}
+            {Object.entries(coursesBySubject).map(([subjectName, list]) => (
+              <optgroup key={subjectName} label={subjectName} className="bg-slate-950 text-slate-400 text-xs font-semibold">
+                {list.map((co) => (
+                  <option key={co.id} value={co.id} className="text-white bg-slate-950 text-xs">
+                    {co.title}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
           </select>
           <button
             type="submit"
@@ -87,27 +100,45 @@ export function SyllabusWorkspace({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {classCourses.map((cc) => (
-              <div
-                key={cc.id}
-                className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-slate-700 hover:border-slate-700 transition-all"
-              >
-                <div className="min-w-0">
-                  <span className="block text-xs font-bold text-slate-205 truncate">
-                    {cc.courses?.title}
-                  </span>
-                  <span className="block text-xs text-slate-500 font-mono mt-0.5">
-                    slug: {cc.courses?.slug}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleUnassignCourse(cc.id)}
-                  className="p-1.5 rounded hover:bg-rose-500/10 text-slate-505 hover:text-rose-450 transition-colors"
+            {classCourses.map((cc) => {
+              const isPrimary = selectedClass?.course_id === cc.course_id
+              return (
+                <div
+                  key={cc.id}
+                  className={`flex justify-between items-center p-3 rounded-xl border transition-all ${
+                    isPrimary
+                      ? 'border-blue-500 bg-blue-500/5 shadow-md shadow-blue-500/5'
+                      : 'bg-slate-955/40 border border-slate-700 hover:border-slate-600'
+                  }`}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-205 truncate">
+                        {cc.courses?.title}
+                      </span>
+                      {isPrimary && (
+                        <span className="text-[9px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2 text-[10px] text-slate-500 mt-1">
+                      {cc.courses?.subjects && (
+                        <span>Subject: {cc.courses.subjects.name}</span>
+                      )}
+                      {cc.courses?.subjects && <span>•</span>}
+                      <span className="font-mono">slug: {cc.courses?.slug}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleUnassignCourse(cc.id)}
+                    className="p-1.5 rounded hover:bg-rose-500/10 text-slate-505 hover:text-rose-450 transition-colors ml-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

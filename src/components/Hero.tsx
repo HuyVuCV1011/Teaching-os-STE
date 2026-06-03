@@ -53,7 +53,7 @@ const Hero = () => {
   })
 
   return (
-    <section className="section py-10 md:py-16 mt-28">
+    <section id="about" className="section py-10 md:py-16 mt-28">
       <motion.div
         variants={heroVariant}
         initial="start"

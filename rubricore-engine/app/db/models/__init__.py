@@ -14,7 +14,17 @@ from app.db.models.grading import (
     GradingRun,
 )
 from app.db.models.identity import Learner, Organization, User
-from app.db.models.knowledge import KnowledgeChunk, KnowledgeSource, RubricSuggestion
+from app.db.models.knowledge import (
+    KnowledgeChunk,
+    KnowledgeSource,
+    RubricSuggestion,
+    KnowledgeTopic,
+    RefinedKnowledgeEntry,
+    RefinedKnowledgeLink,
+    KnowledgeDomain,
+    KnowledgeTag,
+    ConceptTag,
+)
 from app.db.models.review import ReviewTask, TeacherOverride, TeacherReview
 from app.db.models.rubric import (
     AnswerKey,
@@ -50,6 +60,12 @@ __all__ = [
     "GradingRun",
     "KnowledgeSource",
     "KnowledgeChunk",
+    "KnowledgeTopic",
+    "RefinedKnowledgeEntry",
+    "RefinedKnowledgeLink",
+    "KnowledgeDomain",
+    "KnowledgeTag",
+    "ConceptTag",
     "Learner",
     "Organization",
     "OutputType",

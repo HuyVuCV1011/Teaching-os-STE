@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import ScrollToTopButton from '@/components/ui/ScrollToTopButton'
 import { ConditionalFloatingNav } from '@/components/ConditionalFloatingNav'
-// import Footer from '@/components/Footer'
+import Footer from '@/components/Footer'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -32,7 +32,7 @@ export default function RootLayout({
       >
         <ConditionalFloatingNav />
         {children}
-        {/* <Footer /> */}
+        <Footer />
         <ScrollToTopButton />
       </body>
     </html>

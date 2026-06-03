@@ -301,7 +301,7 @@ function LessonEditorInner() {
                 onClick={handleNextStep}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/30"
               >
-                {currentStep === 4 || (currentStep === 2 && !hasAssignment) ? 'Save & Finish' : 'Next Step →'}
+                {currentStep === 4 || (currentStep === 2 && !hasAssignment) ? 'Finalize & Save' : 'Next Step →'}
               </button>
             </div>
           </div>

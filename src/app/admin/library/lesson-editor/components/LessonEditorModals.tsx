@@ -29,6 +29,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import DocumentViewer from '@/components/DocumentViewer'
+import { AdminMaterialPreviewCard } from './AdminMaterialPreviewCard'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import { renderSimpleMarkdown } from '@/lib/markdown'
 import { cleanOptionText } from '../hooks/useLessonEditorState'
@@ -36,6 +37,15 @@ import { getSignedUrlAction } from '@/app/admin/library/actions/materials'
 
 interface LessonEditorModalsProps {
   state: any
+}
+
+const getGridColsClass = (layout: string) => {
+  switch (layout) {
+    case '1-col': return 'grid-cols-1'
+    case '2-cols': return 'grid-cols-1 sm:grid-cols-2'
+    case '3-cols': return 'grid-cols-1 md:grid-cols-3'
+    default: return 'grid-cols-1'
+  }
 }
 
 export function LessonEditorModals({ state }: LessonEditorModalsProps) {
@@ -57,6 +67,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
     setMarkdownTemplates,
     downloadAllowed,
     materials,
+    gridLayout,
+    cellMaterials,
     title,
     hasAssignment,
     assignmentForm,
@@ -300,74 +312,86 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
                 {/* Handouts Materials List */}
                 <div className="space-y-4">
-                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                    Mapped Materials & Handouts ({materials.length})
-                  </h5>
-
                   {materials.length === 0 ? (
                     <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-955/20 text-slate-400 text-xs">
                       No materials mapped to this lesson yet.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {materials.map((m, idx) => {
-                        const styles = getMaterialTypeStyles(m.type)
-                        const Icon = getMaterialIcon(m.type)
-                        return (
-                          <div key={m.id || idx} className="p-4 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-800 transition-all">
-                            <div className="min-w-0 flex-1 space-y-1">
-                              <div className="flex items-center gap-1.5">
-                                <Icon className={`w-3.5 h-3.5 ${styles.iconColor} shrink-0`} />
-                                <span className="block text-xs font-semibold text-slate-200 truncate">
-                                  {m.title}
-                                </span>
-                              </div>
-                              {m.note && (
-                                <span className="block text-[10px] text-slate-400 truncate">
-                                  {m.note}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex gap-2 shrink-0">
-                              {['pdf', 'docx', 'csv', 'xlsx'].includes(m.type) && previewSignedUrls[m.id] && (
-                                <button
-                                  type="button"
-                                  onClick={() => window.open(previewSignedUrls[m.id], '_blank')}
-                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-750 text-slate-305 text-[10px] font-bold border border-slate-700 transition-all"
-                                >
-                                  Preview
-                                </button>
-                              )}
-                              {['link', 'markdown', 'json'].includes(m.type) && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (m.type === 'link') {
-                                      window.open(m.metadata?.link_url || '#', '_blank')
-                                    } else {
-                                      alert(`Previewing custom content: ${m.title}`)
-                                    }
-                                  }}
-                                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-750 text-slate-305 text-[10px] font-bold border border-slate-700 transition-all"
-                                >
-                                  Open
-                                </button>
-                              )}
-                              {downloadAllowed && ['pdf', 'docx', 'csv', 'xlsx', 'json', 'markdown'].includes(m.type) && (
-                                <a
-                                  href={previewSignedUrls[m.id] || '#'}
-                                  download={m.title}
-                                  className="px-2.5 py-1 rounded bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold border border-blue-500/20 transition-all"
-                                >
-                                  Download
-                                </a>
-                              )}
-                            </div>
-                          </div>
+                    (() => {
+                      const gridLayoutVal = gridLayout || '1-col'
+                      const maxCols = gridLayoutVal === '3-cols' ? 3 : gridLayoutVal === '2-cols' ? 2 : 1
+                      
+                      const mappedCellMaterials: Record<number, any[]> = {}
+                      for (let i = 0; i < maxCols; i++) {
+                        const rawList = cellMaterials[i] || []
+                        const list = Array.isArray(rawList) ? rawList : (rawList && rawList.id ? [rawList] : [])
+                        mappedCellMaterials[i] = list.map((rawM: any) => {
+                          const freshM = materials.find((m) => m.id === rawM.id)
+                          const finalM = freshM || rawM
+                          return {
+                            ...finalM,
+                            signedUrl: previewSignedUrls[finalM.id] || finalM.signedUrl || finalM.storage_url
+                          }
+                        })
+                      }
+
+                      const unplaced = materials.filter((m) => 
+                        ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type) &&
+                        !Object.values(mappedCellMaterials).some((colList: any) => 
+                          Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
                         )
-                      })}
-                    </div>
+                      ).map((m) => ({
+                        ...m,
+                        signedUrl: previewSignedUrls[m.id] || m.signedUrl || m.storage_url
+                      }))
+
+                      const hasPlacedMaterials = Object.values(mappedCellMaterials).some(list => list.length > 0)
+
+                      return (
+                        <div className="space-y-8">
+                          {/* 1. Main Grid Layout */}
+                          {hasPlacedMaterials && (
+                            <div className={`grid gap-6 ${getGridColsClass(gridLayoutVal)}`}>
+                              {Array.from({ length: maxCols }).map((_, colIdx) => {
+                                const list = mappedCellMaterials[colIdx] || []
+                                if (list.length === 0) return null
+                                
+                                return (
+                                  <div key={colIdx} className="space-y-6 flex flex-col">
+                                    {list.map((material: any) => (
+                                      <div key={material.id}>
+                                        <AdminMaterialPreviewCard m={material} downloadAllowed={downloadAllowed} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* 2. Unplaced / Additional Handouts */}
+                          {unplaced.length > 0 && (
+                            <div className="pt-8 border-t border-slate-800 space-y-6">
+                              <div>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                  Lesson Handouts & Resources
+                                </h2>
+                                <p className="text-xs text-slate-400">
+                                  Additional documents mapped to this session.
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {unplaced.map((m) => (
+                                  <div key={m.id}>
+                                    <AdminMaterialPreviewCard m={m} downloadAllowed={downloadAllowed} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()
                   )}
                 </div>
               </div>
@@ -638,9 +662,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                             onClick={() => {
                                               setSimulatedAnswers((prev: any) => ({ ...prev, [idx]: letter }))
                                             }}
-                                            className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
+                                            className={`flex items-center gap-3 p-3 rounded-xl border text-left text-sm font-semibold transition-all duration-200 ${
                                               isSelected
-                                                ? 'bg-blue-600/10 border-blue-500 text-slate-105 shadow-sm ring-1 ring-blue-500/25 font-bold'
+                                                ? 'bg-blue-600/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25'
                                                 : 'bg-slate-900 border-slate-850 text-slate-400 hover:bg-slate-850/60 hover:border-slate-800'
                                             }`}
                                           >

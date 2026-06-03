@@ -85,6 +85,26 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  useEffect(() => {
+    if (!url) {
+      setError('No document source provided.')
+      setLoading(false)
+      return
+    }
+    if (
+      !url.startsWith('http://') &&
+      !url.startsWith('https://') &&
+      !url.startsWith('/') &&
+      !url.startsWith('blob:') &&
+      !url.startsWith('data:')
+    ) {
+      setError('Unable to load document. Preview URL is unresolved.')
+      setLoading(false)
+      return
+    }
+    setError(null)
+  }, [url])
+
   return (
     <div
       ref={containerRef}
@@ -161,7 +181,7 @@ export default function DocumentViewer({ url, title }: DocumentViewerProps) {
           </div>
         )}
 
-        {url ? (
+        {url && !error ? (
           <div className="shadow-2xl border border-slate-900 rounded bg-slate-900 overflow-hidden max-w-full">
             <Document
               file={url}

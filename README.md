@@ -1,49 +1,57 @@
-# 🎓 Teaching OS (STE)
-
 <div align="center">
+
+# 🎓 Teaching OS (STE)
 
 [![Teaching OS](https://img.shields.io/badge/Teaching--OS-STE--Edition-4F46E5?style=for-the-badge)](#)
 [![Version](https://img.shields.io/badge/Version-3.0.0--Stable-059669?style=for-the-badge)](#)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](#)
 
-<p align="center">
-  A high-impact educational platform and learning operating system. Evolved from a professional data advisory portfolio, it combines a public showcase presence with private classroom roadmaps, syllabus tracking, interactive document viewports, and automated AI grading workflows.
-</p>
-
-### 🛠️ Built With
+**A high-impact educational platform and learning operating system.**
 
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-<br/>
 [![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 
----
-
-[Explore Codebase Specs](file:///Users/mac/Data/STE/vuth-portfolio-main/codebase_specification.md) • [View Docs Index](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/README.md) • [Features & UAT Verification Guide](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/ELEARNING_FEATURES_VERIFICATION_GUIDE.md)
+<a href="#-concept">Concept</a> ·
+<a href="#-features">Features</a> ·
+<a href="#-workflows">Workflows</a> ·
+<a href="#-ai-grading--model-configurations">AI Grading</a> ·
+<a href="#-quick-start">Quick Start</a>
 
 </div>
 
----
-
-## 🌟 Key Application Surfaces
-
-*   **🌐 Public Showcase Layer**: An elegant portfolio displaying consulting projects, student case studies, process mapping diagrams (React Flow), and visual before/after dashboard comparison sliders.
-*   **🔑 Student Learning Gateway**: A secure area gated by class-code authorization and HTTP-Only cookies, allowing students to access course roadmaps, view materials, and submit assignments securely.
-*   **🛠️ Admin CMS & Grading Terminal**: A centralized management workspace where administrators configure classes, assign syllabi, author lesson content using a guided stepper wizard, reorder syllabus modules/lessons dynamically, and evaluate homework against frozen rubric snapshots.
-*   **🧠 Self-Evolving RAG & Knowledge Base CMS**: A production-grade telemetry panel (`pgvector` + HNSW cosine index) supporting drag-and-drop file ingestion, a real-time playground, and visual semantic search drawer overrides to guide lesson composition.
-*   **📟 Retro-Terminal AI Grading Dossier**: A high-impact CRT electron-beam console displaying ASCII confidence ratings, granular selection grids, and structured telemetry injections for AI-assisted grading assessments.
-*   **⚡ Multi-Format Materials Pipeline**: Automatically processes PDF, DOCX, CSV, and XLSX deliverables, creating polished web readviews and preview grids.
+> Teaching OS evolved from a professional data advisory portfolio into a public showcase presence with private classroom roadmaps, syllabus tracking, interactive document viewports, and automated AI grading workflows.
 
 ---
 
-## 🔁 Core User Workflows
+## 💡 Concept
 
-### 1. The Student Workspace Journey
+Teaching OS (STE) combines a public-facing portfolio, secure student learning journeys, an administrator CMS, a RubriCore grading backend, and a self-evolving RAG knowledge base for instructional material and assessment workflows.
+
+---
+
+## ✨ Features
+
+| Application surface | Description |
+| --- | --- |
+| Public showcase layer | An elegant portfolio displaying consulting projects, student case studies, process mapping diagrams with React Flow, and visual before/after dashboard comparison sliders. |
+| Student learning gateway | A secure area gated by class-code authorization and HTTP-only cookies, allowing students to access course roadmaps, view materials, and submit assignments securely. |
+| Admin CMS and grading terminal | A centralized management workspace where administrators configure classes, assign syllabi, author lesson content using a guided stepper wizard, reorder syllabus modules and lessons dynamically, and evaluate homework against frozen rubric snapshots. |
+| Self-evolving RAG and knowledge base CMS | A production-grade telemetry panel with `pgvector` and HNSW cosine index support for drag-and-drop file ingestion, a real-time playground, and visual semantic search drawer overrides to guide lesson composition. |
+| Retro-terminal AI grading dossier | A high-impact CRT electron-beam console displaying ASCII confidence ratings, granular selection grids, and structured telemetry injections for AI-assisted grading assessments. |
+| Multi-format materials pipeline | Automatically processes PDF, DOCX, CSV, and XLSX deliverables, creating polished web readviews and preview grids. |
+
+---
+
+## 🔁 Workflows
+
+### Student Workspace Journey
+
 ```mermaid
 graph LR
     Gateway["🔑 Student Gateway"] -->|Verify Class Code & Email| Dashboard["🗺️ Learning Roadmap"]
@@ -51,119 +59,152 @@ graph LR
     Syllabus -->|Select Lesson| Viewer["📄 Multi-Format Viewer"]
     Viewer -->|Task Submission| Action["📤 Submit Deliverables"]
 ```
-1.  **Verification**: The learner lands on `/learn` and enters their whitelisted email and active class access code (e.g. `DATA-2026`).
-2.  **Access**: Upon validation, a cookie-based session is created, routing them to `/learn/[classCode]/dashboard`.
-3.  **Roadmap & Lessons**: The student interacts with the custom `React Flow` roadmap and reads PDF/DOCX lectures and previews CSV/XLSX datasets in the secure viewer, tracking their progress.
-4.  **Submission**: Uploads files within the assignment limits; if insertion fails, transactional rollback cleans up uploaded storage items.
 
-### 2. The Administrator CMS & Grading Loop
+| Step | Flow |
+| --- | --- |
+| Verification | The learner lands on `/learn` and enters their whitelisted email and active class access code, such as `DATA-2026`. |
+| Access | Upon validation, a cookie-based session is created, routing them to `/learn/[classCode]/dashboard`. |
+| Roadmap and lessons | The student interacts with the custom `React Flow` roadmap and reads PDF/DOCX lectures and previews CSV/XLSX datasets in the secure viewer, tracking their progress. |
+| Submission | Uploads files within the assignment limits; if insertion fails, transactional rollback cleans up uploaded storage items. |
+
+### Administrator CMS and Grading Loop
+
 ```mermaid
 graph LR
     CMS["🛠️ CMS Library"] -->|Create Course & Rubric| Cohort["🏫 Assign to Class Cohort"]
     Cohort -->|Student Submits Assignment| Grading["⚖️ Evaluation Terminal"]
     Grading -->|Freeze Rubric Snapshot| Publish["📢 Publish Grades"]
 ```
-1.  **Curriculum Design**: Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 4-step wizard in the lesson editor.
-2.  **Class Operations**: Admins setup cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes.
-3.  **Rubric Snapshotting**: Captures a frozen criteria snapshot upon saving assignments to prevent grading drift.
-4.  **Assessment**: Submissions land on `/admin/grading` where admins score homework using criteria-based rubrics.
+
+| Step | Flow |
+| --- | --- |
+| Curriculum design | Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 4-step wizard in the lesson editor. |
+| Class operations | Admins set up cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes. |
+| Rubric snapshotting | Captures a frozen criteria snapshot upon saving assignments to prevent grading drift. |
+| Assessment | Submissions land on `/admin/grading` where admins score homework using criteria-based rubrics. |
 
 ---
 
 ## 🧠 Self-Evolving RAG & Tactical CRT Telemetry
 
-### 1. The Pedagogical Flywheel Ingestion
-Rather than relying solely on static syllabus uploads (such as textbook PDFs or programming guides), the system features a **Self-Evolving Ingestion Flywheel**. 
-When an administrator designs and approves a lesson structure:
+### Pedagogical Flywheel Ingestion
+
+Rather than relying solely on static syllabus uploads, such as textbook PDFs or programming guides, the system features a self-evolving ingestion flywheel.
+
 1. The system aggregates the core lesson body, grading rubrics, assignment questions, and expected answers into a unified Markdown guide.
-2. This guide is sent asynchronously to the RubriCore backend, chunked, and vector-embedded using **Gemini text-embedding-004** inside our PostgreSQL `pgvector` store.
-3. Over time, future generative pipelines (rubric compositions and assignment builders) query this RAG dataset, meaning the AI naturally aligns with the teacher's exact grading standards, pedagogy strictness, and instructional style.
+2. This guide is sent asynchronously to the RubriCore backend, chunked, and vector-embedded using **Gemini text-embedding-004** inside the PostgreSQL `pgvector` store.
+3. Over time, future generative pipelines, including rubric compositions and assignment builders, query this RAG dataset so the AI naturally aligns with the teacher's exact grading standards, pedagogy strictness, and instructional style.
 
-### 2. Reciprocal Rank Fusion (RRF) Hybrid Search
-The system implements a state-of-the-art **RRF hybrid retrieval** query that fuses two complementary strategies:
-* **Vector Semantic Scan**: Searches structural HNSW cosine-similarity coordinates mapped from deep-learning embeddings.
-* **Fallback Keyword Regex Match**: Ensures direct keyword queries (e.g. particular programming structures like `try-except` or precise syntax rules) are matched exactly even if semantic embeddings are temporarily offline.
+### Reciprocal Rank Fusion Hybrid Search
 
-### 3. Monochromatic Retro CRT Dossier
-To bring exceptional visual clarity and tactical precision to teachers, grading suggestions are loaded in a high-contrast monochromatic console modal styled like a classic **phosphor screen scanline terminal**:
-* **Confidence Bar charts**: ASCII block graphs (e.g., `[████████░░] 80% HIGH_CONF`) illustrating the AI model's assessment security.
-* **Score Injection Matrix**: Detailed criterion selectors allowing teachers to cherry-pick which recommendations to feed directly into the canvas.
-* **Transmission Stream**: Monochrome terminal tabs showcasing parsed student answers and connected datasets.
+The system implements a state-of-the-art RRF hybrid retrieval query that fuses two complementary strategies:
+
+| Strategy | Role |
+| --- | --- |
+| Vector semantic scan | Searches structural HNSW cosine-similarity coordinates mapped from deep-learning embeddings. |
+| Fallback keyword regex match | Ensures direct keyword queries, such as `try-except` or precise syntax rules, are matched exactly even if semantic embeddings are temporarily offline. |
+
+### Monochromatic Retro CRT Dossier
+
+To bring exceptional visual clarity and tactical precision to teachers, grading suggestions are loaded in a high-contrast monochromatic console modal styled like a classic phosphor screen scanline terminal.
+
+| Element | Description |
+| --- | --- |
+| Confidence bar charts | ASCII block graphs, such as `[████████░░] 80% HIGH_CONF`, illustrating the AI model's assessment security. |
+| Score injection matrix | Detailed criterion selectors allowing teachers to cherry-pick which recommendations to feed directly into the canvas. |
+| Transmission stream | Monochrome terminal tabs showcasing parsed student answers and connected datasets. |
 
 ---
 
 ## 🤖 AI Grading & Model Configurations
 
-The RubriCore background worker evaluates submissions against rubrics using either local models or cloud-based APIs:
+The RubriCore background worker evaluates submissions against rubrics using either local models or cloud-based APIs.
 
-*   **Google Gemini API (Recommended)**:
-    *   Provides extremely fast, high-accuracy grading utilizing the `gemini-2.5-flash`, `gemini-2.5-pro`, or `gemini-3.1-flash-lite` models.
-    *   To use, add your Gemini API Key in `rubricore-engine/.env`:
-        ```env
-        GEMINI_API_KEY=your_gemini_api_key_here
-        ```
-    *   The worker will automatically route requests through the Gemini API if active.
-*   **Groq Cloud API**:
-    *   Offers lightning-fast, high-end inference for open weights models like `llama-3.3-70b-specdec`.
-    *   To use, add your Groq API Key in `rubricore-engine/.env`:
-        ```env
-        GROQ_API_KEY=your_groq_api_key_here
-        ```
-*   **OpenRouter API (Free Tier Models)**:
-    *   Provides access to multiple open models (such as `google/gemini-2.5-flash:free` and `deepseek/deepseek-r1:free`) with auto-fallback.
-    *   To use, add your OpenRouter API Key in `rubricore-engine/.env`:
-        ```env
-        OPENROUTER_API_KEY=your_openrouter_api_key_here
-        ```
-*   **Local Ollama (Offline Default)**:
-    *   Run grades locally using open-source models for 100% privacy and zero cost.
-    *   **Model-Agnostic Support**: The Ollama integration is fully model-agnostic. You can run local models like **DeepSeek-R1** (excellent for logical reasoning and code grading), **Llama 3.3**, or **Qwen 2.5** by pulling them in Ollama and updating the configuration:
-        ```bash
-        # Pull your desired model
-        ollama pull deepseek-r1
-        ```
-    *   Configure settings in `rubricore-engine/.env`:
-        ```env
-        OLLAMA_BASE_URL=http://localhost:11434
-        OLLAMA_MODEL=deepseek-r1 # Swap to the model pulled above
-        ```
+| Provider | Configuration |
+| --- | --- |
+| Google Gemini API | Recommended for fast, high-accuracy grading with `gemini-2.5-flash`, `gemini-2.5-pro`, or `gemini-3.1-flash-lite`. Add `GEMINI_API_KEY` in `rubricore-engine/.env`. |
+| Groq Cloud API | Supports high-end inference for open weights models like `llama-3.3-70b-specdec`. Add `GROQ_API_KEY` in `rubricore-engine/.env`. |
+| OpenRouter API | Provides access to multiple open models such as `google/gemini-2.5-flash:free` and `deepseek/deepseek-r1:free` with auto-fallback. Add `OPENROUTER_API_KEY` in `rubricore-engine/.env`. |
+| Local Ollama | Runs grades locally with open-source models for privacy and zero cost. Configure `OLLAMA_BASE_URL` and `OLLAMA_MODEL` in `rubricore-engine/.env`. |
+
+Example provider settings:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=deepseek-r1
+```
+
+Pull an Ollama model before using the local provider:
+
+```bash
+ollama pull deepseek-r1
+```
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Configure Secrets
+### Configure Secrets
+
 Copy `.env.example` to `.env.local` inside the root directory, and copy `rubricore-engine/.env.example` to `rubricore-engine/.env`:
+
 ```bash
 cp .env.example .env.local
 cp rubricore-engine/.env.example rubricore-engine/.env
 ```
 
-### 2. Install and Start Development
-Run both services concurrently to enable AI grading:
+### Install and Start Development
 
-**Terminal 1 (Next.js Application)**:
+Run both services concurrently to enable AI grading.
+
+Terminal 1, Next.js application:
+
 ```bash
 npm install
 npm run dev
 ```
 
-**Terminal 2 (RubriCore FastAPI Server & Worker)**:
+Terminal 2, RubriCore FastAPI server and worker:
+
 ```bash
 cd rubricore-engine
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# Start FastAPI web server
 uvicorn app.pilot.fastapi_app:app --host 127.0.0.1 --port 8080
-# Start background worker in another window
 python -m app.worker
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the system.
 
-### 3. Build & Test Production
+### Build and Test Production
+
 ```bash
 npm run build
 npm run start
 ```
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| Web application | Next.js, React, TypeScript |
+| Styling | Tailwind CSS |
+| Data platform | Supabase, PostgreSQL, `pgvector` |
+| Backend worker | Python, FastAPI |
+| Knowledge retrieval | HNSW cosine index, RRF hybrid retrieval |
+| AI providers | Gemini, Groq, OpenRouter, Ollama |
+
+<details>
+<summary>📁 Project References</summary>
+
+- [Explore Codebase Specs](file:///Users/mac/Data/STE/vuth-portfolio-main/codebase_specification.md)
+- [View Docs Index](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/README.md)
+- [Features & UAT Verification Guide](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/ELEARNING_FEATURES_VERIFICATION_GUIDE.md)
+
+</details>
