@@ -60,10 +60,10 @@ export function SyllabusTimelineCanvas({
 
         <div className="flex justify-between items-center pb-6 border-b border-slate-800/60">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            <span className="text-sm font-semibold uppercase tracking-widest text-slate-505">
               Syllabus Planner
             </span>
-            <h3 className="text-xl md:text-2xl font-bold text-slate-100 mt-1 leading-tight">{selectedCourse.title}</h3>
+            <h3 className="text-2xl md:text-3xl font-bold text-slate-100 mt-1 leading-tight">{selectedCourse.title}</h3>
           </div>
           <button
             onClick={() => setShowModuleForm(true)}
@@ -146,7 +146,7 @@ export function SyllabusTimelineCanvas({
                 <div className="p-1 rounded-[1.8rem] bg-slate-900/5 ring-1 ring-slate-800/5 hover:ring-slate-700/20 transition-all duration-300">
                   <div className="bg-slate-950 border border-slate-800/30 p-6 rounded-[calc(1.8rem-0.25rem)] space-y-5 shadow-sm relative">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-slate-100 text-base flex items-center gap-2 group-hover/mod:text-blue-600 transition-colors leading-tight">
+                      <h4 className="font-bold text-slate-100 text-xl flex items-center gap-2 group-hover/mod:text-blue-600 transition-colors leading-tight">
                         {mod.title}
                       </h4>
                       <div className="flex items-center gap-3">
@@ -165,7 +165,6 @@ export function SyllabusTimelineCanvas({
                             disabled={modIdx === courseModules.length - 1}
                             onClick={() => handleMoveModule(mod.id, 'down')}
                             className="w-7 h-7 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-500 hover:text-slate-100 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-500 flex items-center justify-center shadow-sm transition-all"
-                            title="Move Module Down"
                           >
                             <ChevronDown className="w-4 h-4" />
                           </button>
@@ -180,7 +179,7 @@ export function SyllabusTimelineCanvas({
                             })
                             setShowLessonForm(true)
                           }}
-                          className="text-xs text-blue-600 hover:text-blue-500 font-bold flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                          className="text-sm text-blue-600 hover:text-blue-500 font-bold flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2.5 rounded-2xl shadow-sm transition-all"
                         >
                           <Plus className="w-3.5 h-3.5" /> <span>Add Lesson</span>
                         </button>
@@ -250,10 +249,10 @@ export function SyllabusTimelineCanvas({
                           <div className="absolute left-[15px] top-0 bottom-1/2 w-4 border-l-2 border-b-2 border-slate-800/40 rounded-bl-xl pointer-events-none" />
 
                           <div className="flex items-center gap-2.5 z-10">
-                            <span className="text-[11px] text-slate-500 font-mono font-bold">
+                            <span className="text-xs text-slate-505 font-mono font-bold">
                               {mod.order_index}.{lesson.order_index}
                             </span>
-                            <span className="text-sm font-semibold text-slate-100 leading-tight group-hover/less:text-blue-600 transition-colors">
+                            <span className="text-base font-semibold text-slate-100 leading-tight group-hover/less:text-blue-600 transition-colors">
                               {lesson.title}
                             </span>
                           </div>

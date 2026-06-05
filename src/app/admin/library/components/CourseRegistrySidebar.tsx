@@ -41,8 +41,8 @@ export function CourseRegistrySidebar({
       <div className="space-y-6 bg-slate-950 border border-slate-800/30 p-6 rounded-[calc(1.5rem-0.25rem)]">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-lg font-bold text-slate-100">Course Registry</h2>
-            <p className="text-xs text-slate-500 font-medium">Select course to configure roadmap</p>
+            <h2 className="text-xl md:text-2xl font-bold text-slate-100">Course Registry</h2>
+            <p className="text-sm text-slate-550 font-medium">Select course to configure roadmap</p>
           </div>
           <button
             onClick={() => setShowCourseForm(!showCourseForm)}
@@ -158,11 +158,11 @@ export function CourseRegistrySidebar({
               >
                 {isSelected && <span className="w-1 h-full bg-blue-500 absolute left-0 top-0" />}
                 <div className="flex justify-between items-center w-full">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50/50 px-2.5 py-0.5 rounded-md border border-blue-500/20 shadow-sm">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50/50 px-3 py-1 rounded-md border border-blue-500/20 shadow-sm">
                     {course.subjects?.name || 'Unassigned'}
                   </span>
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
                       course.status === 'published'
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                         : 'bg-slate-900 border-slate-800 text-slate-500'
@@ -177,10 +177,10 @@ export function CourseRegistrySidebar({
                   </span>
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-100 text-base group-hover:text-blue-600 transition-colors leading-snug">
+                  <h4 className="font-bold text-slate-100 text-lg group-hover:text-blue-600 transition-colors leading-snug">
                     {course.title}
                   </h4>
-                  <p className="text-sm text-slate-500/90 leading-relaxed font-normal mt-1.5 line-clamp-2">
+                  <p className="text-base text-slate-505 leading-relaxed font-normal mt-1.5 line-clamp-2">
                     {course.description || 'No description provided.'}
                   </p>
                 </div>

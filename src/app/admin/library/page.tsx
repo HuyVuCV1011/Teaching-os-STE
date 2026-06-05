@@ -364,7 +364,7 @@ function AdminLibraryContent() {
       <div className="flex bg-slate-900/10 p-1.5 rounded-full border border-slate-800/20 backdrop-blur-md w-fit gap-2 shadow-sm">
         <button
           onClick={() => handleTabChange('courses')}
-          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
             activeTab === 'courses'
               ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
               : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'
@@ -376,7 +376,7 @@ function AdminLibraryContent() {
 
         <button
           onClick={() => handleTabChange('subjects')}
-          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
             activeTab === 'subjects'
               ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
               : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'
@@ -388,7 +388,7 @@ function AdminLibraryContent() {
 
         <button
           onClick={() => handleTabChange('knowledge')}
-          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
             activeTab === 'knowledge'
               ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
               : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'

@@ -324,10 +324,10 @@ export function RefinedKnowledgeTab() {
       {/* Top Header Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-800/60">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2.5">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2.5">
             <Sparkles className="w-5 h-5 text-blue-650 animate-pulse" /> Self-Evolving Knowledge Engine
           </h2>
-          <p className="text-xs text-slate-550 font-medium mt-0.5">
+          <p className="text-sm text-slate-550 font-medium mt-0.5">
             The proactive system automatically discovers raw document outputs and extracts a structured pedagogical domain tree.
           </p>
         </div>
@@ -340,7 +340,7 @@ export function RefinedKnowledgeTab() {
         <div className="flex gap-2">
           <button
             onClick={() => setCurrentSubTab('queue')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
               currentSubTab === 'queue'
                 ? 'bg-slate-950 border border-slate-800 text-blue-600 shadow-sm'
                 : 'text-slate-550 hover:text-slate-350 hover:bg-slate-900/10'
@@ -351,7 +351,7 @@ export function RefinedKnowledgeTab() {
           </button>
           <button
             onClick={() => setCurrentSubTab('library')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
               currentSubTab === 'library'
                 ? 'bg-slate-950 border border-slate-800 text-blue-600 shadow-sm'
                 : 'text-slate-550 hover:text-slate-350 hover:bg-slate-900/10'
@@ -518,7 +518,7 @@ export function RefinedKnowledgeTab() {
               {/* Left Column: Domain & Subject Tree */}
               <div className="lg:col-span-5 p-5 bg-slate-900 border border-slate-850 rounded-2xl flex flex-col justify-start space-y-4 shadow-sm h-[580px] overflow-y-auto">
                 <div className="pb-2 border-b border-slate-800/60 flex justify-between items-center shrink-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Domains & Subjects taxonomy</span>
+                  <span className="text-xs font-bold text-slate-550 uppercase tracking-widest font-mono">Domains & Subjects taxonomy</span>
                 </div>
 
                 <div className="space-y-2">
@@ -537,10 +537,10 @@ export function RefinedKnowledgeTab() {
                         >
                           <div className="flex items-center gap-2">
                             <Layers className="w-4 h-4 text-blue-500 shrink-0" />
-                            <span className="text-xs font-extrabold text-slate-200 tracking-wide">{dom.name}</span>
+                            <span className="text-sm font-extrabold text-slate-200 tracking-wide">{dom.name}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-bold text-slate-500 bg-slate-900 px-2 py-0.5 rounded-full border border-slate-850">{domSubs.length} Subjects</span>
+                            <span className="text-xs font-bold text-slate-505 bg-slate-900 px-2 py-0.5 rounded-full border border-slate-850">{domSubs.length} Subjects</span>
                             <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                           </div>
                         </div>
@@ -563,10 +563,10 @@ export function RefinedKnowledgeTab() {
                                     >
                                       <div className="flex items-center gap-1.5 min-w-0">
                                         <Folder className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                        <span className="text-[11px] font-semibold text-slate-300 truncate">{sub.name}</span>
+                                        <span className="text-xs font-semibold text-slate-300 truncate">{sub.name}</span>
                                       </div>
                                       <div className="flex items-center gap-1">
-                                        <span className="text-[9px] font-bold text-slate-600">({subEnts.length})</span>
+                                        <span className="text-xs font-bold text-slate-550">({subEnts.length})</span>
                                         <ChevronDown className={`w-3 h-3 text-slate-650 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
                                       </div>
                                     </div>
@@ -575,7 +575,7 @@ export function RefinedKnowledgeTab() {
                                     {isSubExpanded && (
                                       <div className="px-2 py-1 space-y-0.5 border-t border-slate-900/40">
                                         {subEnts.length === 0 ? (
-                                          <p className="text-[9px] text-slate-600 pl-4 py-1 italic">No active concepts found.</p>
+                                          <p className="text-[10px] text-slate-600 pl-4 py-1 italic">No active concepts found.</p>
                                         ) : (
                                           subEnts.map((ent) => {
                                             const isConceptSelected = selectedConcept?.id === ent.id
@@ -583,14 +583,14 @@ export function RefinedKnowledgeTab() {
                                               <button
                                                 key={ent.id}
                                                 onClick={() => setSelectedConcept(ent)}
-                                                className={`w-full text-left pl-6 pr-3 py-1.5 rounded-md text-[10px] font-medium flex items-center justify-between transition-all ${
+                                                className={`w-full text-left pl-6 pr-3 py-1.5 rounded-md text-xs font-medium flex items-center justify-between transition-all ${
                                                   isConceptSelected
                                                     ? 'text-blue-500 bg-blue-650/10 font-bold border border-blue-500/10'
                                                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
                                                 }`}
                                               >
                                                 <span className="truncate">{ent.title}</span>
-                                                <span className="text-[8px] text-slate-550 border border-slate-800 px-1 py-0.2 rounded font-mono uppercase">V{ent.version}</span>
+                                                <span className="text-[10px] text-slate-550 border border-slate-800 px-1 py-0.2 rounded font-mono uppercase">V{ent.version}</span>
                                               </button>
                                             )
                                           })
@@ -695,17 +695,17 @@ export function RefinedKnowledgeTab() {
                     <div className="space-y-6 select-text">
                       <div className="flex justify-between items-start w-full border-b border-slate-800 pb-4">
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase tracking-wider ${
-                              KNOWLEDGE_TYPE_BADGES[selectedConcept.knowledge_type]?.style || 'bg-slate-950 border-slate-850 text-slate-400'
+                           <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${
+                              KNOWLEDGE_TYPE_BADGES[selectedConcept.knowledge_type]?.style || 'bg-slate-955 border-slate-850 text-slate-400'
                             }`}>
                               {KNOWLEDGE_TYPE_BADGES[selectedConcept.knowledge_type]?.label || selectedConcept.knowledge_type}
                             </span>
-                            <span className="text-[9px] text-slate-500 font-bold border border-slate-800 bg-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                            <span className="text-xs text-slate-500 font-bold border border-slate-800 bg-slate-950 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
                               Subject: {subjects.find(s => s.id === selectedConcept.subject_id)?.name || 'Unassigned'}
                             </span>
                           </div>
-                          <h3 className="font-extrabold text-slate-100 text-lg leading-snug">{selectedConcept.title}</h3>
+                          <h3 className="font-extrabold text-slate-100 text-xl leading-snug">{selectedConcept.title}</h3>
                         </div>
 
                         <div className="flex gap-2">
@@ -714,31 +714,31 @@ export function RefinedKnowledgeTab() {
                               setEditingLibraryEntry({ ...selectedConcept })
                               setShowEditEntryModal(true)
                             }}
-                            className="p-2 rounded-lg bg-slate-950 border border-slate-850 text-slate-500 hover:text-blue-500 transition-colors"
+                            className="p-2.5 rounded-xl bg-slate-950 border border-slate-850 text-slate-500 hover:text-blue-500 transition-colors"
                             title="Edit Concept"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteEntry(selectedConcept.id)}
-                            className="p-2 rounded-lg bg-slate-950 border border-slate-850 text-slate-500 hover:text-red-500 transition-colors"
+                            className="p-2.5 rounded-xl bg-slate-950 border border-slate-850 text-slate-500 hover:text-red-500 transition-colors"
                             title="Archive Concept"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
 
                       {/* Summary */}
-                      <div className="space-y-1">
-                        <h5 className="text-[10px] font-bold text-slate-550 uppercase tracking-widest font-mono">Summary Outline</h5>
-                        <p className="text-xs text-slate-350 leading-relaxed font-semibold">{selectedConcept.summary}</p>
+                      <div className="space-y-1.5">
+                        <h5 className="text-xs font-bold text-slate-550 uppercase tracking-widest font-mono">Summary Outline</h5>
+                        <p className="text-sm text-slate-350 leading-relaxed font-semibold">{selectedConcept.summary}</p>
                       </div>
 
                       {/* Main Detail Content */}
-                      <div className="space-y-1.5">
-                        <h5 className="text-[10px] font-bold text-slate-550 uppercase tracking-widest font-mono">Detailed Content</h5>
-                        <div className="p-4 bg-slate-950 border border-slate-900 rounded-xl text-xs text-slate-200 whitespace-pre-wrap leading-relaxed font-mono">
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-bold text-slate-550 uppercase tracking-widest font-mono">Detailed Content</h5>
+                        <div className="p-5 bg-slate-955 border border-slate-900 rounded-xl text-sm text-slate-205 whitespace-pre-wrap leading-relaxed font-mono">
                           {selectedConcept.content}
                         </div>
                       </div>
@@ -746,10 +746,10 @@ export function RefinedKnowledgeTab() {
                       {/* Prerequisites */}
                       {selectedConcept.prerequisites && selectedConcept.prerequisites.length > 0 && (
                         <div className="space-y-2">
-                          <h5 className="text-[10px] font-bold text-slate-550 uppercase tracking-widest font-mono">Prerequisite Concepts</h5>
+                          <h5 className="text-xs font-bold text-slate-550 uppercase tracking-widest font-mono">Prerequisite Concepts</h5>
                           <div className="flex flex-wrap gap-1.5">
                             {selectedConcept.prerequisites.map((prereq, pIdx) => (
-                              <span key={pIdx} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-850 text-[9px] text-slate-400 font-semibold">
+                              <span key={pIdx} className="px-3 py-1 rounded bg-slate-955 border border-slate-850 text-xs text-slate-400 font-semibold">
                                 {prereq}
                               </span>
                             ))}

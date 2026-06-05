@@ -29,8 +29,8 @@ export function SubjectsTaxonomyBento({
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-950 border border-slate-800/30 p-6 rounded-[calc(2rem-0.25rem)] relative overflow-hidden">
           <div className="absolute right-0 top-0 w-1/4 h-full bg-gradient-to-l from-violet-500/5 to-transparent pointer-events-none" />
           <div className="relative z-10 space-y-1">
-            <h2 className="text-lg font-bold text-slate-100">Registered Taxonomy Subjects</h2>
-            <p className="text-sm text-slate-500 font-medium">Core learning pathways and system taxonomy fields.</p>
+            <h2 className="text-xl md:text-2xl font-bold text-slate-100">Registered Taxonomy Subjects</h2>
+            <p className="text-sm md:text-base text-slate-550 font-medium">Core learning pathways and system taxonomy fields.</p>
           </div>
           <button
             onClick={() => setShowSubjectForm(!showSubjectForm)}
@@ -122,18 +122,18 @@ export function SubjectsTaxonomyBento({
                     </span>
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-100 group-hover:text-blue-600 transition-colors leading-tight">
+                    <h4 className="text-lg font-bold text-slate-100 group-hover:text-blue-600 transition-colors leading-tight">
                       {sub.name}
                     </h4>
-                    <p className="text-sm text-slate-500/90 leading-relaxed font-normal mt-2 line-clamp-3">
+                    <p className="text-base text-slate-505 leading-relaxed font-normal mt-2 line-clamp-3">
                       {sub.description || 'No description written yet.'}
                     </p>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-slate-900/60 flex justify-between items-center">
-                  <span className="text-slate-500 font-semibold text-xs uppercase tracking-wider">Catalog mapping</span>
-                  <span className="font-bold text-violet-600 bg-violet-50 text-xs px-2.5 py-1 rounded-lg border border-violet-100 transition-all group-hover:scale-105 shadow-sm">
+                  <span className="text-slate-500 font-semibold text-sm uppercase tracking-wider">Catalog mapping</span>
+                  <span className="font-bold text-violet-600 bg-violet-55 text-sm px-3.5 py-1.5 rounded-xl border border-violet-100 transition-all group-hover:scale-105 shadow-sm">
                     {subjectCoursesCount} {subjectCoursesCount === 1 ? 'Course' : 'Courses'}
                   </span>
                 </div>
