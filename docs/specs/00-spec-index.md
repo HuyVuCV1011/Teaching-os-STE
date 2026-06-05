@@ -46,7 +46,8 @@ All surfaces across the Teaching OS must render using the **Light theme** (defau
 14. **[14-integration-contracts.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/14-integration-contracts.md)**: Webhooks schemas.
 15. **[15-implementation-rules.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/15-implementation-rules.md)**: Coding guidelines.
 16. **[16-open-decisions.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/16-open-decisions.md)**: Pending CMS updates.
-17. **[AGENTS.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/AGENTS.md)**: Command guidelines.
+17. **[17-rag-knowledge-hub.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/17-rag-knowledge-hub.md)**: RAG & Knowledge Library specifications.
+18. **[AGENTS.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/AGENTS.md)**: Command guidelines.
 
 ---
 
