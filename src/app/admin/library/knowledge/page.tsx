@@ -1,0 +1,510 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { toast } from 'react-hot-toast'
+import { 
+  ArrowLeft, 
+  Database, 
+  Upload, 
+  Search, 
+  Trash, 
+  FileText, 
+  BookOpen, 
+  Sparkles,
+  CheckCircle,
+  AlertCircle,
+  HelpCircle,
+  Loader2
+} from 'lucide-react'
+import {
+  getKnowledgeSourcesAction,
+  uploadKnowledgeAction,
+  deleteKnowledgeSourceAction,
+  searchKnowledgeAction
+} from '../actions/knowledge'
+
+interface KnowledgeSource {
+  id: string
+  title: string
+  version_number: number
+  access_scope: string
+  conversion_status: string
+  status: string
+  summary: string | null
+  original_filename: string
+  chunks_count: number
+  created_at: string | null
+}
+
+interface RetrievedChunk {
+  chunk_id: string
+  knowledge_source_id: string
+  heading_path: string[]
+  content: string
+  score: number
+  matched_terms: string[]
+  citation: {
+    knowledge_source_title?: string
+    knowledge_source_version_number?: number
+    access_scope?: string
+  }
+}
+
+export default function KnowledgeHubPage() {
+  const router = useRouter()
+  const [sources, setSources] = useState<KnowledgeSource[]>([])
+  const [loading, setLoading] = useState(true)
+  
+  // Upload State
+  const [uploading, setUploading] = useState(false)
+  const [title, setTitle] = useState('')
+  const [accessScope, setAccessScope] = useState('organization')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState<RetrievedChunk[]>([])
+  const [searchLimit, setSearchLimit] = useState(5)
+  const [searchScopes, setSearchScopes] = useState<string[]>(['organization', 'public_safe'])
+
+  // Load knowledge sources
+  const loadSources = async () => {
+    setLoading(true)
+    try {
+      const res = await getKnowledgeSourcesAction()
+      if (res.success) {
+        setSources(res.sources)
+      } else {
+        toast.error(res.error || 'Failed to load knowledge sources')
+      }
+    } catch (err) {
+      toast.error('An error occurred loading knowledge library')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSources()
+  }, [])
+
+  // File Upload Handler
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedFile) {
+      toast.error('Please select a file to upload')
+      return
+    }
+    if (!title.trim()) {
+      toast.error('Please enter a document title')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('title', title)
+      formData.append('access_scope', accessScope)
+      formData.append('file', selectedFile)
+
+      const res = await uploadKnowledgeAction(formData)
+      if (res.success) {
+        toast.success(`Successfully uploaded and chunked ${title}!`)
+        setTitle('')
+        setSelectedFile(null)
+        loadSources()
+      } else {
+        toast.error(res.error || 'Failed to upload document')
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'An error occurred during file upload')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // File Deletion Handler
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this knowledge source and all its active chunks?')) {
+      return
+    }
+
+    try {
+      const res = await deleteKnowledgeSourceAction(id)
+      if (res.success) {
+        toast.success('Successfully archived knowledge source.')
+        loadSources()
+      } else {
+        toast.error(res.error || 'Failed to delete knowledge source')
+      }
+    } catch (err) {
+      toast.error('An error occurred during deletion')
+    }
+  }
+
+  // RAG Search Query Handler
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+
+    setSearching(true)
+    try {
+      const res = await searchKnowledgeAction(searchQuery, searchLimit, searchScopes)
+      if (res.success) {
+        setSearchResults(res.results)
+        if (res.results.length === 0) {
+          toast.success('No matching semantic chunks found')
+        }
+      } else {
+        toast.error(res.error || 'Search failed')
+      }
+    } catch (err) {
+      toast.error('An error occurred during semantic search')
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const toggleSearchScope = (scope: string) => {
+    if (searchScopes.includes(scope)) {
+      if (searchScopes.length > 1) {
+        setSearchScopes(searchScopes.filter(s => s !== scope))
+      } else {
+        toast.error('At least one access scope must be selected')
+      }
+    } else {
+      setSearchScopes([...searchScopes, scope])
+    }
+  }
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            <Link href="/admin/library">Back to Curriculum Library</Link>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-100">RAG Knowledge Library Hub</h1>
+          <p className="text-slate-600 max-w-2xl">
+            Upload PDF guidelines, Word documents, Excel rubrics, or Markdown solutions. The AI engine will locally parse, chunk, and index them into semantic vector embeddings for grading RAG context.
+          </p>
+        </div>
+        <div className="mt-4 md:mt-0 flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2">
+          <Database className="w-5 h-5 text-indigo-600" />
+          <span className="font-semibold text-sm">Active Sources: {sources.length}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Side: Upload Panel & Search Playground */}
+        <div className="lg:col-span-1 space-y-8">
+          {/* Upload Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
+            <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
+              <Upload className="w-5 h-5 text-indigo-600" />
+              Ingest Document
+            </h2>
+            <form onSubmit={handleUpload} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Document Title
+                </label>
+                <input 
+                  type="text" 
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., Python PEP 8 Guidelines"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Access Scope
+                  </label>
+                  <select 
+                    value={accessScope}
+                    onChange={(e) => setAccessScope(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="organization">Organization</option>
+                    <option value="public_safe">Public Safe</option>
+                    <option value="private">Private</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Select File
+                  </label>
+                  <input 
+                    type="file" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setSelectedFile(e.target.files[0])
+                        if (!title) {
+                          // Auto title
+                          const nameWithoutExt = e.target.files[0].name.replace(/\.[^/.]+$/, "")
+                          setTitle(nameWithoutExt.replace(/[-_]/g, ' '))
+                        }
+                      }
+                    }}
+                    accept=".pdf,.docx,.xlsx,.csv,.txt,.md,.markdown"
+                    className="hidden" 
+                    id="rag-file-input"
+                  />
+                  <label 
+                    htmlFor="rag-file-input" 
+                    className="w-full flex items-center justify-center gap-2 border border-dashed border-slate-800 bg-slate-950 hover:bg-slate-900 rounded-lg py-2 text-xs font-semibold cursor-pointer transition-colors"
+                  >
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    {selectedFile ? selectedFile.name : 'Choose file...'}
+                  </label>
+                </div>
+              </div>
+
+              {selectedFile && (
+                <div className="text-[11px] text-slate-400">
+                  Size: {(selectedFile.size / 1024).toFixed(1)} KB | Format: {selectedFile.name.split('.').pop()?.toUpperCase()}
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={uploading || !selectedFile}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 text-white text-sm font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Parsing & Indexing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Upload & Build Vector RAG
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* RAG Query Playground */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
+            <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
+              <Search className="w-5 h-5 text-indigo-600" />
+              Hybrid Semantic Search
+            </h2>
+            <form onSubmit={handleSearch} className="space-y-4">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="e.g. exceptions handling style guidelines"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-10 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  required
+                />
+                <button 
+                  type="submit" 
+                  disabled={searching}
+                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-200"
+                >
+                  {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                </button>
+              </div>
+
+              <div className="space-y-2 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Settings</div>
+                <div className="flex items-center justify-between text-xs">
+                  <span>Chunk Limit:</span>
+                  <select 
+                    value={searchLimit} 
+                    onChange={(e) => setSearchLimit(Number(e.target.value))}
+                    className="bg-slate-900 border border-slate-800 rounded px-1 py-0.5"
+                  >
+                    <option value={3}>3 Chunks</option>
+                    <option value={5}>5 Chunks</option>
+                    <option value={10}>10 Chunks</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1 text-xs pt-1 border-t border-slate-900">
+                  <span className="text-slate-500">Allowed Scopes:</span>
+                  <div className="flex gap-2 mt-1">
+                    {['organization', 'public_safe', 'private'].map(scope => (
+                      <button
+                        key={scope}
+                        type="button"
+                        onClick={() => toggleSearchScope(scope)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors ${
+                          searchScopes.includes(scope)
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {scope.replace('_', ' ').toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Right Side: Search Results / Sources Table */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* Search Results Area */}
+          {searchResults.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-yellow-600 animate-pulse" />
+                  Semantic Search Output (Hybrid RRF Rank)
+                </h2>
+                <button 
+                  onClick={() => setSearchResults([])}
+                  className="text-xs text-slate-500 hover:text-slate-300"
+                >
+                  Clear Results
+                </button>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                {searchResults.map((result, index) => (
+                  <div 
+                    key={result.chunk_id} 
+                    className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-2 hover:border-slate-700 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-400">#{index + 1}</span>
+                        <span className="bg-slate-900 text-slate-300 px-2 py-0.5 rounded border border-slate-800 font-medium">
+                          {result.citation.knowledge_source_title || 'Untitled Source'}
+                        </span>
+                        {result.heading_path && result.heading_path.length > 0 && (
+                          <span className="text-slate-500">
+                            &gt; {result.heading_path.join(' > ')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500">
+                        <span>Rank Score: {result.score.toFixed(4)}</span>
+                        {result.matched_terms.length > 0 && (
+                          <span className="bg-slate-900 text-emerald-500 px-1 py-0.5 rounded">
+                            {result.matched_terms.length} terms matched
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm leading-relaxed text-slate-300 whitespace-pre-wrap font-sans bg-slate-950 p-2 rounded border border-slate-900">
+                      {result.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sources Table */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm space-y-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-600" />
+              Document Registry Directory
+            </h2>
+
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-500">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <span>Fetching knowledge documents...</span>
+              </div>
+            ) : sources.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-lg bg-slate-950">
+                <Database className="w-12 h-12 text-slate-700 mb-2" />
+                <span className="font-medium text-sm">No knowledge sources registered yet</span>
+                <span className="text-xs text-slate-600 mt-1">Upload files to begin mapping AI criteria.</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-800 rounded-lg">
+                <table className="min-w-full divide-y divide-slate-800 bg-slate-950">
+                  <thead className="bg-slate-900 text-xs font-bold uppercase tracking-wider text-slate-500 text-left">
+                    <tr>
+                      <th className="px-4 py-3">Document Title</th>
+                      <th className="px-4 py-3">Format</th>
+                      <th className="px-4 py-3">Access</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-center">Chunks</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-sm">
+                    {sources.map((source) => (
+                      <tr key={source.id} className="hover:bg-slate-900/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-200">{source.title}</div>
+                          <div className="text-xs text-slate-500 font-mono mt-0.5">{source.original_filename}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="bg-slate-900 px-2 py-0.5 rounded text-xs border border-slate-800 text-slate-400 font-mono font-medium">
+                            {source.original_filename.split('.').pop()?.toUpperCase() || 'UNKNOWN'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-slate-400 capitalize">
+                            {source.access_scope.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            {source.conversion_status === 'converted' ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                <span className="text-emerald-500 font-medium">Indexed</span>
+                              </>
+                            ) : source.conversion_status === 'unsupported' ? (
+                              <>
+                                <HelpCircle className="w-4 h-4 text-amber-500" />
+                                <span className="text-amber-500">Unsupported</span>
+                              </>
+                            ) : source.conversion_status === 'failed' ? (
+                              <>
+                                <AlertCircle className="w-4 h-4 text-red-500" />
+                                <span className="text-red-500">Failed</span>
+                              </>
+                            ) : (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                <span className="text-slate-400">Processing</span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono font-medium text-indigo-500">
+                          {source.chunks_count}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button 
+                            onClick={() => handleDelete(source.id)}
+                            className="text-red-500 hover:text-red-400 hover:bg-red-950/20 p-1.5 rounded transition-colors"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

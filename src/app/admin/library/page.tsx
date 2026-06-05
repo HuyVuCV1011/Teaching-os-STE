@@ -339,14 +339,24 @@ function AdminLibraryContent() {
               Configure course syllabus mapping, subjects taxonomy, and reusable lesson structures.
             </p>
           </div>
-          <Link
-            href="/admin/library/assignments"
-            className="group px-5 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800/85 hover:border-slate-700 text-slate-100 font-semibold text-sm transition-all duration-300 flex items-center gap-2.5 shadow-sm active:scale-[0.98] z-10 shrink-0"
-          >
-            <ClipboardList className="w-4 h-4 text-blue-650 transition-transform group-hover:scale-110" /> 
-            <span>Manage Assignments</span>
-            <span className="w-5 h-5 rounded-full bg-blue-500/10 text-[10px] text-blue-650 flex items-center justify-center font-bold">→</span>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 z-10 shrink-0">
+            <Link
+              href="/admin/library/assignments"
+              className="group px-5 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800/85 hover:border-slate-700 text-slate-100 font-semibold text-sm transition-all duration-300 flex items-center gap-2.5 shadow-sm active:scale-[0.98]"
+            >
+              <ClipboardList className="w-4 h-4 text-blue-650 transition-transform group-hover:scale-110" /> 
+              <span>Manage Assignments</span>
+              <span className="w-5 h-5 rounded-full bg-blue-500/10 text-[10px] text-blue-650 flex items-center justify-center font-bold">→</span>
+            </Link>
+            <Link
+              href="/admin/library/knowledge"
+              className="group px-5 py-3 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800/85 hover:border-slate-700 text-slate-100 font-semibold text-sm transition-all duration-300 flex items-center gap-2.5 shadow-sm active:scale-[0.98]"
+            >
+              <FolderOpen className="w-4 h-4 text-indigo-500 transition-transform group-hover:scale-110" /> 
+              <span>RAG Knowledge Hub</span>
+              <span className="w-5 h-5 rounded-full bg-indigo-500/10 text-[10px] text-indigo-500 flex items-center justify-center font-bold">→</span>
+            </Link>
+          </div>
         </div>
       </div>
 

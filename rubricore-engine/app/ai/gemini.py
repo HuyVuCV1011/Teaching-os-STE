@@ -125,8 +125,15 @@ class GeminiProvider:
             res_json = response.json()
             return [emb["values"] for emb in res_json["embeddings"]]
         except Exception as e:
-            logger.error(f"Gemini batch embedding API failed: {e}")
-            raise GeminiProviderError(f"Failed to generate batch embeddings: {e}") from e
+            logger.warning(f"Gemini batch embedding API failed: {e}. Falling back to sequential embeddings.")
+            try:
+                embeddings = []
+                for t in texts:
+                    embeddings.append(self.embed(t))
+                return embeddings
+            except Exception as seq_err:
+                logger.error(f"Sequential fallback embeddings also failed: {seq_err}")
+                raise GeminiProviderError(f"Failed to generate batch embeddings: {e}") from e
 
     def evaluate(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         """Evaluate a grading request using Gemini."""

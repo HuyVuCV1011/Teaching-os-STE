@@ -66,19 +66,12 @@ async function resolveOrganizationId() {
 }
 
 /**
- * Uploads a text/markdown document to the FastAPI RAG engine.
+ * Uploads a document (PDF, Word, Excel, CSV, Text, Markdown) to the FastAPI RAG engine.
  */
-export async function uploadKnowledgeAction(title: string, accessScope: string, fileName: string, fileContent: string) {
+export async function uploadKnowledgeAction(formData: FormData) {
   try {
     const { userId } = await checkAdminAuth()
     const orgId = await resolveOrganizationId()
-
-    const formData = new FormData()
-    formData.append('title', title)
-    formData.append('access_scope', accessScope)
-    
-    const fileBlob = new Blob([fileContent], { type: 'text/markdown' })
-    formData.append('file', fileBlob, fileName)
 
     const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/upload`, {
       method: 'POST',
@@ -103,6 +96,65 @@ export async function uploadKnowledgeAction(title: string, accessScope: string, 
 }
 
 /**
+ * Gets all active knowledge sources.
+ */
+export async function getKnowledgeSourcesAction() {
+  try {
+    const { userId } = await checkAdminAuth()
+    const orgId = await resolveOrganizationId()
+
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/sources`, {
+      method: 'GET',
+      headers: {
+        'x-pilot-actor-user-id': userId,
+        'x-pilot-organization-id': orgId,
+        'x-pilot-roles': 'teacher,admin',
+      }
+    })
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Failed to list knowledge sources')
+    }
+
+    const data = await res.json()
+    return { success: true, sources: data.sources || [] }
+  } catch (error: any) {
+    console.error('Failed to get knowledge sources:', error)
+    return { success: false, error: error.message, sources: [] }
+  }
+}
+
+/**
+ * Deletes/archives a knowledge source.
+ */
+export async function deleteKnowledgeSourceAction(id: string) {
+  try {
+    const { userId } = await checkAdminAuth()
+    const orgId = await resolveOrganizationId()
+
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/sources/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'x-pilot-actor-user-id': userId,
+        'x-pilot-organization-id': orgId,
+        'x-pilot-roles': 'teacher,admin',
+      }
+    })
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.detail || 'Failed to delete knowledge source')
+    }
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Failed to delete knowledge source:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
  * Searches RAG knowledge base via Reciprocal Rank Fusion (RRF) hybrid semantic search.
  */
 export async function searchKnowledgeAction(
@@ -115,7 +167,7 @@ export async function searchKnowledgeAction(
     const { userId } = await checkAdminAuth()
     const orgId = await resolveOrganizationId()
 
-    const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/search`, {
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,7 +185,7 @@ export async function searchKnowledgeAction(
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}))
-      throw new Error(errData.detail || 'Knowledge search failed in RAG engine')
+      throw new Error(errData.detail || 'Knowledge query failed in RAG engine')
     }
 
     const data = await res.json()
@@ -143,4 +195,3 @@ export async function searchKnowledgeAction(
     return { success: false, error: error.message, results: [] }
   }
 }
-

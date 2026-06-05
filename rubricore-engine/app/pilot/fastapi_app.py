@@ -168,6 +168,59 @@ def create_app() -> FastAPI:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
 
+    class RAGRubricGenerationRequest(BaseModel):
+        assignment_text: str
+        solution_text: str
+        model_choice: str = "gemini-2.5-flash"
+        allowed_access_scopes: list[str] = ["organization", "public_safe"]
+
+    @app.post(
+        "/pilot/generate-rubric-rag",
+        response_model=RubricGenerationResponse,
+    )
+    def generate_rubric_rag_route(
+        request: RAGRubricGenerationRequest,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ) -> RubricGenerationResponse:
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to generate RAG rubrics.")
+
+        from app.db.services.knowledge_library import retrieve_candidate_chunks
+
+        try:
+            candidates = retrieve_candidate_chunks(
+                db,
+                organization_id=auth_context.organization_id,
+                query=request.assignment_text,
+                allowed_access_scopes=set(request.allowed_access_scopes),
+                limit=5,
+            )
+
+            dossier_parts = []
+            for idx, c in enumerate(candidates):
+                source_title = c.citation.get("knowledge_source_title") or "Unknown Document"
+                heading = " > ".join(c.chunk.heading_path) if c.chunk.heading_path else ""
+                dossier_parts.append(
+                    f"--- Source reference {idx + 1}: {source_title} ({heading}) ---\n"
+                    f"{c.chunk.content}\n"
+                )
+            
+            knowledge_dossier = "\n\n".join(dossier_parts) if dossier_parts else None
+
+            rubric = AIBroker.generate_rubric(
+                model_choice=request.model_choice,
+                assignment_text=request.assignment_text,
+                solution_text=request.solution_text,
+                knowledge_dossier=knowledge_dossier,
+            )
+            criteria_list = rubric.get("criteria", [])
+            return RubricGenerationResponse(criteria=criteria_list)
+        except Exception as e:
+            logger.error("Failed to generate rubric via RAG: %s", e)
+            raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
     @app.post(
         "/pilot/generate-assignment",
         response_model=AssignmentGenerationResponse,
@@ -422,7 +475,6 @@ def create_app() -> FastAPI:
 
         try:
             content_bytes = await file.read()
-            content = content_bytes.decode("utf-8", errors="ignore")
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
 
@@ -448,27 +500,46 @@ def create_app() -> FastAPI:
                 source_type="knowledge_library",
             )
             source.status = "active"
-            source.conversion_status = "converted"
             db.flush()
 
             converted_artifact = convert_knowledge_source_to_markdown(
                 db,
                 knowledge_source=source,
                 source_filename=file.filename,
-                source_content=content,
+                source_content=content_bytes,
             )
             if converted_artifact:
                 source.converted_markdown_artifact_id = converted_artifact.id
                 db.flush()
 
             source_format = _source_format_from_filename(file.filename)
-            markdown_content = content if source_format == "markdown" else convert_plain_text_to_markdown(content, title=source.title)
-            
-            chunks = create_knowledge_chunks(
-                db,
-                knowledge_source=source,
-                markdown_content=markdown_content,
-            )
+            if source_format == "markdown":
+                markdown_content = content_bytes.decode("utf-8", errors="ignore")
+            elif source_format == "text":
+                text_str = content_bytes.decode("utf-8", errors="ignore")
+                markdown_content = convert_plain_text_to_markdown(text_str, title=source.title)
+            elif source_format == "pdf":
+                from app.core.parsers import parse_pdf_to_markdown
+                markdown_content = parse_pdf_to_markdown(content_bytes, title=source.title)
+            elif source_format == "docx":
+                from app.core.parsers import parse_docx_to_markdown
+                markdown_content = parse_docx_to_markdown(content_bytes, title=source.title)
+            elif source_format == "xlsx":
+                from app.core.parsers import parse_xlsx_to_markdown
+                markdown_content = parse_xlsx_to_markdown(content_bytes, title=source.title)
+            elif source_format == "csv":
+                from app.core.parsers import parse_csv_to_markdown
+                markdown_content = parse_csv_to_markdown(content_bytes, title=source.title)
+            else:
+                markdown_content = ""
+
+            chunks = []
+            if markdown_content:
+                chunks = create_knowledge_chunks(
+                    db,
+                    knowledge_source=source,
+                    markdown_content=markdown_content,
+                )
             db.commit()
             
             return {
@@ -479,6 +550,127 @@ def create_app() -> FastAPI:
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to ingest knowledge: {e}")
+
+    @app.get(
+        "/pilot/knowledge/sources",
+    )
+    def list_knowledge_sources_route(
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ):
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to list knowledge sources.")
+
+        statement = (
+            select(KnowledgeSource)
+            .where(
+                KnowledgeSource.organization_id == auth_context.organization_id,
+                KnowledgeSource.status == "active"
+            )
+            .order_by(KnowledgeSource.created_at.desc())
+        )
+        sources = list(db.scalars(statement))
+        
+        result = []
+        for s in sources:
+            chunks_count = db.scalar(
+                select(text("COUNT(*)")).select_from(text("public.knowledge_chunks")).where(
+                    text("knowledge_source_id = :sid"),
+                    text("status = 'active'")
+                ),
+                {"sid": s.id}
+            ) or 0
+            
+            original_filename = "Unknown"
+            if s.source_file_artifact_id:
+                file_art = db.execute(
+                    select(text("original_filename")).select_from(text("public.file_artifacts")).where(
+                        text("id = :aid")
+                    ),
+                    {"aid": s.source_file_artifact_id}
+                ).fetchone()
+                if file_art:
+                    original_filename = file_art[0]
+
+            result.append({
+                "id": str(s.id),
+                "title": s.title,
+                "version_number": s.version_number,
+                "access_scope": s.access_scope,
+                "conversion_status": s.conversion_status,
+                "status": s.status,
+                "summary": s.summary,
+                "original_filename": original_filename,
+                "chunks_count": chunks_count,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            })
+        return {"status": "success", "sources": result}
+
+    @app.post(
+        "/pilot/knowledge/query",
+    )
+    def query_knowledge_chunks_route(
+        request: KnowledgeSearchRequest,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ):
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to query knowledge library.")
+
+        from app.db.services.knowledge_library import retrieve_candidate_chunks
+        
+        source_ids_set = set(request.source_ids) if request.source_ids else None
+        
+        candidates = retrieve_candidate_chunks(
+            db,
+            organization_id=auth_context.organization_id,
+            query=request.query,
+            allowed_access_scopes=set(request.allowed_access_scopes),
+            source_ids=source_ids_set,
+            limit=request.limit,
+        )
+        
+        results = []
+        for c in candidates:
+            results.append({
+                "chunk_id": str(c.chunk.id),
+                "knowledge_source_id": str(c.chunk.knowledge_source_id),
+                "heading_path": list(c.chunk.heading_path),
+                "content": c.chunk.content,
+                "score": float(c.score),
+                "matched_terms": list(c.matched_terms),
+                "citation": c.citation,
+            })
+            
+        return {"status": "success", "results": results}
+
+    @app.delete(
+        "/pilot/knowledge/sources/{source_id}",
+    )
+    def delete_knowledge_source_route(
+        source_id: UUID,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ):
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to delete knowledge sources.")
+
+        source = db.get(KnowledgeSource, source_id)
+        if not source or source.organization_id != auth_context.organization_id:
+            raise HTTPException(status_code=404, detail="Knowledge source not found.")
+            
+        source.status = "archived"
+        
+        db.execute(
+            text("UPDATE public.knowledge_chunks SET status = 'archived' WHERE knowledge_source_id = :sid AND status = 'active'"),
+            {"sid": source_id}
+        )
+        
+        db.commit()
+        return {"status": "success", "message": f"Source {source_id} deleted successfully."}
 
     @app.post(
         "/pilot/knowledge/search",

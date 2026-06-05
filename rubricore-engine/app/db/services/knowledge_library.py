@@ -123,7 +123,7 @@ def register_knowledge_source(
     source_format = _source_format_from_filename(source_filename)
     metadata = metadata_payload or {}
     source_purpose = _get_file_purpose(db, organization_id, "knowledge_source")
-    supported_formats = SUPPORTED_MARKDOWN_FORMATS | SUPPORTED_TEXT_FORMATS
+    supported_formats = SUPPORTED_MARKDOWN_FORMATS | SUPPORTED_TEXT_FORMATS | {"pdf", "docx", "xlsx", "csv"}
     parser_status = "supported" if source_format in supported_formats else "unsupported"
     document_formats = {"markdown", "text", "pdf", "doc", "docx", "rtf"}
 
@@ -216,7 +216,7 @@ def create_knowledge_source_version(
     source_format = _source_format_from_filename(source_filename)
     metadata = metadata_payload or {}
     source_purpose = _get_file_purpose(db, previous_source.organization_id, "knowledge_source")
-    supported_formats = SUPPORTED_MARKDOWN_FORMATS | SUPPORTED_TEXT_FORMATS
+    supported_formats = SUPPORTED_MARKDOWN_FORMATS | SUPPORTED_TEXT_FORMATS | {"pdf", "docx", "xlsx", "csv"}
     parser_status = "supported" if source_format in supported_formats else "unsupported"
     document_formats = {"markdown", "text", "pdf", "doc", "docx", "rtf"}
     next_version = _knowledge_source_version_number(previous_source) + 1
@@ -385,7 +385,7 @@ def convert_knowledge_source_to_markdown(
     *,
     knowledge_source: KnowledgeSource,
     source_filename: str,
-    source_content: str | None,
+    source_content: str | bytes | None,
     markdown_filename: str | None = None,
     markdown_storage_uri: str | None = None,
     converter_version: str = "1.0",
@@ -400,8 +400,9 @@ def convert_knowledge_source_to_markdown(
         knowledge_source.metadata_payload.get("source_format") or _source_format_from_filename(source_filename)
     )
     scope = normalize_access_scope(knowledge_source.access_scope)
+    supported_binary_formats = {"pdf", "docx", "xlsx", "csv"}
 
-    if source_format not in SUPPORTED_MARKDOWN_FORMATS | SUPPORTED_TEXT_FORMATS:
+    if source_format not in SUPPORTED_MARKDOWN_FORMATS | SUPPORTED_TEXT_FORMATS | supported_binary_formats:
         _record_conversion_without_output(
             db,
             knowledge_source=knowledge_source,
@@ -431,11 +432,34 @@ def convert_knowledge_source_to_markdown(
         )
         return None
 
-    converter_name = "markdown_passthrough" if source_format == "markdown" else "plain_text_to_markdown"
+    # Resolve source content bytes
+    content_bytes = b""
+    if isinstance(source_content, str):
+        content_bytes = source_content.encode("utf-8", errors="ignore")
+    elif isinstance(source_content, bytes):
+        content_bytes = source_content
+
+    converter_name = "markdown_passthrough" if source_format == "markdown" else ("plain_text_to_markdown" if source_format == "text" else f"{source_format}_to_markdown")
+    
     if source_format == "markdown":
-        markdown_content = source_content
+        markdown_content = source_content if isinstance(source_content, str) else source_content.decode("utf-8", errors="ignore")
+    elif source_format == "text":
+        text_str = source_content if isinstance(source_content, str) else source_content.decode("utf-8", errors="ignore")
+        markdown_content = convert_plain_text_to_markdown(text_str, title=knowledge_source.title)
+    elif source_format == "pdf":
+        from app.core.parsers import parse_pdf_to_markdown
+        markdown_content = parse_pdf_to_markdown(content_bytes, title=knowledge_source.title)
+    elif source_format == "docx":
+        from app.core.parsers import parse_docx_to_markdown
+        markdown_content = parse_docx_to_markdown(content_bytes, title=knowledge_source.title)
+    elif source_format == "xlsx":
+        from app.core.parsers import parse_xlsx_to_markdown
+        markdown_content = parse_xlsx_to_markdown(content_bytes, title=knowledge_source.title)
+    elif source_format == "csv":
+        from app.core.parsers import parse_csv_to_markdown
+        markdown_content = parse_csv_to_markdown(content_bytes, title=knowledge_source.title)
     else:
-        markdown_content = convert_plain_text_to_markdown(source_content, title=knowledge_source.title)
+        markdown_content = ""
     markdown_purpose = _get_file_purpose(db, knowledge_source.organization_id, "converted_markdown")
     output_filename = markdown_filename or _markdown_filename_for(source_filename)
 

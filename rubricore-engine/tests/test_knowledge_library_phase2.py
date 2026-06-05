@@ -236,8 +236,8 @@ def test_revise_knowledge_source_stops_safely_for_unsupported_revision() -> None
     result = revise_knowledge_source(
         session,  # type: ignore[arg-type]
         previous_source=previous_source,
-        source_filename="teacher_notes_v2.pdf",
-        source_storage_uri="fixture://teacher_notes_v2.pdf",
+        source_filename="teacher_notes_v2.zip",
+        source_storage_uri="fixture://teacher_notes_v2.zip",
         source_content="ignored",
         actor_user_id=previous_source.owner_user_id,
         reason="Teacher uploaded revised PDF guidance.",
@@ -297,14 +297,14 @@ def test_unsupported_conversion_is_preserved_without_chunks() -> None:
         access_scope="organization",
         conversion_status="pending",
         status="draft",
-        metadata_payload={"source_format": "pdf"},
+        metadata_payload={"source_format": "zip"},
     )
     session = RecordingSession()
 
     output = convert_knowledge_source_to_markdown(
         session,  # type: ignore[arg-type]
         knowledge_source=source,
-        source_filename="slides.pdf",
+        source_filename="slides.zip",
         source_content="ignored",
     )
 
