@@ -58,25 +58,33 @@ def build_solution_key_messages(assignment_text: str, knowledge_dossier: str | N
     ]
 
 
-def build_rubric_messages(assignment_text: str, solution_text: str, knowledge_dossier: str | None = None) -> list[dict[str, str]]:
+DEFAULT_RAG_RUBRIC_TEMPLATE = (
+    "You are a rubric design assistant. Build a structured grading rubric matrix based on "
+    "the assignment prompt and expected solutions. "
+    "Return only one valid JSON object. Do not include markdown code block syntax. "
+    "The JSON must have a single root key 'criteria' which is an array of objects. "
+    "Each criterion object must contain:\n"
+    "- key: string (a unique URL-safe slug, e.g. 'python-syntax')\n"
+    "- label: string (name of the metric, e.g. 'Python Syntax')\n"
+    "- description: string (what to grade, e.g. 'Verify code structure')\n"
+    "- max_points: number (e.g. 10)\n"
+    "- weight: number (decimal weight, e.g. 1.0)\n"
+    "- evaluation_hints: object containing:\n"
+    "    * rule_type: string ('regex', 'exact', or 'none')\n"
+    "    * expected_value: string (the regex pattern or exact phrase to match, or null if rule_type is 'none')\n"
+    "\n"
+    "Make sure the criteria sum up logically (total max_points * weights should match the total assignment score, usually 100)."
+)
+
+
+def build_rubric_messages(
+    assignment_text: str,
+    solution_text: str,
+    knowledge_dossier: str | None = None,
+    prompt_template: str | None = None,
+) -> list[dict[str, str]]:
     """Build system and user messages for rubric generation."""
-    system_prompt = (
-        "You are a rubric design assistant. Build a structured grading rubric matrix based on "
-        "the assignment prompt and expected solutions. "
-        "Return only one valid JSON object. Do not include markdown code block syntax. "
-        "The JSON must have a single root key 'criteria' which is an array of objects. "
-        "Each criterion object must contain:\n"
-        "- key: string (a unique URL-safe slug, e.g. 'python-syntax')\n"
-        "- label: string (name of the metric, e.g. 'Python Syntax')\n"
-        "- description: string (what to grade, e.g. 'Verify code structure')\n"
-        "- max_points: number (e.g. 10)\n"
-        "- weight: number (decimal weight, e.g. 1.0)\n"
-        "- evaluation_hints: object containing:\n"
-        "    * rule_type: string ('regex', 'exact', or 'none')\n"
-        "    * expected_value: string (the regex pattern or exact phrase to match, or null if rule_type is 'none')\n"
-        "\n"
-        "Make sure the criteria sum up logically (total max_points * weights should match the total assignment score, usually 100)."
-    )
+    system_prompt = prompt_template if prompt_template is not None else DEFAULT_RAG_RUBRIC_TEMPLATE
     if knowledge_dossier:
         system_prompt += f"\n\nConform strictly to these established pedagogical concepts and guidelines:\n{knowledge_dossier}\n"
 

@@ -25,6 +25,7 @@ from app.db.models import (
     RubricVersion,
     Submission,
     User,
+    PromptConfiguration,
 )
 from app.db.services.grading_orchestration import GradingOrchestrationError
 from app.db.services.review_policy import (
@@ -68,6 +69,8 @@ from app.pilot.contracts import (
     SuggestBatchQuestionAnswersRequest,
     SuggestBatchQuestionAnswersResponse,
     BatchAnswerItem,
+    PromptConfigurationResponse,
+    PromptConfigurationSaveRequest,
 )
 from app.pilot.db_loaders import (
     load_criterion_result_for_review_action_context,
@@ -207,18 +210,86 @@ def create_app() -> FastAPI:
                     f"{c.chunk.content}\n"
                 )
             
-            knowledge_dossier = "\n\n".join(dossier_parts) if dossier_parts else None
+            # Query custom prompt configuration
+            prompt_config = db.scalar(
+                select(PromptConfiguration).where(PromptConfiguration.key == "rag_rubric_template")
+            )
+            prompt_template = prompt_config.prompt_text if prompt_config else None
 
             rubric = AIBroker.generate_rubric(
                 model_choice=request.model_choice,
                 assignment_text=request.assignment_text,
                 solution_text=request.solution_text,
                 knowledge_dossier=knowledge_dossier,
+                prompt_template=prompt_template,
             )
             criteria_list = rubric.get("criteria", [])
             return RubricGenerationResponse(criteria=criteria_list)
         except Exception as e:
             logger.error("Failed to generate rubric via RAG: %s", e)
+            raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
+    @app.get(
+        "/pilot/prompts/{key}",
+        response_model=PromptConfigurationResponse,
+    )
+    def get_prompt_route(
+        key: str,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ) -> PromptConfigurationResponse:
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to access prompt configurations.")
+
+        prompt_config = db.scalar(
+            select(PromptConfiguration).where(PromptConfiguration.key == key)
+        )
+        if prompt_config:
+            return PromptConfigurationResponse(key=key, prompt_text=prompt_config.prompt_text)
+
+        # Fallback to defaults if key is 'rag_rubric_template'
+        if key == "rag_rubric_template":
+            from app.ai.prompts import DEFAULT_RAG_RUBRIC_TEMPLATE
+            return PromptConfigurationResponse(key=key, prompt_text=DEFAULT_RAG_RUBRIC_TEMPLATE)
+
+        # For any other key that doesn't exist
+        raise HTTPException(status_code=404, detail=f"Prompt template configuration with key '{key}' not found.")
+
+    @app.post(
+        "/pilot/prompts/{key}",
+        response_model=PromptConfigurationResponse,
+    )
+    def save_prompt_route(
+        key: str,
+        request: PromptConfigurationSaveRequest,
+        auth_context: Annotated[PilotAuthContext, Depends(get_pilot_auth_context)],
+        db: Annotated[Session, Depends(get_fastapi_db)],
+    ) -> PromptConfigurationResponse:
+        allowed_roles = {PilotRole.ADMIN, PilotRole.TEACHER, PilotRole.SYSTEM}
+        if not any(r in allowed_roles for r in auth_context.roles):
+            raise HTTPException(status_code=403, detail="Unauthorized to modify prompt configurations.")
+
+        try:
+            prompt_config = db.scalar(
+                select(PromptConfiguration).where(PromptConfiguration.key == key)
+            )
+            if prompt_config:
+                prompt_config.prompt_text = request.prompt_text
+            else:
+                prompt_config = PromptConfiguration(
+                    key=key,
+                    prompt_text=request.prompt_text
+                )
+                db.add(prompt_config)
+            
+            db.commit()
+            db.refresh(prompt_config)
+            return PromptConfigurationResponse(key=key, prompt_text=prompt_config.prompt_text)
+        except Exception as e:
+            db.rollback()
+            logger.error("Failed to save prompt configuration: %s", e)
+            raise HTTPException(status_code=500, detail=f"Failed to save prompt configuration: {e}")
             raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
 
     @app.post(
@@ -488,6 +559,42 @@ def create_app() -> FastAPI:
         )
 
         try:
+            # Check if file size > 5MB for async ingestion
+            if len(content_bytes) > 5 * 1024 * 1024:
+                from supabase import create_client
+                from app.db.models.file_artifact import FileArtifact
+                settings = get_settings()
+                if not settings.supabase_url or not settings.supabase_service_role_key:
+                    raise HTTPException(status_code=500, detail="Supabase credentials are not configured.")
+                supabase_client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+                source = register_knowledge_source(
+                    db,
+                    organization_id=auth_context.organization_id,
+                    title=title,
+                    source_filename=file.filename,
+                    source_storage_uri="pending_upload",
+                    owner_user_id=auth_context.actor_user_id,
+                    access_scope=access_scope,
+                    source_type="knowledge_library",
+                )
+                db.flush()
+                storage_path = f"knowledge/{source.id}/{file.filename}"
+                supabase_client.storage.from_("student-submissions").upload(
+                    path=storage_path,
+                    file=content_bytes,
+                    file_options={"content-type": file.content_type or "application/octet-stream"}
+                )
+                file_art = db.get(FileArtifact, source.source_file_artifact_id)
+                if file_art:
+                    file_art.storage_uri = storage_path
+                    file_art.file_size_bytes = len(content_bytes)
+                db.commit()
+                return {
+                    "status": "processing",
+                    "knowledge_source_id": str(source.id),
+                    "chunks_count": 0
+                }
+
             storage_uri = f"upload://knowledge/{uuid.uuid4()}/{file.filename}"
             source = register_knowledge_source(
                 db,
@@ -566,7 +673,7 @@ def create_app() -> FastAPI:
             select(KnowledgeSource)
             .where(
                 KnowledgeSource.organization_id == auth_context.organization_id,
-                KnowledgeSource.status == "active"
+                KnowledgeSource.status.in_(["active", "draft"])
             )
             .order_by(KnowledgeSource.created_at.desc())
         )

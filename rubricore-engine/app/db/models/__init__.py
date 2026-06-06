@@ -25,6 +25,8 @@ from app.db.models.knowledge import (
     KnowledgeTag,
     ConceptTag,
 )
+from app.db.models.prompt_config import PromptConfiguration
+from app.db.models.stub_models import Subject
 from app.db.models.review import ReviewTask, TeacherOverride, TeacherReview
 from app.db.models.rubric import (
     AnswerKey,
@@ -70,6 +72,8 @@ __all__ = [
     "Organization",
     "OutputType",
     "PerformanceLevel",
+    "PromptConfiguration",
+    "Subject",
     "ReviewTask",
     "Rubric",
     "RubricBinding",

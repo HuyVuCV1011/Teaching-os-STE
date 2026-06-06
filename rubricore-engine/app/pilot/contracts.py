@@ -373,3 +373,12 @@ class BatchAnswerItem(BaseModel):
 
 class SuggestBatchQuestionAnswersResponse(PilotContract):
     answers: list[BatchAnswerItem]
+
+
+class PromptConfigurationResponse(PilotContract):
+    key: str
+    prompt_text: str
+
+
+class PromptConfigurationSaveRequest(PilotContract):
+    prompt_text: str

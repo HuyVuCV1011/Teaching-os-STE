@@ -16,7 +16,8 @@ import {
   CheckCircle,
   AlertCircle,
   HelpCircle,
-  Loader2
+  Loader2,
+  Settings
 } from 'lucide-react'
 import {
   getKnowledgeSourcesAction,
@@ -24,6 +25,10 @@ import {
   deleteKnowledgeSourceAction,
   searchKnowledgeAction
 } from '../actions/knowledge'
+import {
+  getPromptAction,
+  savePromptAction
+} from '../actions/prompt_settings'
 
 interface KnowledgeSource {
   id: string
@@ -57,6 +62,26 @@ export default function KnowledgeHubPage() {
   const [sources, setSources] = useState<KnowledgeSource[]>([])
   const [loading, setLoading] = useState(true)
   
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'sources' | 'prompts'>('sources')
+
+  // Prompt Settings State
+  const [promptText, setPromptText] = useState('')
+  const [loadingPrompt, setLoadingPrompt] = useState(false)
+  const [savingPrompt, setSavingPrompt] = useState(false)
+
+  const DEFAULT_RAG_RUBRIC_TEMPLATE = `You are a rubric design assistant. Build a structured grading rubric matrix based on the assignment prompt and expected solutions. Return only one valid JSON object. Do not include markdown code block syntax. The JSON must have a single root key 'criteria' which is an array of objects. Each criterion object must contain:
+- key: string (a unique URL-safe slug, e.g. 'python-syntax')
+- label: string (name of the metric, e.g. 'Python Syntax')
+- description: string (what to grade, e.g. 'Verify code structure')
+- max_points: number (e.g. 10)
+- weight: number (decimal weight, e.g. 1.0)
+- evaluation_hints: object containing:
+    * rule_type: string ('regex', 'exact', or 'none')
+    * expected_value: string (the regex pattern or exact phrase to match, or null if rule_type is 'none')
+
+Make sure the criteria sum up logically (total max_points * weights should match the total assignment score, usually 100).`
+
   // Upload State
   const [uploading, setUploading] = useState(false)
   const [title, setTitle] = useState('')
@@ -87,8 +112,47 @@ export default function KnowledgeHubPage() {
     }
   }
 
+  // Load Prompt Configuration
+  const loadPrompt = async () => {
+    setLoadingPrompt(true)
+    try {
+      const res = await getPromptAction('rag_rubric_template')
+      if (res.success) {
+        setPromptText(res.promptText || '')
+      } else {
+        toast.error(res.error || 'Failed to load custom prompt template')
+      }
+    } catch (err) {
+      toast.error('An error occurred loading prompt settings')
+    } finally {
+      setLoadingPrompt(false)
+    }
+  }
+
+  const handleSavePrompt = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!promptText.trim()) {
+      toast.error('Prompt template cannot be empty')
+      return
+    }
+    setSavingPrompt(true)
+    try {
+      const res = await savePromptAction('rag_rubric_template', promptText)
+      if (res.success) {
+        toast.success('Custom RAG prompt saved successfully!')
+      } else {
+        toast.error(res.error || 'Failed to save prompt configuration')
+      }
+    } catch (err) {
+      toast.error('An error occurred saving prompt settings')
+    } finally {
+      setSavingPrompt(false)
+    }
+  }
+
   useEffect(() => {
     loadSources()
+    loadPrompt()
   }, [])
 
   // File Upload Handler
@@ -200,7 +264,34 @@ export default function KnowledgeHubPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Tabs */}
+      <div className="flex gap-6 border-b border-slate-800 pb-px">
+        <button
+          onClick={() => setActiveTab('sources')}
+          className={`pb-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'sources'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          Document Registry & Search
+        </button>
+        <button
+          onClick={() => setActiveTab('prompts')}
+          className={`pb-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'prompts'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          Prompt Settings
+        </button>
+      </div>
+
+      {activeTab === 'sources' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Upload Panel & Search Playground */}
         <div className="lg:col-span-1 space-y-8">
           {/* Upload Card */}
@@ -505,6 +596,94 @@ export default function KnowledgeHubPage() {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm space-y-6 max-w-4xl">
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
+              <Settings className="w-5 h-5 text-indigo-500" />
+              Custom RAG Rubric Prompt Template
+            </h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              This prompt template governs how the AI assistant constructs scoring criteria based on RAG knowledge chunks.
+              Modify the template instructions below to change the grading criteria suggestion style, format constraints, or weight logic.
+            </p>
+          </div>
+
+          <form onSubmit={handleSavePrompt} className="space-y-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                System Prompt Template
+              </label>
+              {loadingPrompt ? (
+                <div className="w-full h-96 bg-slate-950 border border-slate-800 rounded-lg flex flex-col items-center justify-center gap-2 text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                  <span>Loading prompt configuration...</span>
+                </div>
+              ) : (
+                <textarea
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  className="w-full h-96 bg-slate-950 border border-slate-800 rounded-lg p-4 text-sm font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                  placeholder="Enter custom RAG prompt instructions..."
+                  required
+                />
+              )}
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-lg p-4 space-y-2 text-xs text-slate-400 leading-relaxed">
+              <div className="font-semibold text-slate-300 flex items-center gap-1.5 mb-1 text-slate-200">
+                <AlertCircle className="w-4 h-4 text-indigo-500" />
+                Template Parameters & Injection
+              </div>
+              <p>
+                - The prompt text above serves as the base system instructions for the LLM during rubric generation.
+              </p>
+              <p>
+                - <strong className="text-indigo-400">pedagogical concepts and guidelines (RAG knowledge dossier)</strong> retrieved from your active documents will be appended automatically if matches are found.
+              </p>
+              <p>
+                - <strong className="text-indigo-400">ASSIGNMENT PROMPT</strong> and <strong className="text-indigo-400">SOLUTION KEY</strong> will be passed as the user message.
+              </p>
+              <p>
+                - <strong className="text-amber-500 font-semibold">Strict Rule:</strong> The LLM output must be valid, parseable JSON containing a <code className="bg-slate-950 px-1 py-0.5 rounded font-mono text-amber-500">criteria</code> array matching the structure shown above. Changing the structure schema can cause frontend parser failures.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={savingPrompt || loadingPrompt}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 text-white text-sm font-semibold py-2 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                {savingPrompt ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Save Settings
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Are you sure you want to reset the prompt text to the default template? (You will still need to click Save to persist changes)')) {
+                    setPromptText(DEFAULT_RAG_RUBRIC_TEMPLATE)
+                    toast.success('Restored default prompt template. Click Save to persist changes.')
+                  }
+                }}
+                disabled={savingPrompt || loadingPrompt}
+                className="border border-slate-800 hover:bg-slate-900 hover:text-slate-200 text-slate-400 text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
+              >
+                Reset to Default
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

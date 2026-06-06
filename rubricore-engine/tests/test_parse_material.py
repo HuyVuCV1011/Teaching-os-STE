@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import tempfile
+import sys
 import unittest
 from docx import Document
 import openpyxl
@@ -37,7 +38,7 @@ class TestParseMaterial(unittest.TestCase):
             
         try:
             # Run CLI parser
-            cmd = [os.path.join(os.path.dirname(__file__), '../.venv/bin/python'), 
+            cmd = [sys.executable, 
                    os.path.join(os.path.dirname(__file__), '../scripts/parse_material.py'), 
                    tmp_name]
             
@@ -76,7 +77,7 @@ class TestParseMaterial(unittest.TestCase):
             
         try:
             # Run CLI parser
-            cmd = [os.path.join(os.path.dirname(__file__), '../.venv/bin/python'), 
+            cmd = [sys.executable, 
                    os.path.join(os.path.dirname(__file__), '../scripts/parse_material.py'), 
                    tmp_name]
             
@@ -114,7 +115,7 @@ class TestParseMaterial(unittest.TestCase):
             
         try:
             # Run CLI parser
-            cmd = [os.path.join(os.path.dirname(__file__), '../.venv/bin/python'), 
+            cmd = [sys.executable, 
                    os.path.join(os.path.dirname(__file__), '../scripts/parse_material.py'), 
                    tmp_name]
             

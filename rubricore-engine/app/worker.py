@@ -511,6 +511,148 @@ def json_dumps_safe(obj: Any) -> str:
     return json.dumps(obj, default=str)
 
 
+def claim_next_knowledge_job(db) -> Dict[str, Any] | None:
+    """
+    Atomically locks and claims the next pending knowledge source from PostgreSQL.
+    """
+    claim_query = text("""
+        UPDATE public.knowledge_sources
+        SET 
+          conversion_status = 'running',
+          updated_at = NOW()
+        WHERE id = (
+          SELECT id 
+          FROM public.knowledge_sources 
+          WHERE conversion_status = 'pending'
+            AND status = 'draft'
+          ORDER BY created_at ASC
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, source_file_artifact_id, title;
+    """)
+    result = db.execute(claim_query).fetchone()
+    if result:
+        return {
+            "id": str(result[0]),
+            "source_file_artifact_id": str(result[1]),
+            "title": str(result[2])
+        }
+    return None
+
+
+def process_knowledge_source(db, job: Dict[str, Any]) -> None:
+    source_id = job["id"]
+    artifact_id = job["source_file_artifact_id"]
+    title = job["title"]
+    
+    logger.info(f"Processing Knowledge Source: {source_id} | Title: {title}")
+    
+    try:
+        # 1. Fetch file artifact details
+        artifact = db.execute(
+            text("SELECT original_filename, storage_uri, mime_type FROM public.file_artifacts WHERE id = :aid"),
+            {"aid": artifact_id}
+        ).fetchone()
+        
+        if not artifact:
+            raise ValueError(f"File artifact {artifact_id} not found for knowledge source {source_id}")
+            
+        original_filename, storage_path, mime_type = artifact
+        
+        logger.info(f"Downloading file: {original_filename} from storage path: {storage_path}")
+        
+        if not supabase_client:
+            raise RuntimeError("Cannot download private storage files. Supabase credentials are not configured.")
+            
+        try:
+            # Download file bytes
+            file_bytes = supabase_client.storage.from_("student-submissions").download(storage_path)
+        except Exception as download_err:
+            logger.error(f"Download failed for '{original_filename}': {download_err}")
+            raise RuntimeError(f"Failed to retrieve file '{original_filename}' from storage bucket: {download_err}")
+            
+        # 2. Import models and services
+        from app.db.models.knowledge import KnowledgeSource
+        from app.db.services.knowledge_library import (
+            convert_knowledge_source_to_markdown,
+            create_knowledge_chunks,
+            _source_format_from_filename,
+            convert_plain_text_to_markdown,
+        )
+        
+        knowledge_source = db.get(KnowledgeSource, source_id)
+        if not knowledge_source:
+            raise ValueError(f"Knowledge source {source_id} not found in database.")
+            
+        # 3. Convert to markdown artifact record
+        converted_artifact = convert_knowledge_source_to_markdown(
+            db,
+            knowledge_source=knowledge_source,
+            source_filename=original_filename,
+            source_content=file_bytes,
+        )
+        if converted_artifact:
+            knowledge_source.converted_markdown_artifact_id = converted_artifact.id
+            db.flush()
+            
+        # 4. Generate markdown content
+        source_format = _source_format_from_filename(original_filename)
+        if source_format == "markdown":
+            markdown_content = file_bytes.decode("utf-8", errors="ignore")
+        elif source_format == "text":
+            text_str = file_bytes.decode("utf-8", errors="ignore")
+            markdown_content = convert_plain_text_to_markdown(text_str, title=knowledge_source.title)
+        elif source_format == "pdf":
+            from app.core.parsers import parse_pdf_to_markdown
+            markdown_content = parse_pdf_to_markdown(file_bytes, title=knowledge_source.title)
+        elif source_format == "docx":
+            from app.core.parsers import parse_docx_to_markdown
+            markdown_content = parse_docx_to_markdown(file_bytes, title=knowledge_source.title)
+        elif source_format == "xlsx":
+            from app.core.parsers import parse_xlsx_to_markdown
+            markdown_content = parse_xlsx_to_markdown(file_bytes, title=knowledge_source.title)
+        elif source_format == "csv":
+            from app.core.parsers import parse_csv_to_markdown
+            markdown_content = parse_csv_to_markdown(file_bytes, title=knowledge_source.title)
+        else:
+            markdown_content = ""
+            
+        # 5. Chunk the content
+        chunks = []
+        if markdown_content:
+            chunks = create_knowledge_chunks(
+                db,
+                knowledge_source=knowledge_source,
+                markdown_content=markdown_content,
+            )
+            
+        db.commit()
+        logger.info(f"Knowledge source processed successfully: {source_id} ({len(chunks)} chunks created)")
+        
+    except Exception as process_error:
+        db.rollback()
+        logger.error(f"Knowledge source execution failed: {process_error}")
+        err_msg = str(process_error)
+        
+        try:
+            # Mark knowledge source conversion as failed
+            db.execute(
+                text("""
+                    UPDATE public.knowledge_sources
+                    SET 
+                      conversion_status = 'failed',
+                      updated_at = NOW()
+                    WHERE id = :sid
+                """),
+                {"sid": source_id}
+            )
+            db.commit()
+        except Exception as db_err:
+            db.rollback()
+            logger.critical(f"Failed to record knowledge source failure in database: {db_err}")
+
+
 def start_worker_daemon() -> None:
     logger.info("Starting RubriCore background grading worker loop...")
     
@@ -522,14 +664,25 @@ def start_worker_daemon() -> None:
                 if poll_count % 15 == 0:
                     reclaim_stale_jobs(db)
 
-                # Query and lock next job
-                job = claim_next_job(db)
-                if job:
-                    db.commit()  # commit the claim immediately to release row lock
-                    process_grading_run(db, job)
-                else:
-                    # No jobs queued, sleep
-                    db.rollback()  # Release connections
+                work_done = False
+                
+                # 1. Claim and process knowledge source jobs
+                k_job = claim_next_knowledge_job(db)
+                if k_job:
+                    db.commit()
+                    process_knowledge_source(db, k_job)
+                    work_done = True
+                
+                # 2. Claim and process grading jobs
+                if not work_done:
+                    job = claim_next_job(db)
+                    if job:
+                        db.commit()
+                        process_grading_run(db, job)
+                        work_done = True
+                
+                if not work_done:
+                    db.rollback()
 
             poll_count += 1
             time.sleep(2)
