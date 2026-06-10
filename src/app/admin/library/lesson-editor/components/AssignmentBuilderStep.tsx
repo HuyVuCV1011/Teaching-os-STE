@@ -14,7 +14,7 @@ interface AssignmentFileItem {
 }
 
 interface QuestionItem {
-  id: number
+  id: string | number
   content: string
   options?: string[]
   answer?: string
@@ -185,7 +185,7 @@ export function AssignmentBuilderStep({
             </div>
 
             {/* Right Column: Upload File Extractor */}
-            <div className="bg-slate-955/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-colors shadow-sm">
+            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-colors shadow-sm">
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
                   <Upload className="w-4 h-4 text-indigo-500" />
@@ -397,7 +397,7 @@ export function AssignmentBuilderStep({
                   required
                   value={assignmentForm.title}
                   onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
-                  className="w-full bg-slate-955 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
               <div>
@@ -416,7 +416,7 @@ export function AssignmentBuilderStep({
                       maxScore: val === '' ? 100 : Math.max(0, parseFloat(val) || 0)
                     })
                   }}
-                  className="w-full bg-slate-955 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
             </div>
@@ -444,7 +444,7 @@ export function AssignmentBuilderStep({
                         essayWeightPercent: 100 - mcqVal
                       })
                     }}
-                    className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                   />
                 </div>
                 <div>
@@ -464,7 +464,7 @@ export function AssignmentBuilderStep({
                         mcqWeightPercent: 100 - essayVal
                       })
                     }}
-                    className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                   />
                 </div>
               </div>
@@ -489,7 +489,7 @@ export function AssignmentBuilderStep({
                       maxFiles: val === '' ? 3 : Math.max(0, parseInt(val) || 0)
                     })
                   }}
-                  className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
               <div>
@@ -507,7 +507,7 @@ export function AssignmentBuilderStep({
                       maxTotalSizeMb: val === '' ? 50 : Math.max(0, parseInt(val) || 0)
                     })
                   }}
-                  className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
               <div>
@@ -525,7 +525,7 @@ export function AssignmentBuilderStep({
                       gracePeriodHours: val === '' ? 0 : Math.max(0, parseInt(val) || 0)
                     })
                   }}
-                  className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
             </div>
@@ -546,7 +546,7 @@ export function AssignmentBuilderStep({
                     penaltyPercentPerDay: val === '' ? 0 : Math.max(0, parseFloat(val) || 0)
                   })
                 }}
-                className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                className="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
               />
             </div>
 
@@ -574,7 +574,7 @@ export function AssignmentBuilderStep({
                   className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                     !assignmentForm.autoPublishGrades
                       ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white font-extrabold shadow-md'
-                      : 'bg-slate-955 border-slate-700 text-slate-400 hover:text-slate-300'
+                      : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-300'
                   }`}
                 >
                   No
@@ -609,3 +609,4 @@ export function AssignmentBuilderStep({
     </div>
   )
 }
+

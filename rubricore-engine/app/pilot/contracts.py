@@ -195,6 +195,7 @@ class StatelessGradingRequest(BaseModel):
     ai_allowed: bool = True
     confidence_threshold: Decimal = Field(default=Decimal("0.85"), ge=0, le=1)
     review_threshold: Decimal = Field(default=Decimal("0.70"), ge=0, le=1)
+    model_choice: str | None = None
 
 
 class ReviewActionRequest(PilotContract):
@@ -308,6 +309,8 @@ class RubricGenerationRequest(PilotContract):
     assignment_text: str
     solution_text: str
     knowledge_dossier: str | None = None
+    target_essay_score: float | None = None
+    question_count: int | None = None
 
 
 class RubricGenerationResponse(PilotContract):

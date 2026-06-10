@@ -192,7 +192,7 @@ export function LessonInfoStep({
               className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                 materialForm.creationMethod === 'upload'
                   ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white'
-                  : 'bg-slate-955/20 border-slate-800 text-slate-400 hover:text-slate-300'
+                  : 'bg-slate-950/20 border-slate-800 text-slate-400 hover:text-slate-300'
               }`}
             >
               Upload File / Add Link
@@ -203,7 +203,7 @@ export function LessonInfoStep({
               className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                 materialForm.creationMethod === 'write'
                   ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white'
-                  : 'bg-slate-955/20 border-slate-800 text-slate-400 hover:text-slate-300'
+                  : 'bg-slate-950/20 border-slate-800 text-slate-400 hover:text-slate-300'
               }`}
             >
               Write Manually (Rich Text)
@@ -681,3 +681,4 @@ export function LessonInfoStep({
     </div>
   )
 }
+

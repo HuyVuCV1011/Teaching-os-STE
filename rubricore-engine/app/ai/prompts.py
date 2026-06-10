@@ -85,10 +85,17 @@ DEFAULT_RAG_RUBRIC_TEMPLATE = (
     "the assignment prompt and expected solutions. "
     "Return only one valid JSON object. Do not include markdown code block syntax. "
     "The JSON must have a single root key 'criteria' which is an array of objects. "
+    "\n"
+    "CRITICAL REQUIREMENT FOR MULTIPLE QUESTIONS:\n"
+    "If the assignment contains multiple specific questions (e.g. Question 1, Question 2, etc.), "
+    "you MUST generate separate criteria for each question. The label or key of each criterion "
+    "MUST explicitly start with the question reference, e.g., 'Question 1: [Metric Name]' or "
+    "'Question 2: [Metric Name]' so the system can map the criteria to the correct question.\n"
+    "\n"
     "Each criterion object must contain:\n"
-    "- key: string (a unique URL-safe slug, e.g. 'python-syntax')\n"
-    "- label: string (name of the metric, e.g. 'Python Syntax')\n"
-    "- description: string (what to grade, e.g. 'Verify code structure')\n"
+    "- key: string (a unique URL-safe slug, e.g. 'q1-python-syntax')\n"
+    "- label: string (name of the metric, e.g. 'Question 1: Python Syntax')\n"
+    "- description: string (what to grade, e.g. 'Verify code structure for Question 1')\n"
     "- max_points: number (e.g. 10)\n"
     "- weight: number (decimal weight, e.g. 1.0)\n"
     "- evaluation_hints: object containing:\n"
@@ -104,9 +111,25 @@ def build_rubric_messages(
     solution_text: str,
     knowledge_dossier: str | None = None,
     prompt_template: str | None = None,
+    target_essay_score: float | None = None,
+    question_count: int | None = None,
 ) -> list[dict[str, str]]:
     """Build system and user messages for rubric generation."""
     system_prompt = prompt_template if prompt_template is not None else DEFAULT_RAG_RUBRIC_TEMPLATE
+    
+    if target_essay_score is not None or question_count is not None:
+        budget_instruction = "\n\nCRITICAL SCORING BUDGET CONTEXT:\n"
+        if question_count is not None:
+            budget_instruction += f"- There are exactly {question_count} essay/programming questions in this assignment.\n"
+        if target_essay_score is not None:
+            budget_instruction += f"- The TOTAL combined score budget for all essay questions is exactly {target_essay_score} points.\n"
+        budget_instruction += (
+            "- You MUST allocate this point budget logically across all essay questions (e.g. if questions are equal difficulty, divide equally; otherwise allocate proportionally).\n"
+            "- For each question, ensure the sum of its criteria's `max_points * weight` corresponds to that question's share of the budget.\n"
+            "- The overall sum of all criteria's `max_points * weight` in the JSON MUST equal exactly the total budget of points."
+        )
+        system_prompt += budget_instruction
+
     if knowledge_dossier:
         system_prompt += f"\n\nConform strictly to these established pedagogical concepts and guidelines:\n{knowledge_dossier}\n"
 

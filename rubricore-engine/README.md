@@ -63,7 +63,7 @@ graph LR
     Cohort -->|Student Submits Assignment| Grading["⚖️ Evaluation Terminal"]
     Grading -->|Freeze Rubric Snapshot| Publish["📢 Publish Grades"]
 ```
-1.  **Curriculum Design**: Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 4-step wizard in the lesson editor.
+1.  **Curriculum Design**: Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 3-step or 4-step wizard (dynamically skipping step 4 if there are no approved essay/coding questions) in the lesson editor.
 2.  **Class Operations**: Admins setup cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes.
 3.  **Rubric Snapshotting**: Captures a frozen criteria snapshot upon saving assignments to prevent grading drift.
 4.  **Assessment**: Submissions land on `/admin/grading` where admins score homework using criteria-based rubrics.

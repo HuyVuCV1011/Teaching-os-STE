@@ -156,7 +156,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
     <>
       {/* Verify & Configure Modal */}
       {verifyMaterial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
@@ -185,7 +185,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   Parsed Content Preview (Server Extraction)
                 </span>
                 
-                <div className="bg-slate-955 border border-slate-700 rounded-xl p-4 min-h-[150px] max-h-[300px] overflow-y-auto text-xs leading-relaxed">
+                <div className="bg-slate-950 border border-slate-700 rounded-xl p-4 min-h-[150px] max-h-[300px] overflow-y-auto text-xs leading-relaxed">
                   {verifyMaterial.type === 'docx' ? (
                     verifyMaterial.metadata?.viewer_artifact?.viewer_html ? (
                       <div 
@@ -221,7 +221,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               ))}
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800 bg-slate-955">
+                          <tbody className="divide-y divide-slate-800 bg-slate-950">
                             {(verifyMaterial.metadata.viewer_artifact.rows || []).slice(0, 5).map((row: any[], i: number) => (
                               <tr key={i} className="hover:bg-slate-800/20">
                                 {row.map((cell: any, j: number) => (
@@ -266,7 +266,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
               <button
                 type="button"
                 onClick={() => setVerifyMaterial(null)}
-                className="px-4 py-2 rounded-xl bg-slate-955 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
               >
                 Close
               </button>
@@ -277,7 +277,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Materials Preview Modal */}
       {showMaterialsPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
@@ -313,7 +313,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                 {/* Handouts Materials List */}
                 <div className="space-y-4">
                   {materials.length === 0 ? (
-                    <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-955/20 text-slate-400 text-xs">
+                    <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-950/20 text-slate-400 text-xs">
                       No materials mapped to this lesson yet.
                     </div>
                   ) : (
@@ -402,7 +402,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
               <button
                 type="button"
                 onClick={() => setShowMaterialsPreview(false)}
-                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-205 font-semibold text-xs transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
               >
                 Close Preview
               </button>
@@ -413,7 +413,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Assignment Preview Simulator Modal */}
       {showAssignmentPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
@@ -478,7 +478,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                         </h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {dataFiles.map((fileItem: any, idx: any) => (
-                            <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
+                            <div key={idx} className="p-3 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <span className="block text-xs font-semibold text-slate-200 truncate">
                                   {fileItem.name}
@@ -511,7 +511,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                         </h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {referenceFiles.map((fileItem: any, idx: any) => (
-                            <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
+                            <div key={idx} className="p-3 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <span className="block text-xs font-semibold text-slate-200 truncate">
                                   {fileItem.name}
@@ -534,7 +534,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                         }
                                       }
                                     }}
-                                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-350 hover:text-slate-105 text-[9px] font-bold transition-all"
+                                    className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-350 hover:text-slate-100 text-[9px] font-bold transition-all"
                                   >
                                     Preview
                                   </button>
@@ -584,7 +584,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                             {approvedQs.map((q, idx) => {
                               const resolvedFormat = q.batch.type === 'multiple_choice' ? 'text' : getAnswerFormat(q, q.batch)
                               return (
-                                <div key={`q-final-${q.id || idx}-${idx}`} className="p-5 bg-slate-955 border border-slate-850 rounded-2xl space-y-3 text-xs text-slate-200 animate-fade-in">
+                                <div key={`q-final-${q.id || idx}-${idx}`} className="p-5 bg-slate-950 border border-slate-850 rounded-2xl space-y-3 text-xs text-slate-200 animate-fade-in">
                                   <div className="flex items-center justify-between">
                                     <span className="text-[9px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
                                       Question {idx + 1} ({q.batch.type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'} — {q.batch.category === 'theory' ? 'Lý thuyết' : 'Code'})
@@ -698,7 +698,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
               <button
                 type="button"
                 onClick={() => setShowAssignmentPreview(false)}
-                className="px-4 py-2 rounded-xl bg-slate-955 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-202 font-semibold text-xs transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-all"
               >
                 Close Preview
               </button>
@@ -709,10 +709,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Classify File Modal */}
       {classifyModalOpen && classifyFile && (
-        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
                 Classify Uploaded File
               </h3>
@@ -722,7 +722,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   setClassifyModalOpen(false)
                   setClassifyFile(null)
                 }}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-202 transition-colors"
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -773,7 +773,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
                   <label className={`p-3 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${
                     classifyType === 'reference'
-                      ? 'bg-blue-600/10 border-blue-500 text-slate-105'
+                      ? 'bg-blue-600/10 border-blue-500 text-slate-100'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900/50'
                   }`}>
                     <input
@@ -797,7 +797,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
                   <label className={`p-3 border rounded-xl flex items-start gap-3 cursor-pointer transition-all ${
                     classifyType === 'question'
-                      ? 'bg-blue-600/10 border-blue-500 text-slate-105'
+                      ? 'bg-blue-600/10 border-blue-500 text-slate-100'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900/50'
                   }`}>
                     <input
@@ -828,7 +828,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   <select
                      value={selectedModel}
                      onChange={(e) => setSelectedModel(e.target.value)}
-                     className="w-full bg-slate-955 border border-slate-808 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all font-semibold shadow-inner cursor-pointer"
+                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all font-semibold shadow-inner cursor-pointer"
                   >
                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (Google)</option>
                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
@@ -873,7 +873,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end gap-3 shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -900,10 +900,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Smart Post-Parse Essay Format Modal */}
       {showEssayFormatModal && (
-        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
                 Essay Questions Detected!
@@ -915,7 +915,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   setParsedQuestionsTemp([])
                   setParsedFileNameTemp('')
                 }}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-202 transition-colors"
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -947,7 +947,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   <button
                     type="button"
                     onClick={() => handleApplyEssayFormat('text')}
-                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                    className="p-3 bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
                   >
                     <div className="p-2 bg-blue-600/10 text-blue-500 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
                       📝
@@ -963,7 +963,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   <button
                     type="button"
                     onClick={() => handleApplyEssayFormat('file')}
-                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                    className="p-3 bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
                   >
                     <div className="p-2 bg-amber-600/10 text-amber-505 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0">
                       📎
@@ -979,7 +979,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   <button
                     type="button"
                     onClick={() => handleApplyEssayFormat('both')}
-                    className="p-3 bg-slate-955 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
+                    className="p-3 bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 rounded-2xl flex items-start gap-3 text-left transition-all group"
                   >
                     <div className="p-2 bg-purple-600/10 text-purple-500 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0">
                       🔀
@@ -996,7 +996,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -1004,7 +1004,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   setParsedQuestionsTemp([])
                   setParsedFileNameTemp('')
                 }}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-755 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors"
               >
                 Cancel & Discard
               </button>
@@ -1015,10 +1015,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* AI Generator Modal */}
       {showAiModal && (
-        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-blue-500 animate-pulse" />
                 <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
@@ -1034,7 +1034,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   }
                   setShowAiModal(false)
                 }}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-202 transition-colors"
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1101,7 +1101,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                   className={`relative flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none group ${
                                     isSelected
                                       ? styles.bg + ' border-current shadow-sm ring-1 ring-offset-0 ring-current/25'
-                                      : 'bg-slate-955/30 border-slate-800 hover:bg-slate-900/50 text-slate-400 hover:text-slate-300'
+                                      : 'bg-slate-950/30 border-slate-800 hover:bg-slate-900/50 text-slate-400 hover:text-slate-300'
                                   }`}
                                 >
                                   <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -1119,7 +1119,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                         className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-900 cursor-pointer"
                                       />
                                     </div>
-                                    <Icon className={`w-4 h-4 ${isSelected ? styles.iconColor : 'text-slate-505'} shrink-0`} />
+                                    <Icon className={`w-4 h-4 ${isSelected ? styles.iconColor : 'text-slate-500'} shrink-0`} />
                                     <div className="min-w-0">
                                       <span className={`block text-xs font-semibold truncate ${isSelected ? 'text-slate-100' : 'text-slate-300'}`}>
                                         {m.title}
@@ -1226,8 +1226,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiType('multiple_choice')}
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiType === 'multiple_choice'
-                                  ? 'bg-blue-600/10 border-blue-505 text-white ring-1 ring-blue-500/30'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
                               <div className={`p-2 rounded-lg shrink-0 ${
@@ -1249,7 +1249,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiType === 'essay'
                                   ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
                               <div className={`p-2 rounded-lg shrink-0 ${
@@ -1279,7 +1279,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiCategory === 'theory'
                                   ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
                               <div className={`p-2 rounded-lg shrink-0 ${
@@ -1301,7 +1301,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiCategory === 'code'
                                   ? 'bg-emerald-600/10 border-emerald-500 text-white ring-1 ring-emerald-500/30'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
                               <div className={`p-2 rounded-lg shrink-0 ${
@@ -1330,8 +1330,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 onClick={() => setAiDefaultAnswerFormat('text')}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
                                   aiDefaultAnswerFormat === 'text'
-                                    ? 'bg-blue-600/10 border-blue-505 text-white ring-1 ring-blue-500/30'
-                                    : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                                 }`}
                               >
                                 <span className="text-lg mb-1">📝</span>
@@ -1344,7 +1344,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
                                   aiDefaultAnswerFormat === 'file'
                                     ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
-                                    : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                                 }`}
                               >
                                 <span className="text-lg mb-1">📎</span>
@@ -1356,8 +1356,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 onClick={() => setAiDefaultAnswerFormat('both')}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
                                   aiDefaultAnswerFormat === 'both'
-                                    ? 'bg-purple-600/10 border-purple-505 text-white ring-1 ring-purple-500/30'
-                                    : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                                 }`}
                               >
                                 <span className="text-lg mb-1">🔀</span>
@@ -1379,7 +1379,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
                                 aiDifficulty === 'easy'
                                   ? 'bg-emerald-600/10 border-emerald-500 text-white ring-1 ring-emerald-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🟢 Easy</span>
@@ -1390,7 +1390,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
                                 aiDifficulty === 'medium'
                                   ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🔵 Medium</span>
@@ -1401,7 +1401,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
                                 aiDifficulty === 'hard'
                                   ? 'bg-rose-600/10 border-rose-500 text-white ring-1 ring-rose-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🔴 Hard</span>
@@ -1420,8 +1420,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiLanguage('vietnamese')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
                                 aiLanguage === 'vietnamese'
-                                  ? 'bg-blue-600/10 border-blue-505 text-white ring-1 ring-blue-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs"> Tiếng Việt</span>
@@ -1431,8 +1431,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiLanguage('english')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
                                 aiLanguage === 'english'
-                                  ? 'bg-blue-600/10 border-blue-505 text-white ring-1 ring-blue-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🇺🇸 English</span>
@@ -1442,8 +1442,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiLanguage('both')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
                                 aiLanguage === 'both'
-                                  ? 'bg-purple-600/10 border-purple-505 text-white ring-1 ring-purple-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                                  ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30 font-bold'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🌐 Bilingual</span>
@@ -1496,7 +1496,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
               {/* STEP 2: GENERATING LOAD SCREEN */}
               {modalStep === 2 && (
                 <div className="flex-1 flex flex-col justify-center items-center p-6 max-w-lg mx-auto w-full animate-fade-in">
-                  <div className="w-full bg-slate-955 border border-slate-800 rounded-3xl p-6 space-y-6">
+                  <div className="w-full bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-6">
                     <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
                       <div className="relative flex items-center justify-center">
                         <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
@@ -1511,9 +1511,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                       <div className="space-y-1">
                         <div className="flex items-center gap-3">
                           {genStage === 'reading' ? (
-                            <Loader2 className="w-4 h-4 text-blue-505 animate-spin shrink-0" />
+                            <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
                           ) : readingDuration !== null ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-505 shrink-0" />
+                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                           ) : (
                             <span className="w-4 h-4 rounded-full border border-slate-700 inline-block shrink-0" />
                           )}
@@ -1588,7 +1588,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
               {modalStep === 3 && batches.length > 0 && (
                 <div className="flex-1 overflow-hidden flex flex-col h-full bg-slate-900 text-slate-100">
                   {/* Top Bar: Batch Selector tabs */}
-                  <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex gap-2 overflow-x-auto shrink-0">
+                  <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex gap-2 overflow-x-auto shrink-0">
                     {batches.map((batch: any, idx: number) => {
                       const isActive = idx === activeBatchIndex
                       return (
@@ -1602,7 +1602,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${
                             isActive
                               ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-sm ring-1 ring-blue-500/25'
-                              : 'bg-slate-900 border-slate-808 text-slate-400 hover:bg-slate-850'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                           }`}
                         >
                           <Sparkles className="w-3.5 h-3.5" />
@@ -1631,10 +1631,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                           {activeBatch.questions.map((q: any, qIdx: number) => (
                             <div
                               key={q.id || qIdx}
-                              className="p-5 bg-slate-955 border border-slate-800 rounded-2xl space-y-4 animate-fade-in relative hover:border-slate-700 transition-colors"
+                              className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-4 animate-fade-in relative hover:border-slate-700 transition-colors"
                             >
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] bg-slate-900 border border-slate-808 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono">
+                                <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono">
                                   Question {qIdx + 1}
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -1656,7 +1656,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               </div>
 
                               <div className="space-y-3">
-                                <p className="text-xs font-semibold text-slate-205 leading-relaxed whitespace-pre-wrap">
+                                <p className="text-xs font-semibold text-slate-200 leading-relaxed whitespace-pre-wrap">
                                   {q.content}
                                 </p>
 
@@ -1665,7 +1665,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1.5">
                                     {q.options.map((opt: string, oIdx: number) => {
                                       const letter = String.fromCharCode(65 + oIdx)
-                                      const isCorrect = q.answer === letter
+                                      const isCorrect = q.answer?.trim().toUpperCase().startsWith(letter)
                                       return (
                                         <div
                                           key={oIdx}
@@ -1699,7 +1699,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 {/* Sample Data attached if exists */}
                                 {q.data && (
                                   <div className="p-3 bg-slate-900 border border-slate-850 rounded-xl text-[10px] text-slate-400 font-mono overflow-x-auto max-h-40 overflow-y-auto">
-                                    <span className="block font-bold text-slate-355 uppercase tracking-widest mb-1 text-[9px]">Sample Data Attached</span>
+                                    <span className="block font-bold text-slate-300 uppercase tracking-widest mb-1 text-[9px]">Sample Data Attached</span>
                                     <pre>{JSON.stringify(q.data, null, 2)}</pre>
                                   </div>
                                 )}
@@ -1722,7 +1722,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                       />
                                       <span>📝 Text Only</span>
                                     </label>
-                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-355 hover:text-slate-100 transition-colors">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-slate-100 transition-colors">
                                       <input
                                         type="radio"
                                         name={`q-format-${qIdx}-${activeBatch.id}`}
@@ -1732,13 +1732,13 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                       />
                                       <span>📎 File Only</span>
                                     </label>
-                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-355 hover:text-slate-100 transition-colors">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-slate-100 transition-colors">
                                       <input
                                         type="radio"
                                         name={`q-format-${qIdx}-${activeBatch.id}`}
                                         checked={q.answerFormat === 'both'}
                                         onChange={() => handleQuestionFormatOverride(qIdx, 'both')}
-                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-955 border-slate-700 cursor-pointer"
+                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
                                       />
                                       <span>🔀 Both</span>
                                     </label>
@@ -1754,7 +1754,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                   className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all ${
                                     q.status === 'approved'
                                       ? 'bg-emerald-600 text-white shadow-lg'
-                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-emerald-500 border border-slate-808'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-emerald-500 border border-slate-800'
                                   }`}
                                 >
                                   <Check className="w-3.5 h-3.5" />
@@ -1766,7 +1766,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                   className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all ${
                                     q.status === 'rejected'
                                       ? 'bg-rose-600 text-white shadow-lg'
-                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-500 border border-slate-808'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-rose-500 border border-slate-800'
                                   }`}
                                 >
                                   <X className="w-3.5 h-3.5" />
@@ -1779,7 +1779,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                     setRegeneratingIndex(qIdx)
                                     handleRegenerateQuestion(activeBatchIndex, qIdx).finally(() => setRegeneratingIndex(null))
                                   }}
-                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-808 font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
+                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
                                 >
                                   <RefreshCw className={`w-3.5 h-3.5 ${regeneratingIndex === qIdx ? 'animate-spin' : ''}`} />
                                   Regen
@@ -1796,7 +1796,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                     setEditingBatchIndex(activeBatchIndex)
                                     setEditingQuestionIndex(qIdx)
                                   }}
-                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-805 text-slate-400 hover:text-slate-200 border border-slate-808 font-bold text-xs flex items-center gap-1 transition-all"
+                                  className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-805 text-slate-400 hover:text-slate-200 border border-slate-800 font-bold text-xs flex items-center gap-1 transition-all"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
                                   Edit
@@ -1828,7 +1828,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                     const rejectedQs = activeBatch.questions.filter((q: any) => q.status === 'rejected').length
 
                     return (
-                      <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-955 px-6 py-4 shrink-0">
+                      <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-950 px-6 py-4 shrink-0">
                         <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-400">
                           <span>Active Batch Stats:</span>
                           <div className="flex items-center gap-2">
@@ -1839,11 +1839,26 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                          <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-400 hover:border-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20 h-[36px]"
+                          >
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Google)</option>
+                            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
+                            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
+                            <option value="groq/llama-3.3-70b-versatile">Llama 3.3 70B (Groq)</option>
+                            <option value="groq/llama-3.1-8b-instant">Llama 3.1 8B (Groq)</option>
+                            <option value="openrouter/deepseek/deepseek-chat">DeepSeek V3 (OpenRouter)</option>
+                            <option value="openrouter/google/gemini-2.5-flash">Gemini 2.5 Flash (OpenRouter)</option>
+                            <option value="openrouter/meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B Free (OpenRouter)</option>
+                            <option value="ollama">Ollama (Local Llama)</option>
+                          </select>
                           <button
                             type="button"
                             onClick={handleRegenAllRejected}
-                            className="flex-1 sm:flex-none px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                            className="flex-1 sm:flex-none px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-350 border border-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 h-[36px]"
                           >
                             <RefreshCw className="w-4 h-4" />
                             Regen All Rejected
@@ -1888,10 +1903,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Batch Summary Modal */}
       {showBatchSummaryModal && (
-        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[70vh]">
             {/* Header */}
-            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-5 h-5 text-indigo-500 animate-pulse" />
                 <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
@@ -1929,7 +1944,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                     const isExpanded = previewBatchIndex === bIdx
 
                     return (
-                      <div key={batch.id || bIdx} className="p-4 bg-slate-955/40 border border-slate-800 rounded-xl relative group transition-all hover:border-slate-700 flex flex-col justify-between shadow-sm space-y-3">
+                      <div key={batch.id || bIdx} className="p-4 bg-slate-950/40 border border-slate-800 rounded-xl relative group transition-all hover:border-slate-700 flex flex-col justify-between shadow-sm space-y-3">
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">
                             <span className="block text-xs font-bold text-slate-200">
@@ -1946,7 +1961,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => {
                                 setPreviewBatchIndex(isExpanded ? null : bIdx)
                               }}
-                              className="px-2 py-1 rounded bg-slate-900 border border-slate-808 hover:border-slate-700 text-[10px] font-bold text-slate-350 hover:text-slate-100 transition-colors animate-fade-in"
+                              className="px-2 py-1 rounded bg-slate-900 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-slate-350 hover:text-slate-100 transition-colors animate-fade-in"
                             >
                               {isExpanded ? 'Hide Questions' : 'View Questions'}
                             </button>
@@ -1960,7 +1975,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 setShowBatchSummaryModal(false)
                                 setPreviewBatchIndex(null)
                               }}
-                              className="px-2 py-1 rounded bg-slate-900 border border-slate-808 hover:border-slate-700 text-[10px] font-bold text-blue-400 hover:text-blue-450 transition-colors"
+                              className="px-2 py-1 rounded bg-slate-900 border border-slate-800 hover:border-slate-700 text-[10px] font-bold text-blue-400 hover:text-blue-450 transition-colors"
                             >
                               Edit
                             </button>
@@ -2020,7 +2035,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-between items-center shrink-0 text-xs font-semibold text-slate-400">
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center shrink-0 text-xs font-semibold text-slate-400">
               <div>
                 Total: <strong className="text-slate-200">{batches.reduce((acc: number, b: any) => acc + b.questions.length, 0)}</strong> questions (<strong className="text-emerald-500">{batches.reduce((acc: number, b: any) => acc + b.questions.filter((q: any) => q.status === 'approved').length, 0)}</strong> approved)
               </div>
@@ -2041,10 +2056,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Edit Question Modal */}
       {editingQuestion && editingBatchIndex !== null && editingQuestionIndex !== null && (
-        <div className="fixed inset-0 bg-slate-955/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 bg-slate-955 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
                 Edit Question
               </h3>
@@ -2055,7 +2070,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                   setEditingBatchIndex(null)
                   setEditingQuestionIndex(null)
                 }}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-202 transition-colors"
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2095,7 +2110,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                       const letter = String.fromCharCode(65 + oIdx)
                       return (
                         <div key={oIdx} className="flex items-center gap-2">
-                          <span className="font-extrabold text-blue-505 w-4">{letter}.</span>
+                          <span className="font-extrabold text-blue-500 w-4">{letter}.</span>
                           <input
                             type="text"
                             value={opt}
@@ -2104,7 +2119,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               opts[oIdx] = e.target.value
                               setEditingQuestion({ ...editingQuestion, options: opts })
                             }}
-                            className="flex-1 bg-slate-955 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                           />
                           <button
                             type="button"
@@ -2133,7 +2148,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                     <select
                       value={editingQuestion.answer || 'A'}
                       onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-808 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                     >
                       {editingQuestion.options.map((_: any, oIdx: number) => {
                         const letter = String.fromCharCode(65 + oIdx)
@@ -2149,7 +2164,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                       type="text"
                       value={editingQuestion.answer || ''}
                       onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-808 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                       placeholder="Suggested answer/criteria"
                     />
                   )}
@@ -2167,7 +2182,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                       const val = parseInt(e.target.value) || 0
                       setEditingQuestion({ ...editingQuestion, points: val > 0 ? val : undefined })
                     }}
-                    className="w-full bg-slate-955 border border-slate-808 rounded-lg px-2.5 py-1.5 text-xs text-slate-202 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                     placeholder="e.g. 10"
                   />
                 </div>
@@ -2175,7 +2190,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-slate-955 border-t border-slate-800 flex justify-end gap-3 shrink-0">
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -2201,3 +2216,4 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
     </>
   )
 }
+

@@ -78,7 +78,7 @@ graph LR
 
 | Step | Flow |
 | --- | --- |
-| Curriculum design | Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 4-step wizard in the lesson editor. |
+| Curriculum design | Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 3-step or 4-step wizard (dynamically skipping step 4 if there are no approved essay/coding questions) in the lesson editor. |
 | Class operations | Admins set up cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes. |
 | Rubric snapshotting | Captures a frozen criteria snapshot upon saving assignments to prevent grading drift. |
 | Assessment | Submissions land on `/admin/grading` where admins score homework using criteria-based rubrics. |

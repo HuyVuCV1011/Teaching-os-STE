@@ -74,10 +74,25 @@ def generate_solution_key(model_choice: str, assignment_text: str, knowledge_dos
         return raw_json
 
 
-def generate_rubric(model_choice: str, assignment_text: str, solution_text: str, knowledge_dossier: str | None = None, prompt_template: str | None = None) -> dict[str, Any]:
+def generate_rubric(
+    model_choice: str,
+    assignment_text: str,
+    solution_text: str,
+    knowledge_dossier: str | None = None,
+    prompt_template: str | None = None,
+    target_essay_score: float | None = None,
+    question_count: int | None = None,
+) -> dict[str, Any]:
     """AI generates a complete rubric schema with criteria, weights, and match rules."""
     provider = get_provider(model_choice)
-    messages = build_rubric_messages(assignment_text, solution_text, knowledge_dossier, prompt_template)
+    messages = build_rubric_messages(
+        assignment_text,
+        solution_text,
+        knowledge_dossier,
+        prompt_template,
+        target_essay_score,
+        question_count,
+    )
     system_instruction = messages[0]["content"]
     user_prompt = messages[1]["content"]
 
@@ -275,8 +290,25 @@ class AIBroker:
         return generate_solution_key(model_choice, assignment_text, knowledge_dossier)
 
     @classmethod
-    def generate_rubric(cls, model_choice: str, assignment_text: str, solution_text: str, knowledge_dossier: str | None = None, prompt_template: str | None = None) -> dict[str, Any]:
-        return generate_rubric(model_choice, assignment_text, solution_text, knowledge_dossier, prompt_template)
+    def generate_rubric(
+        cls,
+        model_choice: str,
+        assignment_text: str,
+        solution_text: str,
+        knowledge_dossier: str | None = None,
+        prompt_template: str | None = None,
+        target_essay_score: float | None = None,
+        question_count: int | None = None,
+    ) -> dict[str, Any]:
+        return generate_rubric(
+            model_choice,
+            assignment_text,
+            solution_text,
+            knowledge_dossier,
+            prompt_template,
+            target_essay_score,
+            question_count,
+        )
 
     @classmethod
     def generate_assignment_questions(

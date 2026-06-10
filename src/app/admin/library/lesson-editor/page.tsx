@@ -19,6 +19,7 @@ function LessonEditorInner() {
     saving,
     currentStep,
     setCurrentStep,
+    totalSteps,
     pinnedChunks,
     setPinnedChunks,
     lesson,
@@ -117,12 +118,12 @@ function LessonEditorInner() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/admin/library?tab=courses')}
-            className="p-2 rounded-lg bg-slate-955 border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors animate-fade-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
+            className="p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors animate-fade-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-105 flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-100 flex items-center gap-2">
               <BookOpen className="w-6 h-6 text-blue-600 animate-pulse" />
               Session Composer Workspace
             </h1>
@@ -141,7 +142,7 @@ function LessonEditorInner() {
             { id: 2, label: '2. Assignment Details' },
             { id: 3, label: '3. Solution Key', disabled: !hasAssignment },
             { id: 4, label: '4. Rubric Matrix', disabled: !hasAssignment }
-          ].map((s) => (
+          ].filter(s => s.id <= totalSteps).map((s) => (
             <button
               key={s.id}
               type="button"
@@ -160,7 +161,7 @@ function LessonEditorInner() {
           ))}
         </div>
         <div className="text-[10px] uppercase font-bold text-slate-400">
-          Step {currentStep} of {hasAssignment ? 4 : 2}
+          Step {currentStep} of {totalSteps}
         </div>
       </div>
 
@@ -291,7 +292,7 @@ function LessonEditorInner() {
                 type="button"
                 onClick={() => handleSaveComposer('draft')}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-slate-955 border border-slate-700 hover:border-slate-650 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                className="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 hover:border-slate-650 text-slate-400 hover:text-slate-200 font-semibold text-xs transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
               >
                 {saving ? (
                   <>
@@ -305,7 +306,7 @@ function LessonEditorInner() {
                 onClick={handleNextStep}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/30"
               >
-                {currentStep === 4 || (currentStep === 2 && !hasAssignment) ? 'Finalize & Save' : 'Next Step →'}
+                {currentStep === totalSteps ? 'Finalize & Save' : 'Next Step →'}
               </button>
             </div>
           </div>
@@ -350,3 +351,4 @@ export default function LessonEditor() {
     </Suspense>
   )
 }
+

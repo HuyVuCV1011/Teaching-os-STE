@@ -15,11 +15,11 @@ interface Criteria {
     rule_type: string
     expected_value: string | null
   }
-  questionId?: number
+  questionId?: string | number
 }
 
 interface QuestionItem {
-  id: number
+  id: string | number
   content: string
   options?: string[]
   answer?: string
@@ -110,7 +110,7 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
               setSelectedIdx(parseInt(e.target.value))
               setTestInput('')
             }}
-            className="w-full bg-slate-955 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
           >
             {ruleCriteria.map((c, i) => (
               <option key={i} value={i}>
@@ -127,7 +127,7 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
               placeholder="Type test student answer..."
               value={testInput}
               onChange={(e) => setTestInput(e.target.value)}
-              className="flex-1 bg-slate-955 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-100 placeholder-slate-650 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
+              className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-100 placeholder-slate-650 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
             />
             <div className="flex items-center shrink-0 min-w-[70px] justify-end">
               {match === null ? (
@@ -150,7 +150,7 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
 }
 
 // 🧠 Reusable AI Grading Sandbox for each Essay Card
-function AIGradingSandbox({ question, criteria }: { question: QuestionItem; criteria: Criteria[] }) {
+function AIGradingSandbox({ question, criteria, selectedModel }: { question: QuestionItem; criteria: Criteria[]; selectedModel?: string }) {
   const [studentAnswer, setStudentAnswer] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
@@ -166,7 +166,8 @@ function AIGradingSandbox({ question, criteria }: { question: QuestionItem; crit
         criteria,
         studentAnswer,
         assignmentInstructions: question.content,
-        modelAnswer: question.answer || ''
+        modelAnswer: question.answer || '',
+        modelChoice: selectedModel
       })
       if (res.success) {
         setResult(res.grading)
@@ -195,7 +196,7 @@ function AIGradingSandbox({ question, criteria }: { question: QuestionItem; crit
           placeholder="Paste or write a sample student answer to test grade..."
           value={studentAnswer}
           onChange={(e) => setStudentAnswer(e.target.value)}
-          className="w-full bg-slate-955 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-650 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
+          className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-650 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
         />
 
         <div className="flex justify-end">
@@ -230,7 +231,7 @@ function AIGradingSandbox({ question, criteria }: { question: QuestionItem; crit
           {result.overall_feedback && (
             <div className="space-y-1">
               <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Overall Feedback</span>
-              <p className="text-xs text-slate-355 leading-relaxed italic">{result.overall_feedback}</p>
+              <p className="text-xs text-slate-300 leading-relaxed italic">{result.overall_feedback}</p>
             </div>
           )}
 
@@ -262,7 +263,7 @@ function AIGradingSandbox({ question, criteria }: { question: QuestionItem; crit
 }
 
 // 🎛️ Tabbed Sandbox Controller Panel (Regex vs AI Grader)
-function QuestionSandboxPanel({ question, criteria }: { question: QuestionItem; criteria: Criteria[] }) {
+function QuestionSandboxPanel({ question, criteria, selectedModel }: { question: QuestionItem; criteria: Criteria[]; selectedModel?: string }) {
   const [activeTab, setActiveTab] = useState<'regex' | 'ai'>('regex')
   return (
     <div className="space-y-3">
@@ -289,7 +290,7 @@ function QuestionSandboxPanel({ question, criteria }: { question: QuestionItem; 
       {activeTab === 'regex' ? (
         <InlineRegexSandbox criteria={criteria} />
       ) : (
-        <AIGradingSandbox question={question} criteria={criteria} />
+        <AIGradingSandbox question={question} criteria={criteria} selectedModel={selectedModel} />
       )}
     </div>
   )
@@ -322,7 +323,7 @@ export function RubricGeneratorStep({
 }: RubricGeneratorStepProps) {
   const [isRAGDrawerOpen, setIsRAGDrawerOpen] = useState(false)
   const [mcqExpanded, setMcqExpanded] = useState(false)
-  const [expandedCards, setExpandedCards] = useState<Record<number, boolean>>({})
+  const [expandedCards, setExpandedCards] = useState<Record<string | number, boolean>>({})
   const [currentStageIdx, setCurrentStageIdx] = useState(0)
 
   const stages = [
@@ -351,7 +352,7 @@ export function RubricGeneratorStep({
 
   // Expand all essay question cards by default on load
   useEffect(() => {
-    const initial: Record<number, boolean> = {}
+    const initial: Record<string | number, boolean> = {}
     approvedEssayQs.forEach(q => {
       initial[q.id] = true
     })
@@ -370,7 +371,7 @@ export function RubricGeneratorStep({
     return () => clearInterval(interval)
   }, [generatingRubric])
 
-  const toggleCard = (qId: number) => {
+  const toggleCard = (qId: string | number) => {
     setExpandedCards(prev => ({ ...prev, [qId]: !prev[qId] }))
   }
 
@@ -380,7 +381,7 @@ export function RubricGeneratorStep({
   }
 
   // Create a new criterion bound specifically to this question card
-  const handleAddCriterionForQuestion = (qId: number) => {
+  const handleAddCriterionForQuestion = (qId: string | number) => {
     const newCrit: Criteria = {
       key: `custom-${Date.now()}-${Math.random()}`,
       label: 'New Metric',
@@ -469,33 +470,50 @@ export function RubricGeneratorStep({
       })
     }
 
-    // 2. Calibrate Essay Criteria
+    // 2. Calibrate Essay Criteria (Proportional Scaling)
     if (approvedEssayQs.length > 0 && criteriaList.length > 0) {
       const activeCriteria = criteriaList.filter(c => c.questionId && approvedEssayQs.some(eq => eq.id === c.questionId))
       
       if (activeCriteria.length > 0) {
-        const sumMaxPoints = activeCriteria.reduce((sum, c) => sum + c.max_points, 0)
+        const currentEssayTotal = activeCriteria.reduce((sum, c) => sum + (c.max_points * c.weight), 0)
         
-        if (sumMaxPoints > 0) {
-          const targetWeight = targetEssayTotal / sumMaxPoints
-          const roundedWeight = Math.round(targetWeight * 100) / 100
-          
-          const scaledSum = activeCriteria.reduce((sum, c) => sum + (c.max_points * roundedWeight), 0)
-          const residual = targetEssayTotal - scaledSum
-          
-          const updatedCriteria = criteriaList.map((c) => {
+        if (currentEssayTotal > 0 && targetEssayTotal > 0) {
+          const scaleFactor = targetEssayTotal / currentEssayTotal
+          let scaledCriteria = criteriaList.map((c) => {
             const isActive = c.questionId && approvedEssayQs.some(eq => eq.id === c.questionId)
             if (!isActive) return c
-
-            const activeIdx = activeCriteria.findIndex(ac => ac.key === c.key)
-            let w = roundedWeight
-            if (activeIdx === 0) {
-              w = Math.round(((c.max_points * roundedWeight + residual) / c.max_points) * 100) / 100
+            return {
+              ...c,
+              weight: Math.round(c.weight * scaleFactor * 100) / 100
             }
-            return { ...c, weight: w }
           })
           
-          setCriteriaList(updatedCriteria)
+          // Recalculate and apply residual to the highest valued active criterion
+          const activeScaled = scaledCriteria.filter(c => c.questionId && approvedEssayQs.some(eq => eq.id === c.questionId))
+          const scaledSum = activeScaled.reduce((sum, c) => sum + (c.max_points * c.weight), 0)
+          const residual = targetEssayTotal - scaledSum
+          
+          if (Math.abs(residual) > 0.001 && activeScaled.length > 0) {
+            let highestIdxInActive = 0
+            let highestVal = -1
+            activeScaled.forEach((c, idx) => {
+              const val = c.max_points * c.weight
+              if (val > highestVal) {
+                highestVal = val
+                highestIdxInActive = idx
+              }
+            })
+            const targetKey = activeScaled[highestIdxInActive].key
+            scaledCriteria = scaledCriteria.map(c => {
+              if (c.key === targetKey) {
+                const newWeight = Math.round(((c.max_points * c.weight + residual) / c.max_points) * 100) / 100
+                return { ...c, weight: newWeight }
+              }
+              return c
+            })
+          }
+          
+          setCriteriaList(scaledCriteria)
         }
       }
     }
@@ -934,7 +952,7 @@ export function RubricGeneratorStep({
 
                           {/* Bottom Part: locally managed Sandbox testbed inside the question card */}
                           <div className="pt-2 border-t border-slate-800">
-                            <QuestionSandboxPanel question={q} criteria={qCriteria} />
+                            <QuestionSandboxPanel question={q} criteria={qCriteria} selectedModel={selectedModel} />
                           </div>
                         </div>
                       )}
@@ -964,3 +982,4 @@ export function RubricGeneratorStep({
     </div>
   )
 }
+

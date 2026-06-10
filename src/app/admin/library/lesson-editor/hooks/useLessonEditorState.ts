@@ -76,6 +76,20 @@ export function cleanOptionText(opt: string, index: number): string {
   return opt
 }
 
+export function generateUUID(): string {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID()
+  }
+  if (typeof crypto !== 'undefined' && (crypto as any).randomUUID) {
+    return (crypto as any).randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export function mapCriteriaToQuestions(criteria: any[], batches: BatchItem[]): any[] {
   const approvedEssayQs: QuestionItem[] = []
   batches.forEach(b => {
@@ -121,7 +135,7 @@ export function mapCriteriaToQuestions(criteria: any[], batches: BatchItem[]): a
 }
 
 export interface QuestionItem {
-  id: number
+  id: string | number
   content: string
   options?: string[]
   answer?: string
@@ -730,7 +744,7 @@ export function useLessonEditorState() {
               const groupedBatches: BatchItem[] = []
               questions.forEach((q: any) => {
                 const qItem: QuestionItem = {
-                  id: q.id || Math.random(),
+                  id: q.id || generateUUID(),
                   content: q.content || '',
                   options: q.options || undefined,
                   answer: q.answer || undefined,
@@ -772,7 +786,7 @@ export function useLessonEditorState() {
               const parsed = JSON.parse(instr)
               if (Array.isArray(parsed) && parsed.length > 0) {
                 const questions = parsed.map((q: any) => ({
-                  id: q.id || Math.random(),
+                  id: q.id || generateUUID(),
                   content: q.content || '',
                   options: q.options || undefined,
                   answer: q.answer || undefined,
@@ -852,7 +866,24 @@ export function useLessonEditorState() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [isDirty])
 
+  const hasApprovedEssay = batches.some(b => b.type === 'essay' && b.questions.some(q => q.status === 'approved'))
+  const totalSteps = hasAssignment ? (hasApprovedEssay ? 4 : 3) : 2
+
+  useEffect(() => {
+    if (currentStep > totalSteps) {
+      setCurrentStep(totalSteps)
+    }
+  }, [totalSteps, currentStep])
+
+  // Auto-select all materials when AI Modal is opened
+  useEffect(() => {
+    if (showAiModal && aiSelectedMaterials.length === 0 && materials.length > 0) {
+      setAiSelectedMaterials(materials.map(m => m.id))
+    }
+  }, [showAiModal, materials])
+
   const handleNextStep = () => {
+
     if (currentStep === 1) {
       setCurrentStep(2)
     } else if (currentStep === 2) {
@@ -862,7 +893,11 @@ export function useLessonEditorState() {
         handleSaveComposer('official')
       }
     } else if (currentStep === 3) {
-      setCurrentStep(4)
+      if (hasApprovedEssay) {
+        setCurrentStep(4)
+      } else {
+        handleSaveComposer('official')
+      }
     } else if (currentStep === 4) {
       handleSaveComposer('official')
     }
@@ -1091,20 +1126,35 @@ export function useLessonEditorState() {
   }
 
   const handleGenerateAIRubric = async () => {
-    const approvedQs: QuestionItem[] = []
+    const approvedEssayQs: QuestionItem[] = []
+    const approvedMCQs: QuestionItem[] = []
     batches.forEach(b => {
       b.questions.forEach(q => {
         if (q.status === 'approved') {
-          approvedQs.push(q)
+          if (b.type === 'essay') {
+            approvedEssayQs.push(q)
+          } else {
+            approvedMCQs.push(q)
+          }
         }
       })
     })
 
-    if (approvedQs.length > 0) {
+    if (approvedEssayQs.length > 0) {
       setGeneratingRubric(true)
       try {
-        const assignmentText = approvedQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
-        const solutionText = approvedQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
+        const targetMaxScore = assignmentForm?.maxScore || 100
+        const mcqWeightPercent = assignmentForm?.mcqWeightPercent !== undefined ? assignmentForm.mcqWeightPercent : 50
+        const essayWeightPercent = assignmentForm?.essayWeightPercent !== undefined ? assignmentForm.essayWeightPercent : 50
+
+        let targetEssayTotal = targetMaxScore
+        if (approvedMCQs.length > 0) {
+          targetEssayTotal = targetMaxScore * (essayWeightPercent / 100)
+        }
+
+        // Only format essay questions for rubric generation (MCQs do not need qualitative rubrics)
+        const assignmentText = approvedEssayQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
+        const solutionText = approvedEssayQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
 
         const assignmentTextWithRag = assignmentText + (
           pinnedChunks && pinnedChunks.length > 0
@@ -1112,7 +1162,13 @@ export function useLessonEditorState() {
             : ''
         )
 
-        const res = await generateRubricAction(assignmentTextWithRag, solutionText, selectedModel)
+        const res = await generateRubricAction(
+          assignmentTextWithRag, 
+          solutionText, 
+          selectedModel,
+          targetEssayTotal,
+          approvedEssayQs.length
+        )
         if (res.success && res.criteria) {
           const newCriteria = res.criteria.map((c: any) => ({
             key: c.key || `crit-${Date.now()}-${Math.random()}`,
@@ -1122,7 +1178,40 @@ export function useLessonEditorState() {
             weight: c.weight || 1.0,
             evaluation_hints: c.evaluation_hints || c.evaluationHints || { rule_type: 'none', expected_value: null }
           }))
-          setCriteriaList(mapCriteriaToQuestions(newCriteria, batches))
+
+          // Proportional Calibration on newly generated criteria
+          const currentEssayTotal = newCriteria.reduce((sum: number, c: any) => sum + (c.max_points * c.weight), 0)
+          let calibratedCriteria = newCriteria
+          if (currentEssayTotal > 0 && targetEssayTotal > 0) {
+            const scaleFactor = targetEssayTotal / currentEssayTotal
+            calibratedCriteria = newCriteria.map((c: any) => ({
+              ...c,
+              weight: Math.round(c.weight * scaleFactor * 100) / 100
+            }))
+            
+            // Distribute residual difference to ensure the sum matches exactly
+            const scaledSum = calibratedCriteria.reduce((sum: number, c: any) => sum + (c.max_points * c.weight), 0)
+            const residual = targetEssayTotal - scaledSum
+            if (Math.abs(residual) > 0.001 && calibratedCriteria.length > 0) {
+              let highestIdx = 0
+              let highestVal = -1
+              calibratedCriteria.forEach((c: any, i: number) => {
+                const val = c.max_points * c.weight
+                if (val > highestVal) {
+                  highestVal = val
+                  highestIdx = i
+                }
+              })
+              const highestCrit = calibratedCriteria[highestIdx]
+              const newWeight = Math.round(((highestCrit.max_points * highestCrit.weight + residual) / highestCrit.max_points) * 100) / 100
+              calibratedCriteria[highestIdx] = {
+                ...highestCrit,
+                weight: newWeight
+              }
+            }
+          }
+
+          setCriteriaList(mapCriteriaToQuestions(calibratedCriteria, batches))
           alert('AI Rubric generated successfully from finalized questions and answers!')
         } else {
           alert(`AI Rubric generation failed: ${res.error || 'No criteria returned'}`)
@@ -1298,7 +1387,7 @@ export function useLessonEditorState() {
           category: aiCategory,
           defaultAnswerFormat: aiType === 'multiple_choice' ? 'text' : aiDefaultAnswerFormat,
           questions: res.questions.map((q: any) => ({
-            id: q.id || Math.random(),
+            id: (q.id && String(q.id).length > 5) ? q.id : generateUUID(),
             content: q.content || '',
             options: q.options && Array.isArray(q.options)
               ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
@@ -1430,14 +1519,43 @@ export function useLessonEditorState() {
     const original = batch.questions[qIdx]
     if (!original) return
 
-    const updated = [...batches]
-    const updatedQs = [...batch.questions]
-    updatedQs[qIdx] = {
-      ...original,
-      content: 'Regenerating question...'
+    setBatches(prev => prev.map((b, idx) => {
+      if (idx !== bIdx) return b
+      const qs = [...b.questions]
+      qs[qIdx] = {
+        ...original,
+        content: 'Regenerating question...'
+      }
+      return { ...b, questions: qs }
+    }))
+
+    // Read materials text if selected
+    let combinedContent = content || title
+    if (aiSelectedMaterials.length > 0) {
+      const selectedPaths = materials
+        .filter(m => aiSelectedMaterials.includes(m.id))
+        .map(m => m.storage_url)
+        .filter(Boolean)
+      if (selectedPaths.length > 0) {
+        const readRes = await readMaterialsTextAction(selectedPaths)
+        if (readRes.success && readRes.combinedText) {
+          combinedContent = readRes.combinedText
+        }
+      }
     }
-    updated[bIdx].questions = updatedQs
-    setBatches(updated)
+
+    const difficultyText = aiDifficulty === 'easy' ? 'Easy (conceptual, basic definitions)' : aiDifficulty === 'hard' ? 'Hard (advanced code architecture, deep analysis)' : 'Medium (balanced application & details)'
+    const languageText = aiLanguage === 'english' ? 'English ONLY' : aiLanguage === 'vietnamese' ? 'Vietnamese ONLY' : 'Bilingual (Vietnamese & English)'
+
+    let r = combinedContent
+    if (pinnedChunks && pinnedChunks.length > 0) {
+      const ragContext = pinnedChunks.map(pc => (
+        `<knowledge_dossier>\nSource: ${pc.citation?.knowledge_source_title || 'Pedagogical Guide'}\nChunk Key: ${pc.citation?.chunk_key || ''}\nContent: ${pc.content}\n</knowledge_dossier>`
+      )).join('\n\n')
+      r += `\n\nADDITIONAL RAG PEDAGOGICAL NOTES:\n${ragContext}`
+    }
+
+    const combinedPayload = `AI INSTRUCTION CRITICAL:\n- Generate all questions and answers in ${languageText} language.\n- Set the overall difficulty level of questions to ${difficultyText}.\n\nSOURCE LESSON CONTENT/MATERIALS:\n${r}`
 
     const res = await clientGenerateQuestions({
       modelChoice: selectedModel,
@@ -1445,32 +1563,36 @@ export function useLessonEditorState() {
       category: batch.category,
       questionCount: 1,
       generateSampleData: aiSampleData,
-      lessonContent: content || title
+      lessonContent: combinedPayload
     })
 
     if (res.success && res.questions && res.questions.length > 0) {
       const q = res.questions[0]
-      const nextUpdated = [...batches]
-      const nextUpdatedQs = [...nextUpdated[bIdx].questions]
-      nextUpdatedQs[qIdx] = {
-        id: original.id,
-        content: q.content || '',
-        options: q.options || undefined,
-        answer: q.answer || undefined,
-        status: 'pending',
-        data: q.data || undefined,
-        source: 'ai_generator',
-        source_file: null
-      }
-      nextUpdated[bIdx].questions = nextUpdatedQs
-      setBatches(nextUpdated)
+      setBatches(prev => prev.map((b, idx) => {
+        if (idx !== bIdx) return b
+        const qs = [...b.questions]
+        qs[qIdx] = {
+          id: original.id,
+          content: q.content || '',
+          options: q.options && Array.isArray(q.options)
+            ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
+            : undefined,
+          answer: q.answer || undefined,
+          status: 'pending',
+          data: q.data || undefined,
+          source: 'ai_generator',
+          source_file: null
+        }
+        return { ...b, questions: qs }
+      }))
     } else {
       alert(`Regeneration failed: ${res.error}`)
-      const nextUpdated = [...batches]
-      const nextUpdatedQs = [...nextUpdated[bIdx].questions]
-      nextUpdatedQs[qIdx] = original
-      nextUpdated[bIdx].questions = nextUpdatedQs
-      setBatches(nextUpdated)
+      setBatches(prev => prev.map((b, idx) => {
+        if (idx !== bIdx) return b
+        const qs = [...b.questions]
+        qs[qIdx] = original
+        return { ...b, questions: qs }
+      }))
     }
   }
 
@@ -1484,52 +1606,92 @@ export function useLessonEditorState() {
       return
     }
 
-    const updated = [...batches]
-    for (let bIdx = 0; bIdx < updated.length; bIdx++) {
-      const batch = updated[bIdx]
-      const rejectedIndices = batch.questions.map((q, idx) => q.status === 'rejected' ? idx : -1).filter(idx => idx !== -1)
-      if (rejectedIndices.length === 0) continue
+    setBatches(prev => prev.map(b => {
+      const qs = b.questions.map(q => q.status === 'rejected' ? { ...q, content: 'Regenerating question...' } : q)
+      return { ...b, questions: qs }
+    }))
 
-      const updatedQs = [...batch.questions]
-      rejectedIndices.forEach(qIdx => {
-        updatedQs[qIdx] = {
-          ...updatedQs[qIdx],
-          content: 'Regenerating question...'
+    // Read materials text once for all requests
+    let combinedContent = content || title
+    if (aiSelectedMaterials.length > 0) {
+      const selectedPaths = materials
+        .filter(m => aiSelectedMaterials.includes(m.id))
+        .map(m => m.storage_url)
+        .filter(Boolean)
+      if (selectedPaths.length > 0) {
+        const readRes = await readMaterialsTextAction(selectedPaths)
+        if (readRes.success && readRes.combinedText) {
+          combinedContent = readRes.combinedText
         }
-      })
-      updated[bIdx].questions = updatedQs
-      setBatches([...updated])
+      }
+    }
+
+    const difficultyText = aiDifficulty === 'easy' ? 'Easy (conceptual, basic definitions)' : aiDifficulty === 'hard' ? 'Hard (advanced code architecture, deep analysis)' : 'Medium (balanced application & details)'
+    const languageText = aiLanguage === 'english' ? 'English ONLY' : aiLanguage === 'vietnamese' ? 'Vietnamese ONLY' : 'Bilingual (Vietnamese & English)'
+
+    let r = combinedContent
+    if (pinnedChunks && pinnedChunks.length > 0) {
+      const ragContext = pinnedChunks.map(pc => (
+        `<knowledge_dossier>\nSource: ${pc.citation?.knowledge_source_title || 'Pedagogical Guide'}\nChunk Key: ${pc.citation?.chunk_key || ''}\nContent: ${pc.content}\n</knowledge_dossier>`
+      )).join('\n\n')
+      r += `\n\nADDITIONAL RAG PEDAGOGICAL NOTES:\n${ragContext}`
+    }
+
+    const combinedPayload = `AI INSTRUCTION CRITICAL:\n- Generate all questions and answers in ${languageText} language.\n- Set the overall difficulty level of questions to ${difficultyText}.\n\nSOURCE LESSON CONTENT/MATERIALS:\n${r}`
+
+    for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+      const batch = batches[bIdx]
+      const rejectedQuestions = batch.questions.filter(q => q.status === 'rejected')
+      if (rejectedQuestions.length === 0) continue
 
       const res = await clientGenerateQuestions({
         modelChoice: selectedModel,
         assignmentType: batch.type,
         category: batch.category,
-        questionCount: rejectedIndices.length,
+        questionCount: rejectedQuestions.length,
         generateSampleData: aiSampleData,
-        lessonContent: content || title
+        lessonContent: combinedPayload
       })
 
       if (res.success && res.questions) {
-        const finalQs = [...updated[bIdx].questions]
-        rejectedIndices.forEach((qIdx, arrIdx) => {
-          const replacement = res.questions[arrIdx]
-          if (replacement) {
-            finalQs[qIdx] = {
-              id: finalQs[qIdx].id,
-              content: replacement.content || '',
-              options: replacement.options || undefined,
-              answer: replacement.answer || undefined,
-              status: 'pending',
-              data: replacement.data || undefined,
-              source: 'ai_generator',
-              source_file: null
+        setBatches(prev => prev.map((b, idx) => {
+          if (idx !== bIdx) return b
+          
+          let arrIdx = 0
+          const qs = b.questions.map(q => {
+            if (q.status === 'rejected') {
+              const replacement = res.questions[arrIdx++]
+              if (replacement) {
+                return {
+                  id: q.id,
+                  content: replacement.content || '',
+                  options: replacement.options && Array.isArray(replacement.options)
+                    ? replacement.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
+                    : undefined,
+                  answer: replacement.answer || undefined,
+                  status: 'pending' as const,
+                  data: replacement.data || undefined,
+                  source: 'ai_generator' as const,
+                  source_file: null
+                }
+              }
             }
-          }
-        })
-        updated[bIdx].questions = finalQs
-        setBatches([...updated])
+            return q
+          })
+          return { ...b, questions: qs }
+        }))
       } else {
         alert(`Regeneration failed for Batch ${bIdx + 1}: ${res.error}`)
+        setBatches(prev => prev.map((b, idx) => {
+          if (idx !== bIdx) return b
+          const qs = b.questions.map((q, qIdx) => {
+            if (q.status === 'rejected' || q.content === 'Regenerating question...') {
+              return batch.questions[qIdx]
+            }
+            return q
+          })
+          return { ...b, questions: qs }
+        }))
       }
     }
   }
@@ -1654,9 +1816,12 @@ export function useLessonEditorState() {
     setShowAiModal(false)
   }
 
-  const updateQuestionInBatches = (qId: number, fields: Partial<QuestionItem>) => {
+  const updateQuestionInBatches = (qId: string | number, fields: Partial<QuestionItem>, batchId?: number) => {
     setBatches(prev => {
       return prev.map(b => {
+        if (batchId !== undefined && b.id !== batchId) {
+          return b
+        }
         return {
           ...b,
           questions: b.questions.map(q => {
@@ -1671,11 +1836,11 @@ export function useLessonEditorState() {
   }
 
   const handleSuggestAnswer = async (approvedQIndex: number) => {
-    const approvedQs: QuestionItem[] = []
+    const approvedQs: (QuestionItem & { batchId: number })[] = []
     batches.forEach(b => {
       b.questions.forEach(q => {
         if (q.status === 'approved') {
-          approvedQs.push(q)
+          approvedQs.push({ ...q, batchId: b.id })
         }
       })
     })
@@ -1711,7 +1876,7 @@ export function useLessonEditorState() {
         updateQuestionInBatches(activeQ.id, {
           answer: res.answer,
           answerSource: 'ai_generated'
-        })
+        }, activeQ.batchId)
       } else {
         alert(`AI Suggest failed: ${res.error || 'No answer returned'}`)
       }
@@ -1768,7 +1933,7 @@ export function useLessonEditorState() {
       })
 
       if (res.success && res.answers) {
-        const answersMap: { [qId: number]: string } = {}
+        const answersMap: Record<string | number, string> = {}
         let successfulCount = 0
 
         res.answers.forEach((ans: any) => {
@@ -1809,24 +1974,39 @@ export function useLessonEditorState() {
   }
 
   const handleGenerateRubric = async () => {
-    const approvedQs: QuestionItem[] = []
+    const approvedEssayQs: QuestionItem[] = []
+    const approvedMCQs: QuestionItem[] = []
     batches.forEach(b => {
       b.questions.forEach(q => {
         if (q.status === 'approved') {
-          approvedQs.push(q)
+          if (b.type === 'essay') {
+            approvedEssayQs.push(q)
+          } else {
+            approvedMCQs.push(q)
+          }
         }
       })
     })
 
-    if (approvedQs.length === 0) {
-      alert('Please approve at least one question first before generating a rubric!')
+    if (approvedEssayQs.length === 0) {
+      alert('Please approve at least one essay question first before generating a rubric!')
       return
     }
 
     setIsGeneratingRubric(true)
     try {
-      const assignmentText = approvedQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
-      const solutionText = approvedQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
+      const targetMaxScore = assignmentForm?.maxScore || 100
+      const mcqWeightPercent = assignmentForm?.mcqWeightPercent !== undefined ? assignmentForm.mcqWeightPercent : 50
+      const essayWeightPercent = assignmentForm?.essayWeightPercent !== undefined ? assignmentForm.essayWeightPercent : 50
+
+      let targetEssayTotal = targetMaxScore
+      if (approvedMCQs.length > 0) {
+        targetEssayTotal = targetMaxScore * (essayWeightPercent / 100)
+      }
+
+      // Only format essay questions for rubric generation (MCQs do not need qualitative rubrics)
+      const assignmentText = approvedEssayQs.map((q, idx) => `Question ${idx + 1}: ${q.content}\nFormat: ${q.answerFormat || 'text'}`).join('\n\n')
+      const solutionText = approvedEssayQs.map((q, idx) => `Answer ${idx + 1}: ${q.answer || '(no answer)'}`).join('\n\n')
 
       const assignmentTextWithRag = assignmentText + (
         pinnedChunks && pinnedChunks.length > 0
@@ -1834,7 +2014,13 @@ export function useLessonEditorState() {
           : ''
       )
 
-      const res = await generateRubricAction(assignmentTextWithRag, solutionText, selectedModel)
+      const res = await generateRubricAction(
+        assignmentTextWithRag, 
+        solutionText, 
+        selectedModel,
+        targetEssayTotal,
+        approvedEssayQs.length
+      )
       if (res.success && res.criteria) {
         const newCriteria = res.criteria.map((c: any) => ({
           key: c.key || `crit-${Date.now()}-${Math.random()}`,
@@ -1844,7 +2030,40 @@ export function useLessonEditorState() {
           weight: c.weight || 1.0,
           evaluation_hints: c.evaluation_hints || c.evaluationHints || { rule_type: 'none', expected_value: null }
         }))
-        setCriteriaList(mapCriteriaToQuestions(newCriteria, batches))
+
+        // Proportional Calibration on newly generated criteria
+        const currentEssayTotal = newCriteria.reduce((sum: number, c: any) => sum + (c.max_points * c.weight), 0)
+        let calibratedCriteria = newCriteria
+        if (currentEssayTotal > 0 && targetEssayTotal > 0) {
+          const scaleFactor = targetEssayTotal / currentEssayTotal
+          calibratedCriteria = newCriteria.map((c: any) => ({
+            ...c,
+            weight: Math.round(c.weight * scaleFactor * 100) / 100
+          }))
+          
+          // Distribute residual difference to ensure the sum matches exactly
+          const scaledSum = calibratedCriteria.reduce((sum: number, c: any) => sum + (c.max_points * c.weight), 0)
+          const residual = targetEssayTotal - scaledSum
+          if (Math.abs(residual) > 0.001 && calibratedCriteria.length > 0) {
+            let highestIdx = 0
+            let highestVal = -1
+            calibratedCriteria.forEach((c: any, i: number) => {
+              const val = c.max_points * c.weight
+              if (val > highestVal) {
+                highestVal = val
+                highestIdx = i
+              }
+            })
+            const highestCrit = calibratedCriteria[highestIdx]
+            const newWeight = Math.round(((highestCrit.max_points * highestCrit.weight + residual) / highestCrit.max_points) * 100) / 100
+            calibratedCriteria[highestIdx] = {
+              ...highestCrit,
+              weight: newWeight
+            }
+          }
+        }
+
+        setCriteriaList(mapCriteriaToQuestions(calibratedCriteria, batches))
         alert('Rubric successfully generated from questions & answers! Check Tab 4.')
       } else {
         alert(`Rubric generation failed: ${res.error || 'No criteria returned'}`)
@@ -1888,7 +2107,7 @@ export function useLessonEditorState() {
             }
 
             return {
-              id: q.id || Math.random(),
+              id: (q.id && String(q.id).length > 5) ? q.id : generateUUID(),
               content: q.content || '',
               options: q.options && Array.isArray(q.options)
                 ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
@@ -2365,6 +2584,7 @@ export function useLessonEditorState() {
     uploading,
     currentStep,
     setCurrentStep,
+    totalSteps,
     pinnedChunks,
     setPinnedChunks,
     isDirty,

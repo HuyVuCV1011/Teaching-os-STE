@@ -165,6 +165,8 @@ def create_app() -> FastAPI:
                 assignment_text=request.assignment_text,
                 solution_text=request.solution_text,
                 knowledge_dossier=request.knowledge_dossier,
+                target_essay_score=request.target_essay_score,
+                question_count=request.question_count,
             )
             criteria_list = rubric.get("criteria", [])
             return RubricGenerationResponse(criteria=criteria_list)
@@ -516,7 +518,10 @@ def create_app() -> FastAPI:
             "output_schema_version": "phase-1-grading-output-v1",
         }
         try:
-            raw_output = ai_provider.evaluate(request_payload)
+            provider = ai_provider
+            if request.model_choice:
+                provider = AIBroker.get_provider(request.model_choice)
+            raw_output = provider.evaluate(request_payload)
             return raw_output
         except Exception as exc:
             raise _api_http_exception(400, code="grading_error", message=str(exc))

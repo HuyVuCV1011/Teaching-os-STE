@@ -19,7 +19,7 @@ const AI_MODEL_OPTIONS = [
 ]
 
 interface QuestionItem {
-  id: number
+  id: string | number
   content: string
   options?: string[]
   answer?: string
@@ -69,7 +69,7 @@ interface ReviewAnswersStepProps {
   handleSuggestAnswer: (approvedQIndex: number) => Promise<void>
   handleSuggestAllMissingAnswers: () => Promise<void>
   handleSaveComposer: (mode: 'draft' | 'official') => Promise<void>
-  updateQuestionInBatches: (qId: number, fields: Partial<QuestionItem>) => void
+  updateQuestionInBatches: (qId: string | number, fields: Partial<QuestionItem>, batchId?: number) => void
   pinnedChunks?: any[]
   setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
 }
@@ -96,11 +96,17 @@ export function ReviewAnswersStep({
   setPinnedChunks
 }: ReviewAnswersStepProps) {
   const [isRAGDrawerOpen, setIsRAGDrawerOpen] = useState(false)
-  const approvedQs: QuestionItem[] = []
+  const approvedQs: (QuestionItem & { batchId: number })[] = []
   batches.forEach(b => {
     b.questions.forEach(q => {
       if (q.status === 'approved') {
-        approvedQs.push({ ...q, batchDefaultFormat: b.defaultAnswerFormat, batchType: b.type, category: b.category })
+        approvedQs.push({
+          ...q,
+          batchId: b.id,
+          batchDefaultFormat: b.defaultAnswerFormat,
+          batchType: b.type,
+          category: b.category
+        })
       }
     })
   })
@@ -182,7 +188,7 @@ export function ReviewAnswersStep({
                           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-950 border border-slate-850 text-slate-400 uppercase tracking-wider">
                             {qTypeLabel}
                           </span>
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-950 border border-slate-855 text-slate-400 uppercase tracking-wider">
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400 uppercase tracking-wider">
                             {qCategoryLabel}
                           </span>
                         </div>
@@ -260,7 +266,7 @@ export function ReviewAnswersStep({
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {(activeQ.options || ['A', 'B', 'C', 'D']).map((_, oIdx) => {
                             const letter = String.fromCharCode(65 + oIdx)
-                            const isCorrect = activeQ.answer === letter
+                            const isCorrect = activeQ.answer?.trim().toUpperCase().startsWith(letter)
                             return (
                               <button
                                 key={letter}
@@ -269,7 +275,7 @@ export function ReviewAnswersStep({
                                   updateQuestionInBatches(activeQ.id, {
                                     answer: letter,
                                     answerSource: 'teacher_edit'
-                                  })
+                                  }, activeQ.batchId)
                                 }}
                                 className={`py-2 rounded-xl text-xs font-extrabold border transition-all ${
                                   isCorrect
@@ -294,7 +300,7 @@ export function ReviewAnswersStep({
                             updateQuestionInBatches(activeQ.id, {
                               answer: e.target.value,
                               answerSource: 'teacher_edit'
-                            })
+                            }, activeQ.batchId)
                           }}
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono resize-none leading-relaxed transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                         />
@@ -315,8 +321,8 @@ export function ReviewAnswersStep({
               Summary: <strong className="text-slate-200">{totalApproved}</strong> approved questions | With answers: <strong className="text-emerald-700">{withAnswers}</strong> | Missing: <strong className="text-amber-700">{withoutAnswers}</strong>
             </div>
             <div className="flex gap-4">
-              <span>AI Generated: <strong className="text-slate-205">{aiCount}</strong></span>
-              <span>File Imports: <strong className="text-slate-205">{fileCount}</strong></span>
+              <span>AI Generated: <strong className="text-slate-300">{aiCount}</strong></span>
+              <span>File Imports: <strong className="text-slate-300">{fileCount}</strong></span>
             </div>
           </div>
 
@@ -339,7 +345,7 @@ export function ReviewAnswersStep({
             <button
               type="button"
               onClick={() => setIsRAGDrawerOpen(true)}
-              className="py-3 px-4 bg-slate-900 hover:bg-slate-850 text-slate-350 border border-slate-800 hover:border-slate-755 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-1.5 focus-visible:outline-none whitespace-nowrap"
+              className="py-3 px-4 bg-slate-900 hover:bg-slate-850 text-slate-350 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-1.5 focus-visible:outline-none whitespace-nowrap"
             >
               <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
               <span>RAG ({pinnedChunks.length})</span>
@@ -350,7 +356,7 @@ export function ReviewAnswersStep({
               type="button"
               onClick={handleSuggestAllMissingAnswers}
               disabled={isSuggestingAll || withoutAnswers === 0}
-              className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-705 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 whitespace-nowrap"
+              className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 whitespace-nowrap"
             >
               {isSuggestingAll ? (
                 <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -365,7 +371,7 @@ export function ReviewAnswersStep({
               type="button"
               onClick={() => handleSaveComposer('draft')}
               disabled={saving}
-              className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-705 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 whitespace-nowrap"
+              className="flex-1 py-3 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-800 hover:border-slate-700 font-bold text-xs rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 whitespace-nowrap"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -378,7 +384,7 @@ export function ReviewAnswersStep({
 
           {/* Final Preview Section */}
           <div className="mt-8 border-t border-slate-800 pt-8 space-y-6 select-none">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-805">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
               <Eye className="w-4.5 h-4.5 text-indigo-400 animate-pulse" />
               <h4 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
                 👁️ Final Preview (As Students Will See It)
@@ -509,7 +515,7 @@ export function ReviewAnswersStep({
                             Question {idx + 1} ({q.batchType === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'} — {q.source === 'file_import' ? 'File Import' : 'AI Generated'})
                           </span>
                           {q.source === 'ai_generator' && pinnedChunks.length > 0 && (
-                            <span className="text-[9px] bg-blue-50 border border-blue-200 text-blue-650 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono flex items-center gap-1">
+                            <span className="text-[9px] bg-blue-50 border border-blue-200 text-blue-600 px-2 py-0.5 rounded font-bold uppercase tracking-wider font-mono flex items-center gap-1">
                               <Sparkles className="w-3 h-3 text-blue-500 animate-pulse" /> Semantic Cited
                             </span>
                           )}
@@ -624,3 +630,4 @@ export function ReviewAnswersStep({
     </div>
   )
 }
+

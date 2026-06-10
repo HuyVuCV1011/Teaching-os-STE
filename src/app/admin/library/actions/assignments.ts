@@ -229,7 +229,13 @@ export async function generateSolutionAction(assignmentText: string, modelChoice
   }
 }
 
-export async function generateRubricAction(assignmentText: string, solutionText: string, modelChoice: string = 'ollama') {
+export async function generateRubricAction(
+  assignmentText: string,
+  solutionText: string,
+  modelChoice: string = 'ollama',
+  targetEssayScore?: number,
+  questionCount?: number
+) {
   try {
     const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-rubric`, {
       method: 'POST',
@@ -238,6 +244,8 @@ export async function generateRubricAction(assignmentText: string, solutionText:
         model_choice: modelChoice,
         assignment_text: assignmentText,
         solution_text: solutionText,
+        target_essay_score: targetEssayScore,
+        question_count: questionCount,
       }),
     })
 
@@ -508,7 +516,7 @@ export async function suggestQuestionAnswerAction(params: {
 }
 
 export async function suggestBatchQuestionAnswersAction(params: {
-  questions: Array<{ id: number; content: string }>
+  questions: Array<{ id: string | number; content: string }>
   materialsText?: string
   lessonContext?: string
   modelChoice?: string
@@ -608,6 +616,7 @@ export async function testGradeRubricAction(input: {
   studentAnswer: string
   assignmentInstructions: string
   modelAnswer: string
+  modelChoice?: string
 }) {
   try {
     const { userId } = await checkAdminAuth()
@@ -648,6 +657,7 @@ export async function testGradeRubricAction(input: {
         rubric_schema: rubricSchema,
         evidence: evidencePayload,
         ai_allowed: true,
+        model_choice: input.modelChoice,
       }),
     })
 

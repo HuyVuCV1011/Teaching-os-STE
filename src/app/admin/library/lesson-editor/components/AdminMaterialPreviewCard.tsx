@@ -43,7 +43,7 @@ export function AdminMaterialPreviewCard({
                   <DocumentViewer url={m.signedUrl} title={m.title} />
                 </div>
               ) : (
-                <div className="border border-slate-800 bg-slate-955/20 rounded-2xl p-6 shadow-sm text-slate-400 flex flex-col justify-center items-center gap-2 h-[450px] text-center">
+                <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-400 flex flex-col justify-center items-center gap-2 h-[450px] text-center">
                   <FileText className="w-8 h-8 text-slate-650 animate-pulse" />
                   <span className="text-xs font-semibold text-slate-200">Inline Preview Unavailable</span>
                   <span className="text-[10px] text-slate-500 max-w-xs leading-relaxed">
@@ -52,7 +52,7 @@ export function AdminMaterialPreviewCard({
                 </div>
               )
             ) : (
-              <div className="border border-slate-800 bg-slate-955/20 rounded-2xl p-6 shadow-sm text-slate-300 flex justify-between items-center h-[100px]">
+              <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-300 flex justify-between items-center h-[100px]">
                 <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
                   <FileText className={`w-4 h-4 ${getMaterialTypeStyles('pdf').iconColor}`} />
                   {m.title}
@@ -82,7 +82,7 @@ export function AdminMaterialPreviewCard({
       {m.type === 'docx' && (() => {
         const displayMode = m.metadata?.display_mode || 'both';
         return (
-          <div className="border border-slate-800 bg-slate-955/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
+          <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
             <div className="flex justify-between items-center pb-3 border-b border-slate-800 shrink-0">
               <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
                 <FileText className={`w-4 h-4 ${styles.iconColor}`} />
@@ -122,9 +122,9 @@ export function AdminMaterialPreviewCard({
         const displayMode = m.metadata?.display_mode || 'both'
 
         return (
-          <div className="border border-slate-800 bg-slate-955/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
+          <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
             <div className="flex justify-between items-center pb-3 border-b border-slate-800 shrink-0">
-              <h3 className="font-bold text-slate-205 text-sm flex items-center gap-2">
+              <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
                 <FileText className={`w-4 h-4 ${styles.iconColor}`} />
                 {m.title}
               </h3>
@@ -184,7 +184,7 @@ export function AdminMaterialPreviewCard({
 
       {/* Markdown Preview */}
       {m.type === 'markdown' && (
-        <div className="border border-slate-800 bg-slate-955/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
+        <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
           <div className="flex justify-between items-center pb-3 border-b border-slate-800 shrink-0">
             <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
               <FileText className={`w-4 h-4 ${styles.iconColor}`} />
@@ -211,7 +211,7 @@ export function AdminMaterialPreviewCard({
 
       {/* JSON Preview */}
       {m.type === 'json' && (
-        <div className="border border-slate-800 bg-slate-955/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
+        <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-200 space-y-4 h-[450px] overflow-y-auto flex flex-col">
           <div className="flex justify-between items-center pb-3 border-b border-slate-800 shrink-0">
             <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
               <Code className={`w-4 h-4 ${styles.iconColor}`} />
@@ -237,3 +237,4 @@ export function AdminMaterialPreviewCard({
     </div>
   )
 }
+
