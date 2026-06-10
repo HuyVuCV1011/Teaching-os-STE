@@ -17,13 +17,17 @@ import {
   AlertCircle,
   HelpCircle,
   Loader2,
-  Settings
+  Settings,
+  Eye,
+  X,
+  Link2
 } from 'lucide-react'
 import {
   getKnowledgeSourcesAction,
   uploadKnowledgeAction,
   deleteKnowledgeSourceAction,
-  searchKnowledgeAction
+  searchKnowledgeAction,
+  getKnowledgeSourceChunksAction
 } from '../actions/knowledge'
 import {
   getPromptAction,
@@ -94,6 +98,50 @@ Make sure the criteria sum up logically (total max_points * weights should match
   const [searchResults, setSearchResults] = useState<RetrievedChunk[]>([])
   const [searchLimit, setSearchLimit] = useState(5)
   const [searchScopes, setSearchScopes] = useState<string[]>(['organization', 'public_safe'])
+
+  // Preview Modal State
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewingSource, setPreviewingSource] = useState<KnowledgeSource | null>(null)
+  const [previewChunks, setPreviewChunks] = useState<any[]>([])
+  const [loadingChunks, setLoadingChunks] = useState(false)
+  const [targetChunkId, setTargetChunkId] = useState<string | null>(null)
+
+  // Scroll to target chunk when modal loads
+  useEffect(() => {
+    if (!loadingChunks && previewChunks.length > 0 && targetChunkId && showPreviewModal) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`chunk-${targetChunkId}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-2', 'ring-offset-slate-950')
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-2', 'ring-offset-slate-950')
+          }, 3000)
+        }
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [loadingChunks, previewChunks, targetChunkId, showPreviewModal])
+
+  const handleOpenPreview = async (source: KnowledgeSource) => {
+    setPreviewingSource(source)
+    setShowPreviewModal(true)
+    setLoadingChunks(true)
+    try {
+      const res = await getKnowledgeSourceChunksAction(source.id)
+      if (res.success) {
+        setPreviewChunks(res.chunks || [])
+      } else {
+        toast.error(res.error || 'Failed to fetch document contents')
+        setPreviewChunks([])
+      }
+    } catch (err) {
+      toast.error('An error occurred loading document chunks')
+      setPreviewChunks([])
+    } finally {
+      setLoadingChunks(false)
+    }
+  }
 
   // Load knowledge sources
   const loadSources = async () => {
@@ -476,9 +524,28 @@ Make sure the criteria sum up logically (total max_points * weights should match
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-slate-400">#{index + 1}</span>
-                        <span className="bg-slate-900 text-slate-300 px-2 py-0.5 rounded border border-slate-800 font-medium">
-                          {result.citation.knowledge_source_title || 'Untitled Source'}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sourceId = result.knowledge_source_id
+                            if (!sourceId) {
+                              toast.error('Source ID not available in citation metadata')
+                              return
+                            }
+                            const source = sources.find(s => s.id === sourceId)
+                            if (source) {
+                              setTargetChunkId(result.chunk_id)
+                              handleOpenPreview(source)
+                            } else {
+                              toast.error('Source document not found in registry')
+                            }
+                          }}
+                          className="bg-slate-900 text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 px-2.5 py-0.5 rounded border border-slate-800 font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-sm"
+                          title="Click to open document preview and jump to this section"
+                        >
+                          <Link2 className="w-3 h-3 text-indigo-500" />
+                          <span>{result.citation.knowledge_source_title || 'Untitled Source'}</span>
+                        </button>
                         {result.heading_path && result.heading_path.length > 0 && (
                           <span className="text-slate-500">
                             &gt; {result.heading_path.join(' > ')}
@@ -580,12 +647,24 @@ Make sure the criteria sum up logically (total max_points * weights should match
                           {source.chunks_count}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button 
-                            onClick={() => handleDelete(source.id)}
-                            className="text-red-500 hover:text-red-400 hover:bg-red-950/20 p-1.5 rounded transition-colors"
-                          >
-                            <Trash className="w-4 h-4" />
-                          </button>
+                          <div className="flex justify-end gap-2">
+                            {source.conversion_status === 'converted' && (
+                              <button
+                                onClick={() => handleOpenPreview(source)}
+                                className="text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/20 p-1.5 rounded transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
+                                title="Preview Extracted Text"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => handleDelete(source.id)}
+                              className="text-red-500 hover:text-red-400 hover:bg-red-950/20 p-1.5 rounded transition-colors"
+                              title="Delete Knowledge Source"
+                            >
+                              <Trash className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -682,6 +761,91 @@ Make sure the criteria sum up logically (total max_points * weights should match
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* --- PREVIEW MODAL: EXTRACTED TEXT --- */}
+      {showPreviewModal && previewingSource && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-slate-950 border border-slate-850 w-full max-w-4xl max-h-[85vh] flex flex-col justify-between rounded-3xl shadow-xl overflow-hidden animate-scale-up">
+            
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-850 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-widest font-mono flex items-center gap-2">
+                  <BookOpen className="w-4.5 h-4.5 text-indigo-550" />
+                  Preview: {previewingSource.title}
+                </h3>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5 font-mono">
+                  File: {previewingSource.original_filename} | Total Chunks: {previewingSource.chunks_count}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false)
+                  setPreviewingSource(null)
+                  setPreviewChunks([])
+                  setTargetChunkId(null)
+                }}
+                className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar select-text bg-slate-950">
+              {loadingChunks ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-500 text-xs font-semibold gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                  <span>Loading parsed chunks...</span>
+                </div>
+              ) : previewChunks.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 text-xs font-semibold">
+                  No text content found for this document.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {previewChunks.map((chunk, idx) => (
+                    <div 
+                      key={chunk.id || idx} 
+                      id={`chunk-${chunk.id}`}
+                      className="bg-slate-900/40 border border-slate-850 rounded-xl p-4 space-y-2 hover:border-slate-705 transition-colors scroll-mt-6"
+                    >
+                      <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-500 pb-1.5 border-b border-slate-850/50">
+                        <span>CHUNK #{chunk.position || idx + 1}</span>
+                        {chunk.heading_path && chunk.heading_path.length > 0 && (
+                          <span className="truncate max-w-[70%]">
+                            Path: {chunk.heading_path.join(' > ')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs leading-relaxed text-slate-300 font-mono whitespace-pre-wrap pt-1 select-text">
+                        {chunk.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-850 flex justify-end shrink-0">
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false)
+                  setPreviewingSource(null)
+                  setPreviewChunks([])
+                  setTargetChunkId(null)
+                }}
+                className="px-5 py-2 rounded-xl bg-slate-900 border border-slate-850 hover:border-slate-700 text-slate-100 font-bold text-xs transition-colors"
+              >
+                Close Preview
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
     </div>

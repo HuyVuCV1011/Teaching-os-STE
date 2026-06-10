@@ -19,7 +19,28 @@ const { mockFrom, mockSingle, mockUpsert } = vi.hoisted(() => {
       return { upsert: mockUpsert }
     }
     if (table === 'submissions') {
-      return { update: vi.fn(() => ({ eq: mockEqResolve })) }
+      return {
+        update: vi.fn(() => ({ eq: mockEqResolve })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({ data: { id: 'sub-1', assignments: { id: 'as-1' } }, error: null })
+          }))
+        }))
+      }
+    }
+    if (table === 'rubric_score_suggestions') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null })
+        }))
+      }
+    }
+    if (table === 'submission_files') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null })
+        }))
+      }
     }
     return { select: vi.fn(), insert: vi.fn(), update: vi.fn() }
   })
@@ -60,14 +81,14 @@ describe('saveGradingResultAction', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.BYPASS_ADMIN_AUTH = 'true'
-    process.env.NODE_ENV = 'development'
+    process.env.BYPASS_ADMIN_AUTH = 'true';
+    (process.env as any).NODE_ENV = 'development'
     mockUpsert.mockResolvedValue({ error: null })
   })
 
   afterEach(() => {
-    delete process.env.BYPASS_ADMIN_AUTH
-    process.env.NODE_ENV = 'test'
+    delete process.env.BYPASS_ADMIN_AUTH;
+    (process.env as any).NODE_ENV = 'test'
   })
 
   describe('authorization', () => {
@@ -76,7 +97,7 @@ describe('saveGradingResultAction', () => {
 
       // Mock cookies to return nothing
       const mockCookieStore = { get: vi.fn().mockReturnValue(null) }
-      vi.mocked(cookies).mockResolvedValue(mockCookieStore)
+      vi.mocked(cookies).mockResolvedValue(mockCookieStore as any)
 
       await expect(saveGradingResultAction(baseInput)).rejects.toThrow(/unauthorized/i)
     })

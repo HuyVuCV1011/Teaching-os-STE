@@ -127,6 +127,12 @@ def db_session() -> Iterator[Session]:
             if not required_tables.issubset(existing_tables):
                 missing = ", ".join(sorted(required_tables - existing_tables))
                 pytest.skip(f"Database is not migrated for Phase 2 pilot-service tests; missing: {missing}")
+            
+            # Check for column collision in submissions (e.g. if shared with Next.js submissions table)
+            columns = [c["name"] for c in inspect(connection).get_columns("submissions")]
+            if "organization_id" not in columns:
+                pytest.skip("Database submissions table lacks organization_id column; skipping DB pilot-service tests.")
+
             if connection.in_transaction():
                 connection.rollback()
 

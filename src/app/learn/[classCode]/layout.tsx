@@ -3,6 +3,7 @@
 import React, { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import {
   Map,
@@ -71,38 +72,38 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Background gradients */}
-      <div className="absolute top-0 left-0 w-[400px] h-[400px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-purple-500/5 blur-[100px] pointer-events-none" />
+    <div className="flex min-h-screen bg-slate-900 text-slate-100 font-sans relative overflow-hidden">
+      {/* Subtle organic light mode glow accents in background */}
+      <div className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full bg-blue-500/[0.03] blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-indigo-500/[0.03] blur-[130px] pointer-events-none" />
 
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-900/40 backdrop-blur-xl flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20">
+      {/* Sidebar: Premium Floating White surface over off-white layout background */}
+      <aside className="w-64 border-r border-slate-800/80 bg-slate-950 flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20 shadow-[0_4px_30px_rgba(0,0,0,0.01)]">
         <div>
           {/* Header/Logo */}
           <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800/80">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/10">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/10">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <span className="font-bold tracking-tight text-white block text-sm">STE Workspace</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Student Portal</span>
+              <span className="font-bold tracking-tight text-slate-100 block text-sm">STE Workspace</span>
+              <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Student Portal</span>
             </div>
           </div>
 
-          {/* Class Cohort Identifier */}
-          <div className="p-4 mx-4 my-3 rounded-xl bg-slate-900/50 border border-slate-850">
+          {/* Class Cohort Identifier: Styled like a premium ID badge */}
+          <div className="p-4 mx-4 my-4 rounded-xl bg-slate-900 border border-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]">
             {loading ? (
               <div className="space-y-2 animate-pulse">
-                <div className="h-3 w-16 bg-slate-850 rounded" />
-                <div className="h-4 w-32 bg-slate-850 rounded" />
+                <div className="h-2.5 w-12 bg-slate-800 rounded" />
+                <div className="h-3.5 w-28 bg-slate-800 rounded" />
               </div>
             ) : classInfo ? (
               <>
                 <span className="block text-[9px] font-bold text-blue-600 uppercase tracking-widest">
                   Class: {classInfo.class_code}
                 </span>
-                <span className="block text-xs font-bold text-slate-200 truncate mt-0.5">
+                <span className="block text-xs font-bold text-slate-100 truncate mt-1">
                   {classInfo.name}
                 </span>
               </>
@@ -112,7 +113,7 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1">
+          <nav className="p-4 space-y-1.5">
             {navigationItems.map((item) => {
               const isActive = pathname === item.href
 
@@ -120,21 +121,31 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                  className={`relative flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group overflow-hidden ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-l-2 border-blue-500 text-blue-600 bg-slate-900/50'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30 border-l-2 border-transparent'
+                      ? 'text-blue-600 font-semibold'
+                      : 'text-slate-600 hover:text-slate-100 hover:bg-slate-900/60'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
+                  {/* Sliding active tab indicator with spring physics */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="active-student-nav"
+                      className="absolute inset-0 bg-blue-500/10 border-l-2 border-blue-600 rounded-xl z-0"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <div className="flex items-center gap-3 z-10 relative">
                     <item.icon
-                      className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${
-                        isActive ? 'text-blue-600' : 'text-slate-400'
+                      className={`w-4.5 h-4.5 transition-transform duration-300 group-hover:scale-110 ${
+                        isActive ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-100'
                       }`}
                     />
                     <span>{item.name}</span>
                   </div>
-                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-blue-600" />}
+                  {isActive && (
+                    <ChevronRight className="w-3.5 h-3.5 text-blue-600 z-10 relative" />
+                  )}
                 </Link>
               )
             })}
@@ -142,14 +153,16 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
         </div>
 
         {/* Footer/Logout Action */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-900/20">
-          <button
+        <div className="p-4 border-t border-slate-800/80 bg-slate-900/10">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleLogout}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 transition-all duration-200"
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-500/5 transition-all duration-200 border-0 cursor-pointer"
           >
             <span>Exit Classroom</span>
             <LogOut className="w-3.5 h-3.5" />
-          </button>
+          </motion.button>
         </div>
       </aside>
 

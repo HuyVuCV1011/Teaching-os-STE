@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { BookOpen, Plus, Trash2, Calendar, Clock, HelpCircle, AlertTriangle } from 'lucide-react'
+import { BookOpen, Plus, Trash2, Calendar, Clock, HelpCircle, AlertTriangle, Save, RefreshCw } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 interface SyllabusWorkspaceProps {
   selectedClass: any
@@ -316,52 +317,202 @@ export function SyllabusWorkspace({
             </div>
           </form>
         )}
-
-        {/* Schedule Listing Grid */}
+        {/* Interactive Timeline & Cascade Shift */}
         {schedules.length === 0 ? (
           <div className="text-center py-10 border border-dashed border-slate-750 rounded-xl text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
             <HelpCircle className="w-7 h-7 text-slate-700" />
             <span>Syllabus scheduling is blank. Setup a date or run bulk offsets generators.</span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {schedules.map((item) => (
-              <div key={item.id} className="p-4 rounded-xl border border-slate-700 bg-slate-950/20 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 group">
-                <div>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-bold truncate">
-                    {item.lessons?.modules?.title || 'General Module'}
-                  </span>
-                  <h5 className="font-bold text-slate-100 text-sm mt-1 leading-snug">{item.lessons?.title}</h5>
-                </div>
+          <TimelineEditor
+            schedules={schedules}
+            handleDeleteSchedule={handleDeleteSchedule}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
 
-                <div className="space-y-1.5 pt-3 border-t border-slate-850/60">
-                  <div className="flex justify-between items-center text-[10px]">
-                    <span className="text-slate-500 flex items-center gap-1"><Clock className="w-3 h-3 text-slate-550" /> Visible after:</span>
-                    <span className="font-semibold text-slate-300">
-                      {item.visible_after ? new Date(item.visible_after).toLocaleString() : 'Immediate'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px]">
-                    <span className="text-slate-500 flex items-center gap-1"><Calendar className="w-3 h-3 text-slate-550" /> Due deadline:</span>
-                    <span className="font-semibold text-slate-350">
-                      {item.due_date ? new Date(item.due_date).toLocaleString() : 'Not Set'}
-                    </span>
-                  </div>
-                </div>
+// Utility to format ISO string to local YYYY-MM-DDTHH:mm for datetime-local input
+function formatForDateTimeLocal(isoString: string | null): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) return ''
+  const tzOffset = date.getTimezoneOffset() * 60000
+  const localTime = new Date(date.getTime() - tzOffset)
+  return localTime.toISOString().slice(0, 16)
+}
 
-                <div className="flex justify-end pt-2">
+interface TimelineEditorProps {
+  schedules: any[]
+  handleDeleteSchedule: (id: string) => void
+}
+
+function TimelineEditor({ schedules, handleDeleteSchedule }: TimelineEditorProps) {
+  const [cascadeShift, setCascadeShift] = React.useState(true)
+  const [localSchedules, setLocalSchedules] = React.useState<any[]>([])
+  const [saving, setSaving] = React.useState(false)
+
+  React.useEffect(() => {
+    const sorted = [...schedules].sort((a, b) => {
+      const aModuleOrder = a.lessons?.modules?.order_index ?? 0
+      const bModuleOrder = b.lessons?.modules?.order_index ?? 0
+      if (aModuleOrder !== bModuleOrder) return aModuleOrder - bModuleOrder
+      return (a.lessons?.order_index ?? 0) - (b.lessons?.order_index ?? 0)
+    })
+    setLocalSchedules(sorted)
+  }, [schedules])
+
+  const handleDateChange = (idx: number, field: 'visible_after' | 'due_date', newValue: string) => {
+    const updated = [...localSchedules]
+    const item = { ...updated[idx] }
+    const oldValue = item[field]
+
+    const newDate = newValue ? new Date(newValue) : null
+    const oldDate = oldValue ? new Date(oldValue) : null
+
+    item[field] = newDate ? newDate.toISOString() : null
+    updated[idx] = item
+
+    if (cascadeShift && oldDate && newDate) {
+      const deltaMs = newDate.getTime() - oldDate.getTime()
+      for (let i = idx + 1; i < updated.length; i++) {
+        const nextItem = { ...updated[i] }
+        if (nextItem.visible_after) {
+          const d = new Date(nextItem.visible_after)
+          nextItem.visible_after = new Date(d.getTime() + deltaMs).toISOString()
+        }
+        if (nextItem.due_date) {
+          const d = new Date(nextItem.due_date)
+          nextItem.due_date = new Date(d.getTime() + deltaMs).toISOString()
+        }
+        updated[i] = nextItem
+      }
+    }
+    setLocalSchedules(updated)
+  }
+
+  const handleSaveTimeline = async () => {
+    setSaving(true)
+    try {
+      const promises = localSchedules.map((item) =>
+        supabase
+          .from('class_schedules')
+          .update({
+            visible_after: item.visible_after,
+            due_date: item.due_date,
+          })
+          .eq('id', item.id)
+      )
+
+      const results = await Promise.all(promises)
+      const firstError = results.find((r) => r.error)
+      if (firstError) throw firstError.error
+
+      alert('Course timeline successfully updated!')
+      window.location.reload()
+    } catch (err: any) {
+      alert(`Failed to save timeline: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Cascade shift control toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-slate-700 bg-slate-955/40 text-xs">
+        <div className="flex items-center gap-3">
+          <label className="relative inline-flex items-center cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={cascadeShift}
+              onChange={(e) => setCascadeShift(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            <span className="ml-3 font-bold text-white uppercase tracking-wider text-[10px]">
+              Cascade Shift {cascadeShift ? 'ON' : 'OFF'}
+            </span>
+          </label>
+          <span className="text-[10px] text-slate-505 hidden sm:inline">
+            When ON, shifting one date automatically shifts all subsequent dates.
+          </span>
+        </div>
+
+        <button
+          onClick={handleSaveTimeline}
+          disabled={saving}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow shadow-emerald-600/10 hover:shadow-emerald-500/20 active:scale-[0.98]"
+        >
+          {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          <span>Save Timeline Changes</span>
+        </button>
+      </div>
+
+      {/* Vertical Timeline Tree */}
+      <div className="relative pl-6 space-y-6 border-l border-slate-700 ml-3">
+        {localSchedules.map((item, idx) => {
+          return (
+            <div key={item.id} className="relative group">
+              {/* Timeline Bullet Node */}
+              <div className="absolute -left-[31px] top-1.5 w-4.5 h-4.5 rounded-full bg-slate-950 border-2 border-blue-500 flex items-center justify-center z-10">
+                <span className="text-[8px] font-bold text-blue-500">{idx + 1}</span>
+              </div>
+
+              {/* Timeline Card */}
+              <div className="p-4 rounded-xl border border-slate-700 bg-slate-955/20 hover:border-slate-650 transition-all space-y-4">
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                      {item.lessons?.modules?.title || 'General Module'}
+                    </span>
+                    <h5 className="font-bold text-white text-sm mt-0.5 leading-snug">
+                      {item.lessons?.title}
+                    </h5>
+                  </div>
                   <button
                     onClick={() => handleDeleteSchedule(item.id)}
-                    className="p-1 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-450 transition-colors"
+                    className="p-1 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-450 transition-colors shrink-0"
                     title="Remove date schedule"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
+                {/* Editable Date Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-800/40">
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      Visible After (Unlock Date)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formatForDateTimeLocal(item.visible_after)}
+                      onChange={(e) => handleDateChange(idx, 'visible_after', e.target.value)}
+                      className="w-full bg-slate-955 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-slate-500" />
+                      Submission Deadline (Due Date)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formatForDateTimeLocal(item.due_date)}
+                      onChange={(e) => handleDateChange(idx, 'due_date', e.target.value)}
+                      className="w-full bg-slate-955 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono"
+                    />
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

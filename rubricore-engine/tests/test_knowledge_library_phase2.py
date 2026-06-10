@@ -236,8 +236,8 @@ def test_revise_knowledge_source_stops_safely_for_unsupported_revision() -> None
     result = revise_knowledge_source(
         session,  # type: ignore[arg-type]
         previous_source=previous_source,
-        source_filename="teacher_notes_v2.zip",
-        source_storage_uri="fixture://teacher_notes_v2.zip",
+        source_filename="teacher_notes_v2.xyz",
+        source_storage_uri="fixture://teacher_notes_v2.xyz",
         source_content="ignored",
         actor_user_id=previous_source.owner_user_id,
         reason="Teacher uploaded revised PDF guidance.",

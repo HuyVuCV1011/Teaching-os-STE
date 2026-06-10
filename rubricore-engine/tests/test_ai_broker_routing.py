@@ -89,9 +89,9 @@ class TestAIBrokerRouting:
     @patch("app.ai.broker.get_settings")
     def test_get_provider_returns_openrouter_when_key_present(self, mock_settings) -> None:
         mock_settings.return_value = SettingsWithAllKeys()
-        provider = get_provider("openrouter/google/gemini-2.5-flash:free")
+        provider = get_provider("openrouter/google/gemini-2.0-flash:free")
         assert isinstance(provider, OpenRouterProvider)
-        assert provider.model == "google/gemini-2.5-flash:free"
+        assert provider.model == "google/gemini-2.0-flash:free"
 
     @patch("app.ai.broker.get_settings")
     def test_get_provider_returns_openrouter_for_deepseek_when_key_present(self, mock_settings) -> None:
@@ -103,7 +103,7 @@ class TestAIBrokerRouting:
     @patch("app.ai.broker.get_settings")
     def test_get_provider_falls_back_to_ollama_when_openrouter_key_empty(self, mock_settings) -> None:
         mock_settings.return_value = SettingsStub()
-        provider = get_provider("openrouter/google/gemini-2.5-flash:free")
+        provider = get_provider("openrouter/google/gemini-2.0-flash:free")
         assert isinstance(provider, OllamaGradingProvider)
 
     def test_aibroker_class_delegates_to_module_functions(self) -> None:

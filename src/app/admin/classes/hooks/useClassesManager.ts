@@ -106,7 +106,7 @@ export function useClassesManager(initialAction: string | null) {
     try {
       const { data: subsData, error: subsError } = await supabase
         .from('submissions')
-        .select('*, grading_results(*), assignments(title)')
+        .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*))), assignments(title)')
         .eq('class_id', selectedClass.id)
 
       if (subsError) throw subsError

@@ -51,13 +51,13 @@ class TestParseMaterial(unittest.TestCase):
             artifact = data["viewer_artifact"]
             self.assertEqual(artifact["type"], "docx")
             self.assertIn("<h1>Testing Document Parsing</h1>", artifact["viewer_html"])
-            self.assertIn("<strong>bold</strong>", artifact["viewer_html"])
+            self.assertIn("<strong>This is a bold</strong>", artifact["viewer_html"])
             self.assertIn("<em>italic</em>", artifact["viewer_html"])
             self.assertIn("Header 1", artifact["viewer_html"])
             self.assertIn("Val 1", artifact["viewer_html"])
             
             self.assertIn("# Testing Document Parsing", artifact["viewer_markdown"])
-            self.assertIn("**bold**", artifact["viewer_markdown"])
+            self.assertIn("**This is a bold**", artifact["viewer_markdown"])
             self.assertIn("*italic*", artifact["viewer_markdown"])
             
             self.assertIn("Testing Document Parsing", data["extracted_text"])

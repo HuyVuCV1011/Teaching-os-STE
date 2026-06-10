@@ -41,6 +41,7 @@ function LessonEditorInner() {
     assignmentForm,
     setAssignmentForm,
     batches,
+    setBatches,
     dataFiles,
     setDataFiles,
     referenceFiles,
@@ -62,6 +63,7 @@ function LessonEditorInner() {
     handleFileInputChange,
     handleCreateMaterial,
     handleDeleteMaterial,
+    handleToggleDisplayMode,
     handleOpenMaterialsPreview,
     handleLayoutChange,
     handleDragStartCell,
@@ -187,6 +189,7 @@ function LessonEditorInner() {
               handleFileInputChange={handleFileInputChange}
               handleCreateMaterial={handleCreateMaterial}
               handleDeleteMaterial={handleDeleteMaterial}
+              handleToggleDisplayMode={handleToggleDisplayMode}
               handleOpenMaterialsPreview={handleOpenMaterialsPreview}
               handleLayoutChange={handleLayoutChange}
               handleDragStartCell={handleDragStartCell}
@@ -265,6 +268,7 @@ function LessonEditorInner() {
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               batches={batches}
+              setBatches={setBatches}
               assignmentForm={assignmentForm}
               pinnedChunks={pinnedChunks}
               setPinnedChunks={setPinnedChunks}

@@ -41,6 +41,7 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
   const [text, setText] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [answers, setAnswers] = useState<Record<number, string>>({})
+  const [showcaseRequested, setShowcaseRequested] = useState(false)
 
   // Student view interactive file preview states
   const [previewingFile, setPreviewingFile] = useState<any>(null)
@@ -354,7 +355,8 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
         assignmentId,
         text: finalSubmissionText,
         files: fileData,
-        uploadedUrls
+        uploadedUrls,
+        showcaseRequested
       })
 
       if (!submitRes.success) {
@@ -406,6 +408,8 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
     setFiles,
     answers,
     setAnswers,
+    showcaseRequested,
+    setShowcaseRequested,
     previewingFile,
     setPreviewingFile,
     previewContent,

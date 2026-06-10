@@ -36,7 +36,7 @@ def get_provider(model_choice: str = "ollama") -> Any:
         if not settings.gemini_api_key:
             logger.warning("Gemini model selected but GEMINI_API_KEY is not set. Falling back to local Ollama.")
             return OllamaGradingProvider.from_settings(settings)
-        gemini_model = "gemini-2.5-flash" if model_choice == "gemini" else model_choice
+        gemini_model = "gemini-2.0-flash" if model_choice == "gemini" else model_choice
         logger.info("Using Gemini provider (%s) with model %s", settings.gemini_api_key[:8] + "...", gemini_model)
         return GeminiProvider(api_key=settings.gemini_api_key, model=gemini_model)
 

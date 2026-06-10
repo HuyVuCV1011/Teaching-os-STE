@@ -20,12 +20,12 @@ export function StudentMaterialPreviewCard({
 
   return (
     <div className="space-y-3 w-full">
-      <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+      <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
         <Icon className={`w-3.5 h-3.5 ${styles.iconColor}`} />
-        {m.type.toUpperCase()} Document
+        {m.type.toUpperCase()} DOCUMENT
       </h2>
 
-      {/* PDF Preview */}
+      {/* PDF Preview: OS-style Viewport Frame */}
       {m.type === 'pdf' && (() => {
         const displayMode = m.metadata?.display_mode || 'both';
         const hasValidUrl = m.signedUrl && (
@@ -39,21 +39,47 @@ export function StudentMaterialPreviewCard({
           <div className="space-y-3 w-full">
             {displayMode !== 'original' ? (
               hasValidUrl ? (
-                <div className="border border-slate-800 bg-slate-900 rounded-2xl overflow-hidden shadow-sm h-[450px]">
-                  <DocumentViewer url={m.signedUrl} title={m.title} />
+                <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.015)] h-[500px] flex flex-col">
+                  {/* Viewport Header */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5 shrink-0 mr-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                      </div>
+                      <h3 className="font-bold text-slate-100 text-xs flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-md">
+                        {m.title}
+                      </h3>
+                    </div>
+                    {downloadAllowed && (
+                      <a
+                        href={m.signedUrl}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 font-bold text-[10px] transition-colors"
+                      >
+                        Download PDF
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex-1 min-h-0 bg-slate-900">
+                    <DocumentViewer url={m.signedUrl} title={m.title} />
+                  </div>
                 </div>
               ) : (
-                <div className="border border-slate-800 bg-slate-950 rounded-2xl p-6 shadow-sm text-slate-450 flex flex-col justify-center items-center gap-2 h-[450px] text-center">
-                  <FileText className="w-8 h-8 text-slate-600 animate-pulse" />
-                  <span className="text-xs font-semibold text-slate-300">Inline Preview Unavailable</span>
+                <div className="border border-slate-800 bg-slate-950 rounded-2xl p-8 shadow-[0_4px_30px_rgba(0,0,0,0.01)] text-slate-500 flex flex-col justify-center items-center gap-3 h-[450px] text-center">
+                  <FileText className="w-10 h-10 text-slate-400 animate-pulse" />
+                  <span className="text-xs font-bold text-slate-100">Inline Preview Unavailable</span>
                   <span className="text-[10px] text-slate-500 max-w-xs leading-relaxed">
                     Could not resolve the secure temporary link for this document. Please check if the file has been correctly uploaded to the Supabase storage bucket.
                   </span>
                 </div>
               )
             ) : (
-              <div className="border border-slate-200 bg-white rounded-2xl p-6 shadow-sm text-slate-800 flex justify-between items-center h-[100px]">
-                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <div className="border border-slate-800 bg-slate-950 rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.01)] text-slate-100 flex justify-between items-center h-[90px]">
+                <h3 className="font-bold text-slate-100 text-xs flex items-center gap-2">
                   <FileText className={`w-4 h-4 ${getMaterialTypeStyles('pdf').iconColor}`} />
                   {m.title}
                 </h3>
@@ -63,14 +89,14 @@ export function StudentMaterialPreviewCard({
                     download
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 font-bold text-xs transition-colors"
                   >
                     Download PDF
                   </a>
                 ) : downloadAllowed ? (
                   <span className="text-xs text-slate-400 italic">File not found in storage</span>
                 ) : (
-                  <span className="text-xs text-slate-400 italic">Downloads disabled</span>
+                  <span className="text-xs text-slate-450 italic">Downloads disabled</span>
                 )}
               </div>
             )}
@@ -82,31 +108,45 @@ export function StudentMaterialPreviewCard({
       {m.type === 'docx' && (() => {
         const displayMode = m.metadata?.display_mode || 'both';
         return (
-          <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm text-slate-800 space-y-4 h-[450px] overflow-y-auto flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
-              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <FileText className={`w-4 h-4 ${styles.iconColor}`} />
-                {m.title}
-              </h3>
+          <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.015)] h-[500px] flex flex-col">
+            {/* Viewport Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5 shrink-0 mr-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                  <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                </div>
+                <h3 className="font-bold text-slate-100 text-xs flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-md">
+                  {m.title}
+                </h3>
+              </div>
               {downloadAllowed && (
                 <a
                   href={m.signedUrl}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold text-[10px] border border-blue-100 hover:border-blue-200 transition-colors whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 font-bold text-[10px] transition-colors"
                 >
-                  Download
+                  Download DOCX
                 </a>
               )}
             </div>
-            {displayMode !== 'original' && (
-              <div
-                className="prose max-w-none text-slate-700 leading-relaxed text-xs flex-1 overflow-y-auto"
-                dangerouslySetInnerHTML={{
-                  __html: m.metadata?.viewer_artifact?.viewer_html || '<p class="text-slate-450 italic">No HTML preview available.</p>'
-                }}
-              />
+            
+            {displayMode !== 'original' ? (
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 bg-slate-950">
+                <div
+                  className="prose max-w-none text-slate-600 leading-relaxed text-xs"
+                  dangerouslySetInnerHTML={{
+                    __html: m.metadata?.viewer_artifact?.viewer_html || '<p class="text-slate-450 italic">No HTML preview available.</p>'
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-slate-900 text-slate-500 text-xs italic">
+                Inline preview disabled for original file download mode.
+              </div>
             )}
           </div>
         )
@@ -122,44 +162,51 @@ export function StudentMaterialPreviewCard({
         const displayMode = m.metadata?.display_mode || 'both'
 
         return (
-          <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm text-slate-800 space-y-4 h-[450px] overflow-y-auto flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
-              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <FileText className={`w-4 h-4 ${styles.iconColor}`} />
-                {m.title}
-              </h3>
+          <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.015)] h-[500px] flex flex-col">
+            {/* Viewport Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5 shrink-0 mr-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                  <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                </div>
+                <h3 className="font-bold text-slate-100 text-xs flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-md">
+                  {m.title}
+                </h3>
+              </div>
               {downloadAllowed && (
                 <a
                   href={m.signedUrl}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-semibold text-[10px] border border-emerald-100 hover:border-emerald-100 transition-colors whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-100 font-bold text-[10px] transition-colors"
                 >
-                  Download
+                  Download Spreadsheet
                 </a>
               )}
             </div>
 
-            {displayMode !== 'original' && (
-              <>
+            {displayMode !== 'original' ? (
+              <div className="flex-1 min-h-0 flex flex-col bg-slate-950 p-6 space-y-4">
                 {rows.length > 0 ? (
-                  <div className="overflow-x-auto border border-slate-150 rounded-xl flex-1 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-slate-150 text-xs">
-                      <thead className="bg-slate-50 sticky top-0 z-10">
+                  <div className="overflow-auto border border-slate-800 rounded-xl flex-1 shadow-[inset_0_1px_3px_rgba(0,0,0,0.01)]">
+                    <table className="min-w-full divide-y divide-slate-800 text-xs">
+                      <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
                         <tr>
                           {headers.map((hdr: string, i: number) => (
-                            <th key={i} className="px-3 py-2 text-left font-bold text-slate-700 border-r border-slate-150 last:border-0 whitespace-nowrap bg-slate-50">
+                            <th key={i} className="px-3.5 py-2.5 text-left font-bold text-slate-100 border-r border-slate-800 last:border-0 bg-slate-900 tracking-wider">
                               {hdr}
                             </th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
+                      <tbody className="divide-y divide-slate-850 bg-slate-950">
                         {rows.slice(0, 5).map((row: any[], i: number) => (
-                          <tr key={i} className="hover:bg-slate-50/50">
+                          <tr key={i} className="hover:bg-slate-900/40 transition-colors">
                             {row.map((cell: any, j: number) => (
-                              <td key={j} className="px-3 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
+                              <td key={j} className="px-3.5 py-2.5 text-slate-600 border-r border-slate-850 last:border-0 truncate max-w-[120px]">
                                 {cell}
                               </td>
                             ))}
@@ -172,11 +219,15 @@ export function StudentMaterialPreviewCard({
                   <p className="text-xs text-slate-400 italic">No table data available.</p>
                 )}
 
-                <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium shrink-0">
+                <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold tracking-wide shrink-0">
                   <span>Showing first 5 rows</span>
                   <span>Total: {rowCount} rows × {colCount} cols</span>
                 </div>
-              </>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-slate-900 text-slate-500 text-xs italic">
+                Inline preview disabled for original file download mode.
+              </div>
             )}
           </div>
         )
@@ -184,54 +235,72 @@ export function StudentMaterialPreviewCard({
 
       {/* Markdown Preview */}
       {m.type === 'markdown' && (
-        <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 shadow-sm text-slate-100 space-y-4 h-[450px] overflow-y-auto flex flex-col">
-          <div className="flex justify-between items-center pb-3 border-b border-slate-800 shrink-0">
-            <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-              <FileText className={`w-4 h-4 ${styles.iconColor}`} />
-              {m.title}
-            </h3>
+        <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.015)] h-[500px] flex flex-col">
+          {/* Viewport Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1.5 shrink-0 mr-2">
+                <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+              </div>
+              <h3 className="font-bold text-slate-100 text-xs flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-md">
+                {m.title}
+              </h3>
+            </div>
             {downloadAllowed && (
               <a
                 href={`data:text/markdown;charset=utf-8,${encodeURIComponent(m.metadata?.viewer_artifact?.viewer_markdown || '')}`}
                 download={`${m.title}.md`}
-                className="px-2.5 py-1 rounded bg-violet-50 hover:bg-violet-100 text-violet-650 font-semibold text-[10px] border border-violet-100 hover:bg-violet-100 transition-colors whitespace-nowrap shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 font-bold text-[10px] transition-colors"
               >
-                Download
+                Download Markdown
               </a>
             )}
           </div>
-          <div
-            className="prose max-w-none text-slate-700 leading-relaxed text-xs flex-1 overflow-y-auto"
-            dangerouslySetInnerHTML={{
-              __html: renderSimpleMarkdown(m.metadata?.viewer_artifact?.viewer_markdown || '')
-            }}
-          />
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 bg-slate-950">
+            <div
+              className="prose max-w-none text-slate-600 leading-relaxed text-xs"
+              dangerouslySetInnerHTML={{
+                __html: renderSimpleMarkdown(m.metadata?.viewer_artifact?.viewer_markdown || '')
+              }}
+            />
+          </div>
         </div>
       )}
 
       {/* JSON Preview */}
       {m.type === 'json' && (
-        <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 shadow-sm text-slate-100 space-y-4 h-[450px] overflow-y-auto flex flex-col">
-          <div className="flex justify-between items-center pb-3 border-b border-slate-800 shrink-0">
-            <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-              <Code className={`w-4 h-4 ${styles.iconColor}`} />
-              {m.title}
-            </h3>
+        <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.015)] h-[500px] flex flex-col">
+          {/* Viewport Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1.5 shrink-0 mr-2">
+                <span className="w-2 h-2 rounded-full bg-rose-500/80" />
+                <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+              </div>
+              <h3 className="font-bold text-slate-100 text-xs flex items-center gap-1.5 truncate max-w-[200px] sm:max-w-md">
+                {m.title}
+              </h3>
+            </div>
             {downloadAllowed && (
               <a
                 href={`data:application/json;charset=utf-8,${encodeURIComponent(
                   JSON.stringify(m.metadata?.viewer_artifact?.viewer_json || m.metadata?.viewer_artifact?.raw_text || {}, null, 2)
                 )}`}
                 download={`${m.title}.json`}
-                className="px-2.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 font-semibold text-[10px] border border-amber-100 hover:bg-amber-100 transition-colors whitespace-nowrap shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 font-bold text-[10px] transition-colors"
               >
-                Download
+                Download JSON
               </a>
             )}
           </div>
-          <pre className="overflow-x-auto p-4 bg-slate-955/10 border border-slate-800 rounded-xl text-slate-350 font-mono text-xs whitespace-pre-wrap flex-1 overflow-y-auto">
-            {JSON.stringify(m.metadata?.viewer_artifact?.viewer_json || m.metadata?.viewer_artifact?.raw_text || {}, null, 2)}
-          </pre>
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-slate-900">
+            <pre className="font-mono text-xs text-slate-400 p-2 leading-relaxed whitespace-pre-wrap">
+              {JSON.stringify(m.metadata?.viewer_artifact?.viewer_json || m.metadata?.viewer_artifact?.raw_text || {}, null, 2)}
+            </pre>
+          </div>
         </div>
       )}
     </div>

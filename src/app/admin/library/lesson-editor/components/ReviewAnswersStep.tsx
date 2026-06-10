@@ -7,7 +7,7 @@ import { cleanOptionText } from '../hooks/useLessonEditorState'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 
 const AI_MODEL_OPTIONS = [
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
   { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (Google)' },
   { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },

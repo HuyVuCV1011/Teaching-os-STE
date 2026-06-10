@@ -163,6 +163,16 @@ graph TD
 2. **Phase 2: Implementation & Complete Output:** Ensure React component rendering uses standard RSC patterns (`next-best-practices`). Use `full-output-enforcement` to ensure files are generated fully without placeholders.
 3. **Phase 3: Quality Assurance:** Run `npm run build` and check layout parameters against `web-design-guidelines`.
 
+## QA Workflow (Bypass E2E/Playwright, Use Simple Verification)
+
+Để tăng tốc độ phát triển và giảm sự phức tạp của môi trường thử nghiệm:
+- **KHÔNG viết hoặc chạy Playwright tests**: Antigravity agents không cần thiết lập, viết mã kiểm thử Playwright, hay chạy kiểm thử E2E.
+- **Để công cụ chuyên dụng khác chạy E2E**: Các khâu kiểm thử E2E Playwright sẽ được thực hiện bởi công cụ/agent chuyên trách khác.
+- **Tập trung kiểm thử đơn giản & nhanh chóng**:
+  1. Chạy các unit test gọn nhẹ nếu có (ví dụ: `pytest` cho Python backend).
+  2. Thực hiện biên dịch kiểm tra kiểu dữ liệu với `npx tsc --noEmit` hoặc `npm run build` để xác nhận không có lỗi build/type.
+  3. Xác minh tính đúng đắn thủ công bằng cách mở trình duyệt truy cập local dev server (`http://localhost:3000`).
+
 ## When NOT to Use Aesthetic Skills
 
 To prevent performance bloat, unnecessary token expenditure, or UX design conflicts, adhere to these limitations:

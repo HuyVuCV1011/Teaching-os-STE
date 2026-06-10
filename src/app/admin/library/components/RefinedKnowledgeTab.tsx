@@ -8,6 +8,7 @@ import {
   fetchRefinedTopicsAndEntriesAction,
   updateRefinedEntryAction,
   deleteRefinedEntryAction,
+  getSourceTextContentAction,
   RefinedEntryProposal,
   DiscoveredSource
 } from '../actions/refined_knowledge'
@@ -25,7 +26,9 @@ import {
   Tag,
   Folder,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Eye,
+  X
 } from 'lucide-react'
 
 interface Subject {
@@ -60,7 +63,7 @@ interface ConceptEntry {
 }
 
 const AI_MODEL_OPTIONS = [
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
   { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (Google)' },
   { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
@@ -86,7 +89,7 @@ export function RefinedKnowledgeTab() {
   const [sources, setSources] = useState<DiscoveredSource[]>([])
   
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash')
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.0-flash')
   const [currentSubTab, setCurrentSubTab] = useState<'queue' | 'library'>('queue')
   const [loading, setLoading] = useState(false)
   const [refining, setRefining] = useState(false)
@@ -112,6 +115,33 @@ export function RefinedKnowledgeTab() {
 
   const [showEditEntryModal, setShowEditEntryModal] = useState(false)
   const [editingLibraryEntry, setEditingLibraryEntry] = useState<ConceptEntry | null>(null)
+
+  // Source Preview States
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewingSource, setPreviewingSource] = useState<any | null>(null)
+  const [previewContent, setPreviewContent] = useState<string>('')
+  const [loadingContent, setLoadingContent] = useState(false)
+
+  const handleOpenPreview = async (e: React.MouseEvent, source: any) => {
+    e.stopPropagation() // Prevent selecting the card for batch refine
+    setPreviewingSource(source)
+    setShowPreviewModal(true)
+    setLoadingContent(true)
+    try {
+      const res = await getSourceTextContentAction(source.id, source.type, source.title)
+      if (res.success) {
+        setPreviewContent(res.content || '')
+      } else {
+        alert(res.error || 'Failed to fetch document contents')
+        setPreviewContent('')
+      }
+    } catch (err) {
+      alert('An error occurred loading document content')
+      setPreviewContent('')
+    } finally {
+      setLoadingContent(false)
+    }
+  }
 
   // Fetch functions
   const fetchData = useCallback(async () => {
@@ -476,15 +506,24 @@ export function RefinedKnowledgeTab() {
                               {source.type.replace('_', ' ')}
                             </span>
 
-                            {source.isProcessed ? (
-                              <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600">
-                                <CheckCircle className="w-3.5 h-3.5" /> Already Refined
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-[9px] font-bold text-amber-500 animate-pulse">
-                                <AlertCircle className="w-3.5 h-3.5" /> Unprocessed
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => handleOpenPreview(e, source)}
+                                className="text-slate-500 hover:text-slate-300 hover:bg-slate-950/40 p-1 rounded transition-colors"
+                                title="Preview Content"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {source.isProcessed ? (
+                                <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600">
+                                  <CheckCircle className="w-3.5 h-3.5" /> Already Refined
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-[9px] font-bold text-amber-500 animate-pulse">
+                                  <AlertCircle className="w-3.5 h-3.5" /> Unprocessed
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div>
@@ -1144,6 +1183,71 @@ export function RefinedKnowledgeTab() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* --- PREVIEW MODAL: EXTRACTED SOURCE CONTENT --- */}
+      {showPreviewModal && previewingSource && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex justify-center items-center p-4 animate-fade-in">
+          <div className="bg-slate-950 border border-slate-850 w-full max-w-4xl max-h-[85vh] flex flex-col justify-between rounded-3xl shadow-xl overflow-hidden animate-scale-up">
+            
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-850 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-widest font-mono flex items-center gap-2">
+                  <BookOpen className="w-4.5 h-4.5 text-indigo-550" />
+                  Preview Source: {previewingSource.title}
+                </h3>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5 font-mono">
+                  Type: {previewingSource.type.toUpperCase().replace('_', ' ')}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false)
+                  setPreviewingSource(null)
+                  setPreviewContent('')
+                }}
+                className="text-slate-500 hover:text-slate-350 transition-colors p-1"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar select-text bg-slate-950">
+              {loadingContent ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-500 text-xs font-semibold gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                  <span>Loading source content...</span>
+                </div>
+              ) : !previewContent ? (
+                <div className="text-center py-12 text-slate-500 text-xs font-semibold">
+                  No text content extracted for this source.
+                </div>
+              ) : (
+                <div className="p-5 bg-slate-900/40 border border-slate-850 rounded-2xl text-xs leading-relaxed text-slate-300 font-mono whitespace-pre-wrap select-text">
+                  {previewContent}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-950 border-t border-slate-850 flex justify-end shrink-0">
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false)
+                  setPreviewingSource(null)
+                  setPreviewContent('')
+                }}
+                className="px-5 py-2 rounded-xl bg-slate-900 border border-slate-850 hover:border-slate-700 text-slate-100 font-bold text-xs transition-colors"
+              >
+                Close Preview
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
     </div>

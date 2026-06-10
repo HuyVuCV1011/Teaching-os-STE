@@ -11,6 +11,7 @@ import { ArrowLeft } from 'lucide-react'
 import { LockedLessonView } from './components/LockedLessonView'
 import { StudentMaterialPreviewCard } from './components/StudentMaterialPreviewCard'
 import { LessonSidebar } from './components/LessonSidebar'
+import { AITutorDrawer } from './components/AITutorDrawer'
 import { getGridColsClass } from './utils/lessonUtils'
 
 interface PageProps {
@@ -96,13 +97,23 @@ export default async function LessonPage({ params }: PageProps) {
   const preparedMaterials = await Promise.all(
     (materialsData || []).map(async (m) => {
       if (['pdf', 'docx', 'csv', 'xlsx'].includes(m.type)) {
-        const { data } = await supabaseAdmin.storage
-          .from('teaching-materials')
-          .createSignedUrl(m.storage_url, 300)
+        try {
+          const { data, error } = await supabaseAdmin.storage
+            .from('teaching-materials')
+            .createSignedUrl(m.storage_url, 300)
 
-        return {
-          ...m,
-          signedUrl: data?.signedUrl || data?.signedURL || data?.publicUrl || m.storage_url,
+          if (error) throw error
+
+          return {
+            ...m,
+            signedUrl: data?.signedUrl || (data as any)?.signedURL || (data as any)?.publicUrl || m.storage_url,
+          }
+        } catch (err) {
+          console.error(`Failed to generate signed URL for material ${m.id}:`, err)
+          return {
+            ...m,
+            signedUrl: m.storage_url,
+          }
         }
       }
       return m
@@ -119,12 +130,12 @@ export default async function LessonPage({ params }: PageProps) {
         <div className="flex items-center gap-3">
           <Link
             href={`/learn/${classCode}/courses/${courseSlug}/roadmap`}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-slate-200 hover:border-slate-400 transition-all"
+            className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 transition-all shadow-sm"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <span className="text-xs text-slate-550 font-semibold">
+            <span className="text-xs text-slate-500 font-semibold">
               {lessonData.modules?.courses?.title} / {lessonData.modules?.title}
             </span>
             <h1 className="text-2xl font-bold text-slate-100 mt-0.5">{lessonData.title}</h1>
@@ -141,13 +152,13 @@ export default async function LessonPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Main lesson content */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Rich Text Lesson Content */}
-          <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 md:p-8 shadow-xl">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-6 pb-2 border-b border-slate-800">
+          {/* Rich Text Lesson Content - Overhauled as a clean white card */}
+          <div className="border border-slate-800 bg-slate-950 rounded-2xl p-6 md:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-6 pb-2 border-b border-slate-800">
               Overview & Guide
             </h2>
             <article
-              className="prose max-w-none text-slate-700 leading-relaxed text-sm"
+              className="prose max-w-none text-slate-600 leading-relaxed text-sm"
               dangerouslySetInnerHTML={{ __html: lessonData.content || '' }}
             />
           </div>
@@ -202,10 +213,10 @@ export default async function LessonPage({ params }: PageProps) {
                 {unplaced.length > 0 && (
                   <div className="pt-8 border-t border-slate-800 space-y-6">
                     <div>
-                      <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2">
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                         Lesson Handouts & Resources
                       </h2>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-[11px] text-slate-400">
                         Additional documents mapped to this session.
                       </p>
                     </div>
@@ -237,6 +248,9 @@ export default async function LessonPage({ params }: PageProps) {
           links={links}
         />
       </div>
+
+      {/* Floating AI Tutor Drawer */}
+      <AITutorDrawer classCode={classCode} lessonId={lessonId} />
     </div>
   )
 }

@@ -397,7 +397,7 @@ export function AssignmentBuilderStep({
                   required
                   value={assignmentForm.title}
                   onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  className="w-full bg-slate-955 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
               <div>
@@ -419,6 +419,58 @@ export function AssignmentBuilderStep({
                   className="w-full bg-slate-955 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
                 />
               </div>
+            </div>
+
+            {/* Section Weight Distribution */}
+            <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-xl space-y-3 shadow-sm">
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                ⚖️ Section Weight Distribution
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Multiple Choice (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={assignmentForm.mcqWeightPercent !== undefined ? assignmentForm.mcqWeightPercent : 50}
+                    onChange={(e) => {
+                      const mcqVal = Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                      setAssignmentForm({
+                        ...assignmentForm,
+                        mcqWeightPercent: mcqVal,
+                        essayWeightPercent: 100 - mcqVal
+                      })
+                    }}
+                    className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Essay & Code (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={assignmentForm.essayWeightPercent !== undefined ? assignmentForm.essayWeightPercent : 50}
+                    onChange={(e) => {
+                      const essayVal = Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                      setAssignmentForm({
+                        ...assignmentForm,
+                        essayWeightPercent: essayVal,
+                        mcqWeightPercent: 100 - essayVal
+                      })
+                    }}
+                    className="w-full bg-slate-955 border border-slate-700 rounded px-2.5 py-1.5 text-slate-100 transition-colors focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600/20"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 italic">
+                Weights must total 100%. These percentages determine the target points split between sections.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

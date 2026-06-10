@@ -3,192 +3,72 @@ import os
 import json
 import csv
 import traceback
-from docx import Document
-from docx.text.paragraph import Paragraph
-from docx.table import Table
-import openpyxl
+import re
+from markitdown import MarkItDown
 
-def iter_block_items(parent):
-    """
-    Generate a sequence of Paragraph and Table objects in the order they appear in the document.
-    """
-    from docx.document import Document as DocumentClass
-    
-    if isinstance(parent, DocumentClass):
-        parent_elm = parent.element.body
-    else:
-        parent_elm = parent._element
-        
-    for child in parent_elm.iterchildren():
-        if child.tag.endswith('p'):
-            yield Paragraph(child, parent)
-        elif child.tag.endswith('tbl'):
-            yield Table(child, parent)
+def render_html_table(table_lines):
+    html_table = ['<div class="overflow-x-auto my-6"><table class="min-w-full border-collapse border border-slate-200">']
+    for idx, line in enumerate(table_lines):
+        # Skip divider line (e.g., | --- | --- |)
+        if idx == 1 and all(c in ' |-:' for c in line.strip()):
+            continue
+        cells = [c.strip() for c in line.split('|')[1:-1]]
+        tag = 'th' if idx == 0 else 'td'
+        class_attr = ' class="border border-slate-300 px-4 py-2 bg-slate-50 text-left font-semibold text-slate-700"' if tag == 'th' else ' class="border border-slate-300 px-4 py-2 text-slate-600"'
+        row_str = '<tr>' + ''.join(f'<{tag}{class_attr}>{c}</{tag}>' for c in cells) + '</tr>'
+        html_table.append(row_str)
+    html_table.append('</table></div>')
+    return '\n'.join(html_table)
 
-def escape_html(text):
-    if not text:
-        return ""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#x27;")
-
-def docx_to_html_and_markdown(docx_path):
-    doc = Document(docx_path)
-    html_parts = []
-    md_parts = []
-    raw_texts = []
+def markdown_to_html(md_text):
+    # Convert headings
+    html = md_text
+    html = re.sub(r'^#\s+(.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+    html = re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+    html = re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+    html = re.sub(r'^####\s+(.+)$', r'<h4>\1</h4>', html, flags=re.MULTILINE)
     
-    in_list = False
-    list_type = None # 'ul' or 'ol'
+    # Convert bold & italic
+    html = re.sub(r'\*\*\*(.*?)\*\*\*', r'<strong><em>\1</em></strong>', html)
+    html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
+    html = re.sub(r'\*(.*?)\*', r'<em>\1</em>', html)
     
-    for block in iter_block_items(doc):
-        if isinstance(block, Paragraph):
-            text = block.text.strip()
-            if not text:
-                continue
-                
-            raw_texts.append(block.text)
-            
-            # Check style
-            style_name = block.style.name.lower()
-            
-            # Simple list item check
-            is_list_item = False
-            current_list_type = None
-            if "list bullet" in style_name or text.startswith("•") or text.startswith("-"):
-                is_list_item = True
-                current_list_type = "ul"
-                if text.startswith("•") or text.startswith("-"):
-                    text = text[1:].strip()
-            elif "list number" in style_name or (text and text[0].isdigit() and (text.startswith(tuple(f"{i}." for i in range(10))) or text.startswith(tuple(f"{i})" for i in range(10))))):
-                is_list_item = True
-                current_list_type = "ol"
-                # Strip prefix if it starts with digit + . or )
-                # e.g. "1. Hello" -> "Hello"
-                parts = text.split(".", 1)
-                if len(parts) > 1 and parts[0].isdigit():
-                    text = parts[1].strip()
-                else:
-                    parts = text.split(")", 1)
-                    if len(parts) > 1 and parts[0].isdigit():
-                        text = parts[1].strip()
-            
-            if is_list_item:
-                if not in_list or list_type != current_list_type:
-                    if in_list:
-                        html_parts.append(f"</{list_type}>")
-                    html_parts.append(f"<{current_list_type}>")
-                    in_list = True
-                    list_type = current_list_type
+    # Convert tables
+    lines = html.split('\n')
+    in_table = False
+    table_lines = []
+    output_lines = []
+    
+    for line in lines:
+        if line.strip().startswith('|'):
+            if not in_table:
+                in_table = True
+                table_lines = [line]
             else:
-                if in_list:
-                    html_parts.append(f"</{list_type}>")
-                    in_list = False
-                    list_type = None
-                    
-            # Parse formatting (runs)
-            html_text = ""
-            md_text = ""
-            for run in block.runs:
-                run_text = escape_html(run.text)
-                md_run_text = run.text
-                if not run_text:
-                    continue
-                
-                # Check formatting
-                is_bold = run.bold
-                is_italic = run.italic
-                is_underline = run.underline
-                
-                # HTML wrappers
-                run_html = run_text
-                if is_bold:
-                    run_html = f"<strong>{run_html}</strong>"
-                if is_italic:
-                    run_html = f"<em>{run_html}</em>"
-                if is_underline:
-                    run_html = f"<u>{run_html}</u>"
-                html_text += run_html
-                
-                # MD wrappers
-                run_md = md_run_text
-                if is_bold and is_italic:
-                    run_md = f"***{run_md}***"
-                elif is_bold:
-                    run_md = f"**{run_md}**"
-                elif is_italic:
-                    run_md = f"*{run_md}*"
-                # Note: Markdown doesn't have standard underline, we can ignore or use <u>
-                if is_underline:
-                    run_md = f"<u>{run_md}</u>"
-                md_text += run_md
-            
-            # Headings
-            if "heading 1" in style_name:
-                html_parts.append(f"<h1>{html_text}</h1>")
-                md_parts.append(f"# {md_text}\n")
-            elif "heading 2" in style_name:
-                html_parts.append(f"<h2>{html_text}</h2>")
-                md_parts.append(f"## {md_text}\n")
-            elif "heading 3" in style_name:
-                html_parts.append(f"<h3>{html_text}</h3>")
-                md_parts.append(f"### {md_text}\n")
-            elif "heading 4" in style_name:
-                html_parts.append(f"<h4>{html_text}</h4>")
-                md_parts.append(f"#### {md_text}\n")
-            elif is_list_item:
-                html_parts.append(f"<li>{html_text}</li>")
-                bullet = "-" if list_type == "ul" else "1."
-                md_parts.append(f"{bullet} {md_text}")
-            else:
-                html_parts.append(f"<p>{html_text}</p>")
-                md_parts.append(f"{md_text}\n")
-                
-        elif isinstance(block, Table):
-            if in_list:
-                html_parts.append(f"</{list_type}>")
-                in_list = False
-                list_type = None
-                
-            html_parts.append('<div class="overflow-x-auto my-6"><table class="min-w-full border-collapse border border-slate-200">')
-            
-            md_table_rows = []
-            
-            for r_idx, row in enumerate(block.rows):
-                html_parts.append("<tr>")
-                row_cells = []
-                for c_idx, cell in enumerate(row.cells):
-                    cell_text = cell.text.strip()
-                    raw_texts.append(cell_text)
-                    escaped_cell = escape_html(cell_text)
-                    
-                    if r_idx == 0:
-                        html_parts.append(f'<th class="border border-slate-300 px-4 py-2 bg-slate-50 text-left font-semibold text-slate-700">{escaped_cell}</th>')
-                    else:
-                        html_parts.append(f'<td class="border border-slate-300 px-4 py-2 text-slate-600">{escaped_cell}</td>')
-                        
-                    row_cells.append(cell_text.replace("\n", " ").replace("|", "\\|"))
-                html_parts.append("</tr>")
-                
-                md_table_rows.append("| " + " | ".join(row_cells) + " |")
-                if r_idx == 0:
-                    # Add divider
-                    md_table_rows.append("| " + " | ".join(["---"] * len(row_cells)) + " |")
-            
-            html_parts.append("</table></div>")
-            md_parts.append("\n".join(md_table_rows) + "\n")
-            
-    if in_list:
-        html_parts.append(f"</{list_type}>")
+                table_lines.append(line)
+        else:
+            if in_table:
+                in_table = False
+                output_lines.append(render_html_table(table_lines))
+                table_lines = []
+            output_lines.append(line)
+    if in_table:
+        output_lines.append(render_html_table(table_lines))
         
-    viewer_html = "\n".join(html_parts)
-    viewer_markdown = "\n".join(md_parts)
-    extracted_text = "\n".join(raw_texts)
-    
-    return {
-        "viewer_html": viewer_html,
-        "viewer_markdown": viewer_markdown,
-        "extracted_text": extracted_text
-    }
+    # Standard paragraphs for text lines
+    final_lines = []
+    for line in output_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('<') or stripped.startswith('*') or stripped.startswith('-') or stripped.startswith('1.'):
+            final_lines.append(line)
+        else:
+            final_lines.append(f'<p>{line}</p>')
+            
+    return '\n'.join(final_lines)
 
+# Keep parse_csv and parse_xlsx for tabular preview compatibility with the frontend
 def parse_csv(csv_path):
     headers = []
     rows = []
@@ -222,10 +102,10 @@ def parse_csv(csv_path):
     }, extracted_text
 
 def parse_xlsx(xlsx_path):
+    import openpyxl
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     sheet_names = wb.sheetnames
     
-    # Use active or first sheet
     sheet = wb.active if wb.active else wb[sheet_names[0]]
     
     headers = []
@@ -254,22 +134,6 @@ def parse_xlsx(xlsx_path):
         "sheet_names": sheet_names
     }, extracted_text
 
-def pdf_to_text(pdf_path):
-    from pypdf import PdfReader
-    reader = PdfReader(pdf_path)
-    text_parts = []
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text_parts.append(page_text)
-    extracted_text = "\n".join(text_parts)
-    return {
-        "viewer_artifact": {
-            "type": "pdf"
-        },
-        "extracted_text": extracted_text
-    }
-
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No file path provided"}), file=sys.stderr)
@@ -283,18 +147,19 @@ def main():
     _, ext = os.path.splitext(file_path.lower())
     
     try:
-        if ext == '.docx':
-            result = docx_to_html_and_markdown(file_path)
+        if ext in ['.docx', '.pdf', '.pptx', '.zip', '.html', '.htm']:
+            md = MarkItDown()
+            result = md.convert(file_path)
+            markdown_content = result.text_content or ""
+            
             output = {
                 "viewer_artifact": {
-                    "type": "docx",
-                    "viewer_html": result["viewer_html"],
-                    "viewer_markdown": result["viewer_markdown"]
+                    "type": "docx" if ext == ".docx" else "pdf" if ext == ".pdf" else "document",
+                    "viewer_markdown": markdown_content,
+                    "viewer_html": markdown_to_html(markdown_content)
                 },
-                "extracted_text": result["extracted_text"]
+                "extracted_text": markdown_content
             }
-        elif ext == '.pdf':
-            output = pdf_to_text(file_path)
         elif ext == '.csv':
             preview, text = parse_csv(file_path)
             output = {
@@ -304,7 +169,7 @@ def main():
                 },
                 "extracted_text": text
             }
-        elif ext == '.xlsx' or ext == '.xls':
+        elif ext in ['.xlsx', '.xls']:
             preview, text = parse_xlsx(file_path)
             output = {
                 "viewer_artifact": {
@@ -326,3 +191,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

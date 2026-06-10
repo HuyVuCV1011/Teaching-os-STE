@@ -46,10 +46,37 @@ export default function GradingPage({ params }: GradingPageProps) {
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [aiGrading, setAiGrading] = useState(false)
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash')
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
+  const [submission, setSubmission] = useState<any>(null)
+  const [showcaseApproved, setShowcaseApproved] = useState(false)
+  const [togglingShowcase, setTogglingShowcase] = useState(false)
+
+  useEffect(() => {
+    if (submission) {
+      setShowcaseApproved(submission.showcase_approved || false)
+    }
+  }, [submission])
+
+  const handleToggleShowcase = async () => {
+    setTogglingShowcase(true)
+    try {
+      const nextVal = !showcaseApproved
+      const { error } = await supabase
+        .from('submissions')
+        .update({ showcase_approved: nextVal })
+        .eq('id', submissionId)
+
+      if (error) throw error
+      setShowcaseApproved(nextVal)
+      alert(nextVal ? 'Approved for Public Showcase!' : 'Showcase approval revoked.')
+    } catch (err: any) {
+      alert(`Failed to update showcase: ${err.message}`)
+    } finally {
+      setTogglingShowcase(false)
+    }
+  }
 
   // Data states
-  const [submission, setSubmission] = useState<any>(null)
   const [rubric, setRubric] = useState<any>(null)
   const [criteria, setCriteria] = useState<any[]>([])
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -274,7 +301,7 @@ export default function GradingPage({ params }: GradingPageProps) {
         setSelectedSuggestions(initialSelected)
         setShowDossier(true)
       } else {
-        alert(`Failed to get suggestions: ${res.error}`)
+        alert(`Failed to get suggestions: ${(res as any).error || 'Unknown error'}`)
       }
     } catch (err: any) {
       alert(`AI suggestion error: ${err.message}`)
@@ -334,6 +361,11 @@ export default function GradingPage({ params }: GradingPageProps) {
             </span>
             <div className="flex items-center gap-2 mt-0.5">
               <h1 className="text-2xl font-bold text-white">Manual Evaluation</h1>
+              {submission?.showcase_requested && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                  Showcase Requested
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -346,7 +378,7 @@ export default function GradingPage({ params }: GradingPageProps) {
               onChange={(e) => setSelectedModel(e.target.value)}
               className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-0.5 text-[11px] text-slate-200 focus:outline-none cursor-pointer font-medium"
             >
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
               <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
               <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
               <option value="ollama">Ollama (Local Llama)</option>
@@ -379,6 +411,20 @@ export default function GradingPage({ params }: GradingPageProps) {
             {saving ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Save className="w-4 h-4" />}
             <span>Save Draft</span>
           </button>
+
+          {submission?.showcase_requested && (
+            <button
+              onClick={handleToggleShowcase}
+              disabled={togglingShowcase}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
+                showcaseApproved
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow shadow-emerald-600/10'
+                  : 'border border-slate-705 bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white'
+              }`}
+            >
+              <span>{showcaseApproved ? 'Showcase Approved ✓' : 'Approve for Showcase'}</span>
+            </button>
+          )}
 
           <button
             onClick={() => handleSaveGrade(true)}

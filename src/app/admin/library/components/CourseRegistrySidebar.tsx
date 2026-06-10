@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Search, Plus, BookOpen } from 'lucide-react'
+import { Search, Plus, BookOpen, Copy } from 'lucide-react'
 
 interface CourseRegistrySidebarProps {
   courses: any[]
@@ -15,6 +15,7 @@ interface CourseRegistrySidebarProps {
   setCourseForm: React.Dispatch<React.SetStateAction<any>>
   handleCreateCourse: (e: React.FormEvent) => void
   handleSelectCourse: (course: any) => void
+  handleDuplicateCourse: (e: React.MouseEvent, courseId: string) => void
 }
 
 export function CourseRegistrySidebar({
@@ -29,6 +30,7 @@ export function CourseRegistrySidebar({
   setCourseForm,
   handleCreateCourse,
   handleSelectCourse,
+  handleDuplicateCourse,
 }: CourseRegistrySidebarProps) {
   const filteredCourses = courses.filter((c) =>
     c.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,34 +149,54 @@ export function CourseRegistrySidebar({
           {filteredCourses.map((course) => {
             const isSelected = selectedCourse?.id === course.id
             return (
-              <button
+              <div
                 key={course.id}
                 onClick={() => handleSelectCourse(course)}
-                className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 flex flex-col gap-3 relative overflow-hidden group ${
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleSelectCourse(course)
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 flex flex-col gap-3 relative overflow-hidden group cursor-pointer ${
                   isSelected
                     ? 'border-blue-500 bg-slate-900/40 shadow-sm translate-x-0.5'
                     : 'border-slate-800 bg-slate-950/30 hover:bg-slate-900/10 hover:border-slate-700 hover:-translate-y-0.5 hover:shadow-md'
                 }`}
               >
                 {isSelected && <span className="w-1 h-full bg-blue-500 absolute left-0 top-0" />}
-                <div className="flex justify-between items-center w-full">
+                 <div className="flex justify-between items-center w-full">
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50/50 px-3 py-1 rounded-md border border-blue-500/20 shadow-sm">
                     {course.subjects?.name || 'Unassigned'}
                   </span>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
-                      course.status === 'published'
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                        : 'bg-slate-900 border-slate-800 text-slate-500'
-                    }`}
-                  >
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDuplicateCourse(e, course.id)
+                      }}
+                      className="p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-400 hover:text-blue-500 hover:border-slate-700 transition-colors flex items-center justify-center shadow-sm"
+                      title="Duplicate Course Syllabus"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        course.status === 'published' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
+                      className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
+                        course.status === 'published'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : 'bg-slate-900 border-slate-800 text-slate-500'
                       }`}
-                    />
-                    {course.status}
-                  </span>
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          course.status === 'published' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
+                        }`}
+                      />
+                      {course.status}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-100 text-lg group-hover:text-blue-600 transition-colors leading-snug">
@@ -184,7 +206,7 @@ export function CourseRegistrySidebar({
                     {course.description || 'No description provided.'}
                   </p>
                 </div>
-              </button>
+              </div>
             )
           })}
           {filteredCourses.length === 0 && (

@@ -21,7 +21,7 @@ export default function GradingQueue() {
   const [submissions, setSubmissions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSubmissions, setSelectedSubmissions] = useState<string[]>([])
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash')
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
   const [gradingStatus, setGradingStatus] = useState<Record<string, 'idle' | 'running' | 'success' | 'failed'>>({})
 
   useEffect(() => {
@@ -141,8 +141,16 @@ export default function GradingQueue() {
           </p>
         </div>
 
-        {submissions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 bg-slate-900/35 border border-slate-700/50 p-3 rounded-2xl">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/admin/grading/similarity"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/35 hover:bg-slate-850 text-slate-300 hover:text-white font-bold text-xs transition-all cursor-pointer"
+          >
+            <span>Similarity Checker</span>
+          </Link>
+
+          {submissions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 bg-slate-900/35 border border-slate-700/50 p-3 rounded-2xl">
             <div className="flex items-center gap-2">
               <Cpu className="w-4 h-4 text-blue-500" />
               <select
@@ -150,7 +158,7 @@ export default function GradingQueue() {
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer font-semibold"
               >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                 <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
                 <option value="ollama">Ollama (Local Llama)</option>
@@ -165,8 +173,9 @@ export default function GradingQueue() {
               <Sparkles className="w-3.5 h-3.5" />
               <span>AI Grade Selected ({selectedSubmissions.length})</span>
             </button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="border border-slate-700 bg-slate-900/10 rounded-2xl overflow-hidden shadow-xl">

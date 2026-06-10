@@ -9,10 +9,11 @@ import ReactFlow, {
   Node,
   Edge,
   MarkerType,
+  Background,
 } from 'reactflow'
 import dagre from 'dagre'
 import { supabase } from '@/lib/supabase'
-import { Lock, Unlock, Loader2, ArrowLeft, CheckCircle } from 'lucide-react'
+import { Lock, Unlock, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import 'reactflow/dist/style.css'
 
 function getCookie(name: string): string {
@@ -34,39 +35,54 @@ interface LessonNodeData {
 
 // Custom Lesson Node Component for ReactFlow
 function CustomLessonNode({ data }: { data: LessonNodeData }) {
+  const isLocked = data.isLocked
+  const isCompleted = data.isCompleted
+
   return (
     <div
-      onClick={data.isLocked ? undefined : data.onClick}
-      className={`px-4 py-3.5 rounded-xl border backdrop-blur-md transition-all duration-200 text-left min-w-[200px] shadow-lg ${
-        data.isLocked
-          ? 'bg-slate-900/40 border-slate-900/60 text-slate-500 cursor-not-allowed opacity-60'
-          : data.isCompleted
-          ? 'bg-slate-900 border-emerald-500/40 text-slate-200 hover:border-emerald-500 cursor-pointer shadow-emerald-500/5'
-          : 'bg-slate-900 border-slate-800 text-slate-200 hover:border-blue-500 cursor-pointer hover:shadow-blue-550/5'
+      onClick={isLocked ? undefined : data.onClick}
+      className={`relative pl-6 pr-4 py-3.5 rounded-2xl border text-left min-w-[220px] transition-all duration-300 ${
+        isLocked
+          ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+          : isCompleted
+          ? 'bg-slate-950 border-emerald-500/30 text-slate-100 hover:border-emerald-500 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(16,185,129,0.06)]'
+          : 'bg-slate-950 border-blue-500/30 text-slate-100 hover:border-blue-600 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(59,130,246,0.06)]'
       }`}
     >
+      {/* Target connection point */}
       <Handle type="target" position={Position.Left} className="opacity-0" />
 
+      {/* Accent strip on the left edge to visually group status */}
+      {!isLocked && (
+        <div
+          className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
+            isCompleted ? 'bg-emerald-500' : 'bg-blue-600'
+          }`}
+        />
+      )}
+
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <span className="block text-[9px] font-bold text-slate-500 font-mono uppercase tracking-widest">
             Lesson {data.orderIndex}
           </span>
-          <span className="block text-xs font-bold leading-relaxed pr-2 truncate max-w-[150px]">
+          <span className="block text-xs font-bold leading-relaxed text-slate-100 truncate max-w-[160px]">
             {data.title}
           </span>
-          {data.isLocked && data.visibleAfter && (
-            <span className="block text-[8px] text-amber-500 font-medium mt-1">
+          
+          {isLocked && data.visibleAfter && (
+            <span className="block text-[8px] text-amber-600 font-semibold mt-1">
               Unlocks: {new Date(data.visibleAfter).toLocaleDateString()}
             </span>
           )}
-          {!data.isLocked && data.hasAssignment && (
+          
+          {!isLocked && data.hasAssignment && (
             <button
               onClick={(e) => {
                 e.stopPropagation()
                 data.onSubmitClick?.()
               }}
-              className="inline-flex items-center gap-1 text-[8px] bg-indigo-500/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/20 px-1.5 py-0.5 rounded font-semibold mt-1 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1 text-[8px] bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full font-bold mt-1 transition-all cursor-pointer"
             >
               Submit Task
             </button>
@@ -74,16 +90,21 @@ function CustomLessonNode({ data }: { data: LessonNodeData }) {
         </div>
 
         <div className="shrink-0 mt-0.5">
-          {data.isLocked ? (
-            <Lock className="w-3.5 h-3.5 text-slate-600" />
-          ) : data.isCompleted ? (
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-450 animate-pulse" />
+          {isLocked ? (
+            <Lock className="w-3.5 h-3.5 text-slate-400" />
+          ) : isCompleted ? (
+            <div className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-3 h-3" />
+            </div>
           ) : (
-            <Unlock className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+            <div className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center animate-pulse">
+              <Unlock className="w-3 h-3" />
+            </div>
           )}
         </div>
       </div>
 
+      {/* Source connection point */}
       <Handle type="source" position={Position.Right} className="opacity-0" />
     </div>
   )
@@ -157,12 +178,14 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         }
       })
 
-      // Save custom positions
-      const positions = nextNodes.reduce((acc: any, node) => {
-        acc[node.id] = node.position
-        return acc
-      }, {})
-      localStorage.setItem(`roadmap_pos_${classCode}_${courseSlug}`, JSON.stringify(positions))
+      // Save custom positions (deferred side-effect)
+      setTimeout(() => {
+        const positions = nextNodes.reduce((acc: any, node) => {
+          acc[node.id] = node.position
+          return acc
+        }, {})
+        localStorage.setItem(`roadmap_pos_${classCode}_${courseSlug}`, JSON.stringify(positions))
+      }, 0)
 
       return nextNodes
     })
@@ -196,6 +219,11 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           .select('*, lessons(*)')
           .eq('course_id', courseData.id)
           .order('order_index')
+
+        // Filter out draft lessons
+        modulesData?.forEach((mod: any) => {
+          mod.lessons = (mod.lessons || []).filter((l: any) => l.metadata?.status !== 'draft')
+        })
 
         // 4. Fetch Class Schedules release times
         const { data: schedulesData } = await supabase
@@ -295,10 +323,10 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
                 source: prevNodeId,
                 target: nodeId,
                 animated: !isLocked,
-                style: { stroke: isLocked ? '#334155' : '#3b82f6', strokeWidth: 2 },
+                style: { stroke: isLocked ? '#e2e8f0' : '#3b82f6', strokeWidth: 2.5 },
                 markerEnd: {
                   type: MarkerType.ArrowClosed,
-                  color: isLocked ? '#334155' : '#3b82f6',
+                  color: isLocked ? '#e2e8f0' : '#3b82f6',
                 },
               })
             }
@@ -352,7 +380,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         <div className="flex items-center gap-3">
           <Link
             href={`/learn/${classCode}/dashboard`}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-400 hover:text-white hover:border-slate-400 transition-all"
+            className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 transition-all shadow-sm"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
@@ -368,14 +396,14 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
               localStorage.removeItem(`roadmap_pos_${classCode}_${courseSlug}`)
               window.location.reload()
             }}
-            className="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 bg-slate-900 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all cursor-pointer focus-visible:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-600 bg-slate-950 text-xs font-semibold text-slate-500 hover:text-slate-100 transition-all cursor-pointer focus-visible:outline-none shadow-sm"
           >
             Reset Grid Layout
           </button>
         )}
       </div>
 
-      <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-950/50 backdrop-blur-xl overflow-hidden relative shadow-2xl">
+      <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden relative shadow-[0_4px_30px_rgba(0,0,0,0.015)]">
         {loading ? (
           <div className="absolute inset-0 flex flex-col justify-center items-center gap-4 text-slate-400 bg-slate-950/80 z-30">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -399,7 +427,9 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
             zoomOnPinch={true}
             zoomOnDoubleClick={false}
             panOnDrag={true}
-          />
+          >
+            <Background color="#cbd5e1" gap={18} size={1} />
+          </ReactFlow>
         )}
       </div>
     </div>

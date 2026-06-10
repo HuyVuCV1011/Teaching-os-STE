@@ -78,6 +78,8 @@ export function PdfViewerSection({
   const canvasRefs = useRef<(HTMLCanvasElement | null)[][]>([[], []])
   const sliderRefs = useRef<(HTMLElement | null)[]>([])
 
+  const maxPages = Math.max(...numPages.filter(Boolean))
+
   // Synchronize slider value across all ImgComparisonSliders
   useEffect(() => {
     const handleSliderInput = (event: Event) => {
@@ -129,7 +131,6 @@ export function PdfViewerSection({
     }
   }
 
-  const maxPages = Math.max(...numPages.filter(Boolean))
   if (maxPages === 0) return null
 
   return (

@@ -80,6 +80,10 @@ export function ProcessDiagramWorkspace({
 
   const onPaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement
+      // Only handle double clicks on the flow pane background itself, not on nodes/controls
+      if (!target.classList.contains('react-flow__pane')) return
+
       const paneBounds = event.currentTarget.getBoundingClientRect()
       const position = reactFlowInstance.project({
         x: event.clientX - paneBounds.left,
@@ -181,7 +185,7 @@ export function ProcessDiagramWorkspace({
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
-          onPaneDoubleClick={onPaneDoubleClick}
+          onDoubleClick={onPaneDoubleClick}
           nodeTypes={{ customNode: CustomNode }}
           fitView
         >

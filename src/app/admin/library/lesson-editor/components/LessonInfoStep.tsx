@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Upload, Eye, GripVertical, Trash2, Edit, Loader2 } from 'lucide-react'
+import { Upload, Eye, EyeOff, GripVertical, Trash2, Edit, Loader2 } from 'lucide-react'
 import RichTextEditor from '@/components/RichTextEditor'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 
@@ -96,6 +96,7 @@ interface LessonInfoStepProps {
   handleFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   handleCreateMaterial: (e: React.FormEvent) => Promise<void>
   handleDeleteMaterial: (id: string) => Promise<void>
+  handleToggleDisplayMode: (materialId: string, currentMode: 'both' | 'web' | 'original') => Promise<void>
   handleOpenMaterialsPreview: () => Promise<void>
   handleLayoutChange: (newLayout: string) => Promise<void>
   handleDragStartCell: (e: React.DragEvent, mId: string, sourceColIdx: number, sourceItemIdx: number) => void
@@ -124,6 +125,7 @@ export function LessonInfoStep({
   handleFileInputChange,
   handleCreateMaterial,
   handleDeleteMaterial,
+  handleToggleDisplayMode,
   handleOpenMaterialsPreview,
   handleLayoutChange,
   handleDragStartCell,
@@ -263,6 +265,23 @@ export function LessonInfoStep({
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
                     />
                   </div>
+
+                  {/* Display Mode Selection */}
+                  {['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(materialForm.type) && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                        Default Display Mode
+                      </label>
+                      <select
+                        value={materialForm.displayMode}
+                        onChange={(e) => setMaterialForm({ ...materialForm, displayMode: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100 cursor-pointer focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20"
+                      >
+                        <option value="both">Both (Inline Preview & Download)</option>
+                        <option value="original">Download Button Only</option>
+                      </select>
+                    </div>
+                  )}
 
                   {/* Drag & Drop Zone */}
                   <div
@@ -543,10 +562,25 @@ export function LessonInfoStep({
                           <span className="text-slate-200 truncate font-semibold">{m.title}</span>
                         </div>
                         <div className="flex items-center gap-1 shrink-0 ml-2">
+                          {['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type) && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDisplayMode(m.id, m.metadata?.display_mode || 'both')}
+                              className="text-slate-400 p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 rounded"
+                              title={m.metadata?.display_mode === 'original' ? "Enable Inline Preview" : "Disable Inline Preview (Download Only)"}
+                              aria-label="Toggle Display Mode"
+                            >
+                              {m.metadata?.display_mode === 'original' ? (
+                                <EyeOff className="w-3.5 h-3.5 text-slate-500 hover:text-indigo-500" />
+                              ) : (
+                                <Eye className="w-3.5 h-3.5 text-emerald-500 hover:text-indigo-500" />
+                              )}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setVerifyMaterial(m)}
-                            className="text-slate-400 hover:text-blue-600 p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 rounded"
+                            className="text-slate-400 hover:text-blue-605 p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20 rounded"
                             title="Verify Handout"
                             aria-label={`Verify ${m.title}`}
                           >

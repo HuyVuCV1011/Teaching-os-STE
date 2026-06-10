@@ -18,6 +18,8 @@ interface SubmissionPanelProps {
   pollingMessage: string
   gradingRun: any
   assignment: any
+  showcaseRequested: boolean
+  setShowcaseRequested: (val: boolean) => void
 }
 
 export function SubmissionPanel({
@@ -34,7 +36,9 @@ export function SubmissionPanel({
   polling,
   pollingMessage,
   gradingRun,
-  assignment
+  assignment,
+  showcaseRequested,
+  setShowcaseRequested,
 }: SubmissionPanelProps) {
   return (
     <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 space-y-6 shadow-xl">
@@ -73,7 +77,7 @@ export function SubmissionPanel({
               </p>
             </div>
           ) : gradingRun?.status === 'failed' ? (
-            <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-550/5 text-rose-455 space-y-2 text-xs">
+            <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-500 space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span className="font-bold text-rose-400">Automated Ingestion Alert</span>
@@ -162,9 +166,26 @@ export function SubmissionPanel({
               </div>
             )}
 
+            {/* Showcase checkbox */}
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-800 bg-slate-955/40">
+              <input
+                type="checkbox"
+                id="showcase-checkbox"
+                checked={showcaseRequested}
+                onChange={(e) => setShowcaseRequested(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-950 mt-0.5 cursor-pointer"
+              />
+              <label htmlFor="showcase-checkbox" className="text-[11px] text-slate-400 leading-normal cursor-pointer select-none">
+                Đăng ký đăng dự án lên Portfolio Showcase công khai
+                <span className="block text-[9px] text-slate-500 mt-0.5">
+                  Allows instructors to feature your work on the public showcase homepage.
+                </span>
+              </label>
+            </div>
+
             {/* Error Alert */}
             {error && (
-              <div className="flex items-start gap-2 p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-455 text-xs">
+              <div className="flex items-start gap-2 p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>

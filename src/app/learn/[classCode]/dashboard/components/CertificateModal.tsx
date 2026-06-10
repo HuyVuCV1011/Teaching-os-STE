@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Printer } from 'lucide-react'
+import { Printer, ExternalLink } from 'lucide-react'
 
 interface CertificateModalProps {
   showCertificateModal: boolean
@@ -11,6 +11,7 @@ interface CertificateModalProps {
   certificateGrade: number
   handlePrintCertificate: () => void
   printRef: React.RefObject<HTMLDivElement | null>
+  certificateId: string | null
 }
 
 export function CertificateModal({
@@ -21,6 +22,7 @@ export function CertificateModal({
   certificateGrade,
   handlePrintCertificate,
   printRef,
+  certificateId,
 }: CertificateModalProps) {
   if (!showCertificateModal) return null
 
@@ -30,8 +32,8 @@ export function CertificateModal({
         <h3 className="text-lg font-bold text-white">Generate Your Credential</h3>
 
         {/* Print Area Preview */}
-        <div className="border border-slate-800 bg-slate-950 p-6 rounded-xl flex justify-center">
-          <div ref={printRef} className="border-8 double border-blue-900 p-8 text-center bg-white text-slate-950 max-w-md w-full shadow-lg">
+        <div className="border border-slate-800 bg-slate-955 p-6 rounded-xl flex justify-center">
+          <div ref={printRef} className="border-8 border-double border-blue-900 p-8 text-center bg-white text-slate-100 max-w-md w-full shadow-lg">
             <h1 className="text-2xl font-serif text-blue-900 font-extrabold uppercase tracking-wide">
               Certificate
             </h1>
@@ -46,7 +48,7 @@ export function CertificateModal({
               {studentEmail}
             </div>
 
-            <p className="text-[11px] text-slate-505">
+            <p className="text-[11px] text-slate-500">
               has completed all required course modules and tasks scheduled for class cohort
               <span className="font-bold text-slate-800"> {classInfo?.name}</span>.
             </p>
@@ -65,6 +67,23 @@ export function CertificateModal({
                 <span className="block text-[7px] text-slate-400 mt-0.5">Issue Date</span>
               </div>
             </div>
+
+            {certificateId && (
+              <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col items-center gap-1">
+                <span className="text-[7px] text-slate-450 font-bold uppercase tracking-wider">
+                  Verifiable Credential Hash
+                </span>
+                <a
+                  href={`/verify/${certificateId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[8px] font-mono text-blue-600 hover:text-blue-500 hover:underline flex items-center gap-0.5"
+                >
+                  <span>verify.ste-os.edu/verify/{certificateId}</span>
+                  <ExternalLink className="w-2.5 h-2.5 inline" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
 

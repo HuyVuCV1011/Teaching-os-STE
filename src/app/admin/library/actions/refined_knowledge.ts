@@ -930,3 +930,114 @@ export async function createTopicAction(subjectId: string, name: string, parentI
     return { success: false, error: err.message }
   }
 }
+
+/**
+ * Fetches the full text content of a discovered knowledge source (lesson, canonical material, assignment, or upload).
+ */
+export async function getSourceTextContentAction(id: string, type: string, title: string) {
+  try {
+    await checkAdminAuth()
+    const supabase = getSupabaseServer(true)
+    let content = ''
+
+    if (type === 'lesson') {
+      const { data: lesson, error } = await supabase
+        .from('lessons')
+        .select('content')
+        .eq('id', id)
+        .single()
+      if (error) throw error
+      if (lesson?.content) {
+        content = tiptapToMarkdown(lesson.content)
+      }
+    } else if (type === 'assignment') {
+      const { data: asg, error } = await supabase
+        .from('assignments')
+        .select('instructions')
+        .eq('id', id)
+        .single()
+      if (error) throw error
+      if (asg) {
+        let instText = ''
+        try {
+          const parsed = JSON.parse(asg.instructions)
+          const questions = (parsed.questions || []) as QuestionItem[]
+          instText = questions.map((q, i) => `Q${i+1}: ${q.content}\nExpected Answer: ${q.answer || '(none)'}`).join('\n\n')
+        } catch {
+          instText = asg.instructions || ''
+        }
+        content = `# Assignment: ${title}\n\n${instText}`
+      }
+    } else if (type === 'canonical_material') {
+      const { data: material, error } = await supabase
+        .from('canonical_materials')
+        .select('storage_url, type, metadata')
+        .eq('id', id)
+        .single()
+      if (error) throw error
+      if (material?.metadata?.extracted_text) {
+        content = material.metadata.extracted_text
+      } else if (material?.metadata?.viewer_artifact?.viewer_markdown) {
+        content = material.metadata.viewer_artifact.viewer_markdown
+      } else {
+        content = `# Material: ${title}\nAttached file path: ${material?.storage_url || ''}\nType: ${material?.type || ''}`
+      }
+    } else if (type === 'knowledge_source') {
+      const { data: chunks, error } = await supabase
+        .from('knowledge_chunks')
+        .select('content')
+        .eq('knowledge_source_id', id)
+        .order('position')
+      if (error) throw error
+      content = (chunks || []).map(c => c.content).join('\n\n')
+    } else {
+      throw new Error(`Unsupported source type: ${type}`)
+    }
+
+    return { success: true, content }
+  } catch (error: any) {
+    console.error('Failed to get source text content:', error)
+    return { success: false, error: error.message, content: '' }
+  }
+}
+
+/**
+ * Toggles a lesson's publishing status between draft and published inside its metadata.
+ */
+export async function toggleLessonPublishStatusAction(lessonId: string, currentStatus: 'draft' | 'published') {
+  try {
+    await checkAdminAuth()
+    const supabase = getSupabaseServer(true)
+    
+    // Fetch current metadata
+    const { data: lesson, error: fetchErr } = await supabase
+      .from('lessons')
+      .select('metadata')
+      .eq('id', lessonId)
+      .single()
+
+    if (fetchErr || !lesson) {
+      throw new Error(`Lesson not found: ${fetchErr?.message || 'Unknown error'}`)
+    }
+
+    const nextStatus = currentStatus === 'draft' ? 'published' : 'draft'
+    const updatedMetadata = {
+      ...(lesson.metadata || {}),
+      status: nextStatus
+    }
+
+    const { error: updateErr } = await supabase
+      .from('lessons')
+      .update({ metadata: updatedMetadata })
+      .eq('id', lessonId)
+
+    if (updateErr) throw updateErr
+
+    return { success: true, status: nextStatus }
+  } catch (error: any) {
+    console.error('Failed to toggle lesson status:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+

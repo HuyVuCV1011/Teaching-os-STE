@@ -195,3 +195,25 @@ export async function searchKnowledgeAction(
     return { success: false, error: error.message, results: [] }
   }
 }
+
+/**
+ * Gets all parsed text chunks of a specific knowledge source.
+ */
+export async function getKnowledgeSourceChunksAction(sourceId: string) {
+  try {
+    await checkAdminAuth()
+    const supabase = getSupabaseServer(true)
+    const { data: chunks, error } = await supabase
+      .from('knowledge_chunks')
+      .select('*')
+      .eq('knowledge_source_id', sourceId)
+      .order('position')
+
+    if (error) throw error
+    return { success: true, chunks: chunks || [] }
+  } catch (error: any) {
+    console.error('Failed to get knowledge source chunks:', error)
+    return { success: false, error: error.message, chunks: [] }
+  }
+}
+

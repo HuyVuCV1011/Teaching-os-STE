@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Loader2, Brain, Plus, Trash2, Code as CodeIcon, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertCircle, Sparkles } from 'lucide-react'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
+import { testGradeRubricAction } from '../../actions/assignments'
 
 interface Criteria {
   key: string
@@ -53,6 +54,7 @@ interface RubricGeneratorStepProps {
   selectedModel: string
   setSelectedModel: (val: string) => void
   batches: BatchItem[]
+  setBatches: React.Dispatch<React.SetStateAction<BatchItem[]>>
   assignmentForm: any
   pinnedChunks?: any[]
   setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
@@ -108,7 +110,7 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
               setSelectedIdx(parseInt(e.target.value))
               setTestInput('')
             }}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
+            className="w-full bg-slate-955 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
           >
             {ruleCriteria.map((c, i) => (
               <option key={i} value={i}>
@@ -125,18 +127,18 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
               placeholder="Type test student answer..."
               value={testInput}
               onChange={(e) => setTestInput(e.target.value)}
-              className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-100 placeholder-slate-600 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
+              className="flex-1 bg-slate-955 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-100 placeholder-slate-650 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
             />
             <div className="flex items-center shrink-0 min-w-[70px] justify-end">
               {match === null ? (
                 <span className="text-[9px] text-slate-500 uppercase font-semibold">No input</span>
               ) : match ? (
-                <span className="px-2.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-750 text-[9px] font-extrabold flex items-center gap-0.5 select-none animate-fade-in">
-                  <CheckCircle className="w-3 h-3 text-emerald-700" /> MATCH
+                <span className="px-2.5 py-0.5 rounded bg-emerald-55/15 border border-emerald-500/30 text-emerald-600 text-[9px] font-extrabold flex items-center gap-0.5 select-none animate-fade-in">
+                  <CheckCircle className="w-3 h-3 text-emerald-600" /> MATCH
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-extrabold flex items-center gap-0.5 select-none animate-fade-in">
-                  <XCircle className="w-3 h-3 text-rose-750" /> FAIL
+                <span className="px-2.5 py-0.5 rounded bg-rose-55/15 border border-rose-500/30 text-rose-600 text-[9px] font-extrabold flex items-center gap-0.5 select-none animate-fade-in">
+                  <XCircle className="w-3 h-3 text-rose-600" /> FAIL
                 </span>
               )}
             </div>
@@ -146,8 +148,155 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
     </div>
   )
 }
+
+// 🧠 Reusable AI Grading Sandbox for each Essay Card
+function AIGradingSandbox({ question, criteria }: { question: QuestionItem; criteria: Criteria[] }) {
+  const [studentAnswer, setStudentAnswer] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleTestGrade = async () => {
+    if (!studentAnswer.trim()) return
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await testGradeRubricAction({
+        criteria,
+        studentAnswer,
+        assignmentInstructions: question.content,
+        modelAnswer: question.answer || ''
+      })
+      if (res.success) {
+        setResult(res.grading)
+      } else {
+        setError(res.error || 'Stateless grading failed')
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during test grading')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="p-4 rounded-xl border border-indigo-500/10 bg-indigo-500/5 space-y-3">
+      <h5 className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest flex items-center gap-1.5 font-mono select-none">
+        <Brain className="w-3.5 h-3.5" /> AI Rubric Grading Simulator
+      </h5>
+      <p className="text-[10px] text-slate-500 font-medium leading-relaxed select-none">
+        Simulate how the AI will grade a student's answer using the qualitative rubric criteria defined above.
+      </p>
+
+      <div className="space-y-3">
+        <textarea
+          rows={3}
+          placeholder="Paste or write a sample student answer to test grade..."
+          value={studentAnswer}
+          onChange={(e) => setStudentAnswer(e.target.value)}
+          className="w-full bg-slate-955 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-650 focus-visible:outline-none focus-visible:border-blue-600 focus-visible:ring-1 focus-visible:ring-blue-600/20"
+        />
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleTestGrade}
+            disabled={loading || !studentAnswer.trim() || criteria.length === 0}
+            className="px-4 py-2 rounded-lg bg-indigo-650 hover:bg-indigo-700 disabled:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-650/20 shadow-sm"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5 animate-pulse" />}
+            <span>Run AI Test Grade</span>
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-rose-55/15 border border-rose-500/30 rounded-lg text-xs text-rose-600 font-medium flex items-center gap-2 animate-fade-in">
+          <AlertCircle className="w-4 h-4 text-rose-600" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {result && (
+        <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3.5 animate-fade-in select-text">
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Simulated Grading Output</span>
+            <div className="text-sm font-black text-emerald-600">
+              Total Score: {result.total_score || result.total_score === 0 ? result.total_score : 'N/A'} pts
+            </div>
+          </div>
+
+          {result.overall_feedback && (
+            <div className="space-y-1">
+              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Overall Feedback</span>
+              <p className="text-xs text-slate-355 leading-relaxed italic">{result.overall_feedback}</p>
+            </div>
+          )}
+
+          {result.criterion_suggestions && result.criterion_suggestions.length > 0 && (
+            <div className="space-y-2">
+              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Criteria Breakdown</span>
+              <div className="space-y-2">
+                {result.criterion_suggestions.map((s: any, idx: number) => {
+                  const crit = criteria.find(c => c.key === s.criterion_key);
+                  return (
+                    <div key={idx} className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-xs space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-200">{crit ? crit.label : `Criterion: ${s.criterion_key}`}</span>
+                        <span className="font-mono text-[10px] font-bold text-indigo-400">Score: {s.score} pts</span>
+                      </div>
+                      {s.explanation && (
+                        <p className="text-[11px] text-slate-400 leading-relaxed font-sans">{s.explanation}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 🎛️ Tabbed Sandbox Controller Panel (Regex vs AI Grader)
+function QuestionSandboxPanel({ question, criteria }: { question: QuestionItem; criteria: Criteria[] }) {
+  const [activeTab, setActiveTab] = useState<'regex' | 'ai'>('regex')
+  return (
+    <div className="space-y-3">
+      <div className="flex border-b border-slate-800 pb-1.5 gap-4 select-none">
+        <button
+          type="button"
+          onClick={() => setActiveTab('regex')}
+          className={`text-[10px] font-bold uppercase tracking-wider pb-1 transition-all ${
+            activeTab === 'regex' ? 'border-b-2 border-indigo-500 text-indigo-500' : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          Rule Match Sandbox
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ai')}
+          className={`text-[10px] font-bold uppercase tracking-wider pb-1 transition-all ${
+            activeTab === 'ai' ? 'border-b-2 border-indigo-500 text-indigo-500' : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          AI Grader Sandbox
+        </button>
+      </div>
+      {activeTab === 'regex' ? (
+        <InlineRegexSandbox criteria={criteria} />
+      ) : (
+        <AIGradingSandbox question={question} criteria={criteria} />
+      )}
+    </div>
+  )
+}
+
 const AI_MODEL_OPTIONS = [
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Google)' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
   { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (Google)' },
   { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
@@ -166,6 +315,7 @@ export function RubricGeneratorStep({
   selectedModel,
   setSelectedModel,
   batches,
+  setBatches,
   assignmentForm,
   pinnedChunks = [],
   setPinnedChunks
@@ -250,9 +400,33 @@ export function RubricGeneratorStep({
 
   // Calculate dynamic weight and point allocations
   const totalQuestionsCount = approvedEssayQs.length + approvedMCQs.length
+  const targetMaxScore = assignmentForm?.maxScore || 100
   
-  // MCQ point summing
-  const mcqPointsTotal = approvedMCQs.reduce((sum, q) => sum + (q.points || 10), 0)
+  const mcqWeightPercent = assignmentForm?.mcqWeightPercent !== undefined ? assignmentForm.mcqWeightPercent : 50
+  const essayWeightPercent = assignmentForm?.essayWeightPercent !== undefined ? assignmentForm.essayWeightPercent : 50
+
+  // Determine actual target splits
+  let targetMcqTotal = 0
+  let targetEssayTotal = 0
+
+  if (approvedMCQs.length > 0 && approvedEssayQs.length > 0) {
+    targetMcqTotal = targetMaxScore * (mcqWeightPercent / 100)
+    targetEssayTotal = targetMaxScore * (essayWeightPercent / 100)
+  } else if (approvedMCQs.length > 0) {
+    targetMcqTotal = targetMaxScore
+    targetEssayTotal = 0
+  } else if (approvedEssayQs.length > 0) {
+    targetMcqTotal = 0
+    targetEssayTotal = targetMaxScore
+  }
+
+  // Calculate default MCQ points
+  const defaultMcqPoints = approvedMCQs.length > 0
+    ? Math.round((targetMcqTotal / approvedMCQs.length) * 10) / 10
+    : 10
+  
+  // MCQ point summing (using q.points if set, else fallback to defaultMcqPoints)
+  const mcqPointsTotal = approvedMCQs.reduce((sum, q) => sum + (q.points !== undefined && q.points !== null ? q.points : defaultMcqPoints), 0)
   
   // Essay qualitative weighted point summing
   const essayPointsTotal = criteriaList.reduce((sum, c) => {
@@ -260,9 +434,74 @@ export function RubricGeneratorStep({
     return sum + (c.max_points * c.weight)
   }, 0)
 
-  const totalPointsRegistered = mcqPointsTotal + essayPointsTotal
-  const targetMaxScore = assignmentForm?.maxScore || 100
+  const totalPointsRegistered = Math.round((mcqPointsTotal + essayPointsTotal) * 100) / 100
   const isPointsMatched = Math.abs(totalPointsRegistered - targetMaxScore) < 0.01
+
+  const handleAutoCalibrate = () => {
+    if (!setBatches) return
+
+    // 1. Calibrate MCQs
+    let updatedBatches = [...batches]
+    if (approvedMCQs.length > 0) {
+      const N = approvedMCQs.length
+      const basePoints = Math.round((targetMcqTotal / N) * 10) / 10
+      const newMcqPointsList = Array(N).fill(basePoints)
+      const mcqSum = basePoints * N
+      const mcqResidual = Math.round((targetMcqTotal - mcqSum) * 10) / 10
+      if (Math.abs(mcqResidual) > 0.001) {
+        newMcqPointsList[0] = Math.round((newMcqPointsList[0] + mcqResidual) * 10) / 10
+      }
+
+      // Map these back into updatedBatches
+      let mcqCount = 0
+      updatedBatches = updatedBatches.map(b => {
+        if (b.type === 'multiple_choice') {
+          return {
+            ...b,
+            questions: b.questions.map(q => {
+              if (q.status !== 'approved') return q
+              const pts = newMcqPointsList[mcqCount++]
+              return { ...q, points: pts }
+            })
+          }
+        }
+        return b
+      })
+    }
+
+    // 2. Calibrate Essay Criteria
+    if (approvedEssayQs.length > 0 && criteriaList.length > 0) {
+      const activeCriteria = criteriaList.filter(c => c.questionId && approvedEssayQs.some(eq => eq.id === c.questionId))
+      
+      if (activeCriteria.length > 0) {
+        const sumMaxPoints = activeCriteria.reduce((sum, c) => sum + c.max_points, 0)
+        
+        if (sumMaxPoints > 0) {
+          const targetWeight = targetEssayTotal / sumMaxPoints
+          const roundedWeight = Math.round(targetWeight * 100) / 100
+          
+          const scaledSum = activeCriteria.reduce((sum, c) => sum + (c.max_points * roundedWeight), 0)
+          const residual = targetEssayTotal - scaledSum
+          
+          const updatedCriteria = criteriaList.map((c) => {
+            const isActive = c.questionId && approvedEssayQs.some(eq => eq.id === c.questionId)
+            if (!isActive) return c
+
+            const activeIdx = activeCriteria.findIndex(ac => ac.key === c.key)
+            let w = roundedWeight
+            if (activeIdx === 0) {
+              w = Math.round(((c.max_points * roundedWeight + residual) / c.max_points) * 100) / 100
+            }
+            return { ...c, weight: w }
+          })
+          
+          setCriteriaList(updatedCriteria)
+        }
+      }
+    }
+
+    setBatches(updatedBatches)
+  }
 
   return (
     <div className="space-y-6">
@@ -303,15 +542,26 @@ export function RubricGeneratorStep({
             <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest font-mono">
               ⚖️ Score Weight Allocation
             </span>
-            {isPointsMatched ? (
-              <span className="text-[8px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 px-1.5 py-0.2 rounded uppercase font-extrabold tracking-wider">
-                ✓ ALLOCATED
-              </span>
-            ) : (
-              <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-700 px-1.5 py-0.2 rounded uppercase font-extrabold tracking-wider flex items-center gap-1">
-                <AlertCircle className="w-2.5 h-2.5" /> MISMATCH ({totalPointsRegistered}/{targetMaxScore} pts)
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {!isPointsMatched && (
+                <button
+                  type="button"
+                  onClick={handleAutoCalibrate}
+                  className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-[8px] text-white font-extrabold rounded uppercase tracking-wider transition-colors shadow-sm focus:outline-none"
+                >
+                  ⚡ Auto-Calibrate
+                </button>
+              )}
+              {isPointsMatched ? (
+                <span className="text-[8px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 px-1.5 py-0.2 rounded uppercase font-extrabold tracking-wider">
+                  ✓ ALLOCATED
+                </span>
+              ) : (
+                <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-700 px-1.5 py-0.2 rounded uppercase font-extrabold tracking-wider flex items-center gap-1">
+                  <AlertCircle className="w-2.5 h-2.5" /> MISMATCH ({totalPointsRegistered}/{targetMaxScore} pts)
+                </span>
+              )}
+            </div>
           </div>
           
           <div className="flex justify-between items-baseline pt-1 leading-none">
@@ -466,7 +716,7 @@ export function RubricGeneratorStep({
                           </div>
                         </div>
                         <span className="text-[10px] font-extrabold text-slate-400 font-mono shrink-0 select-none">
-                          {q.points || 10} pts
+                          {q.points !== undefined ? q.points : defaultMcqPoints} pts
                         </span>
                       </div>
                     ))}
@@ -684,7 +934,7 @@ export function RubricGeneratorStep({
 
                           {/* Bottom Part: locally managed Sandbox testbed inside the question card */}
                           <div className="pt-2 border-t border-slate-800">
-                            <InlineRegexSandbox criteria={qCriteria} />
+                            <QuestionSandboxPanel question={q} criteria={qCriteria} />
                           </div>
                         </div>
                       )}

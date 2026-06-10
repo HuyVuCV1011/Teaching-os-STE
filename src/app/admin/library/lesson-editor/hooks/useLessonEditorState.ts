@@ -11,7 +11,8 @@ import {
   deleteFileFromStorageAction,
   getSignedUrlAction,
   reorderMaterialsAction,
-  updateLessonLayoutAction
+  updateLessonLayoutAction,
+  updateMaterialDisplayModeAction
 } from '@/app/admin/library/actions/materials'
 import {
   saveAssignmentAction,
@@ -44,7 +45,7 @@ export function htmlToMarkdown(html: string): string {
     .replace(/<\/ol>/gi, '\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<blockquote.*?>(.*?)<\/blockquote>/gi, '> $1\n\n')
-    .replace(/<pre.*?><code.*?>(.*?)<\/code><\/pre>/gs, '```\n$1\n```\n\n')
+    .replace(/<pre.*?><code.*?>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```\n\n')
   md = md.replace(/<[^>]+>/g, '')
   md = md
     .replace(/&amp;/g, '&')
@@ -180,6 +181,7 @@ export function useLessonEditorState() {
     uploadOption: 'file' as 'file' | 'link',
     manualContent: '',
     note: '',
+    displayMode: 'both' as 'both' | 'web' | 'original',
   })
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [showMaterialForm, setShowMaterialForm] = useState(false)
@@ -230,11 +232,13 @@ export function useLessonEditorState() {
     maxTotalSizeMb: 50,
     autoPublishGrades: false,
     gracePeriodHours: 0,
-    penaltyPercentPerDay: 0
+    penaltyPercentPerDay: 0,
+    mcqWeightPercent: 50,
+    essayWeightPercent: 50
   })
 
   // AI config
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash')
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
   const [solutionMode, setSolutionMode] = useState<'upload' | 'ai'>('ai')
   const [solutionText, setSolutionText] = useState('')
   const [solutionFile, setSolutionFile] = useState<File | null>(null)
@@ -464,7 +468,7 @@ export function useLessonEditorState() {
 
       setCellMaterials(updatedMapping)
 
-      const res = await updateLessonLayoutAction(lessonId, gridLayout, updatedMapping)
+      const res = await updateLessonLayoutAction(lessonId || '', gridLayout, updatedMapping)
       if (!res.success) {
         alert(`Failed to save column layout: ${res.error}`)
       }
@@ -481,7 +485,7 @@ export function useLessonEditorState() {
       updatedMapping[colIdx] = list
       setCellMaterials(updatedMapping)
 
-      const res = await updateLessonLayoutAction(lessonId, gridLayout, updatedMapping)
+      const res = await updateLessonLayoutAction(lessonId || '', gridLayout, updatedMapping)
       if (!res.success) {
         alert(`Failed to save column layout: ${res.error}`)
       }
@@ -509,7 +513,7 @@ export function useLessonEditorState() {
     }
     setCellMaterials(updatedMapping)
 
-    const res = await updateLessonLayoutAction(lessonId, newLayout, updatedMapping)
+    const res = await updateLessonLayoutAction(lessonId || '', gridLayout, updatedMapping)
     if (!res.success) {
       alert(`Failed to save column layout: ${res.error}`)
     }
@@ -595,7 +599,8 @@ export function useLessonEditorState() {
       title: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
       type: detectedType,
       linkUrl: '',
-      uploadOption: 'file'
+      uploadOption: 'file',
+      displayMode: 'both'
     })
     setShowMaterialForm(true)
   }
@@ -654,6 +659,21 @@ export function useLessonEditorState() {
           assignmentsData.find((item: any) => item.id === assignmentId) ||
           assignmentsData[0]
         setHasAssignment(true)
+        let mcqW = 50
+        let essayW = 50
+        if (activeAs.instructions && activeAs.instructions.trim()) {
+          try {
+            const instr = activeAs.instructions.trim()
+            if (instr.startsWith('{')) {
+              const parsed = JSON.parse(instr)
+              mcqW = parsed.mcqWeightPercent !== undefined ? parsed.mcqWeightPercent : 50
+              essayW = parsed.essayWeightPercent !== undefined ? parsed.essayWeightPercent : 50
+            }
+          } catch (e) {
+            console.error('Failed to parse weights:', e)
+          }
+        }
+
         setAssignmentId(activeAs.id)
         const policy = activeAs.late_policy || {}
         setAssignmentForm({
@@ -664,7 +684,9 @@ export function useLessonEditorState() {
           maxTotalSizeMb: activeAs.max_total_size_mb || 50,
           autoPublishGrades: activeAs.auto_publish_grades || false,
           gracePeriodHours: policy.grace_period_hours || 0,
-          penaltyPercentPerDay: policy.penalty_percent_per_day || 0
+          penaltyPercentPerDay: policy.penalty_percent_per_day || 0,
+          mcqWeightPercent: mcqW,
+          essayWeightPercent: essayW
         })
         const storagePath = activeAs.solution_storage_path || ''
         setSolutionStoragePath(storagePath)
@@ -691,7 +713,7 @@ export function useLessonEditorState() {
           setSolutionText('')
         }
         setPromptStoragePath(activeAs.prompt_file_path || '')
-        setSelectedModel(activeAs.ai_model_used || 'gemini-2.5-flash')
+        setSelectedModel(activeAs.ai_model_used || 'gemini-2.0-flash')
 
         try {
           if (activeAs.instructions && activeAs.instructions.trim()) {
@@ -717,7 +739,8 @@ export function useLessonEditorState() {
                   answerSource: q.answerSource || undefined,
                   data: q.data || undefined,
                   source: q.source || 'ai_generator',
-                  source_file: q.source_file || null
+                  source_file: q.source_file || null,
+                  points: (q.points !== undefined && q.points !== null) ? q.points : undefined
                 }
                 
                 const qType = q.type || (q.options && q.options.length > 0 ? 'multiple_choice' : 'essay')
@@ -758,7 +781,8 @@ export function useLessonEditorState() {
                   answerSource: q.answerSource || undefined,
                   data: q.data || undefined,
                   source: 'ai_generator' as const,
-                  source_file: null
+                  source_file: null,
+                  points: (q.points !== undefined && q.points !== null) ? q.points : undefined
                 }))
                 const hasOptions = questions.some(q => q.options && q.options.length > 0)
                 const parsedBatch: BatchItem = {
@@ -967,10 +991,8 @@ export function useLessonEditorState() {
       setUploadStatus(prev => ({ ...prev, step: 'saving' }))
 
       const metadata: Record<string, any> = {
-        note: materialForm.note || ''
-      }
-      if (finalType === 'pdf') {
-        metadata.display_mode = 'original'
+        note: materialForm.note || '',
+        display_mode: materialForm.displayMode || 'both'
       }
 
       const regRes = await registerCanonicalMaterial({
@@ -993,7 +1015,8 @@ export function useLessonEditorState() {
         creationMethod: 'upload',
         uploadOption: 'file',
         manualContent: '',
-        note: ''
+        note: '',
+        displayMode: 'both'
       })
       setUploadFile(null)
       setShowMaterialForm(false)
@@ -1021,6 +1044,26 @@ export function useLessonEditorState() {
       fetchLessonDetails()
     } catch (err: any) {
       alert(`Deletion failed: ${err.message}`)
+    }
+  }
+
+  const handleToggleDisplayMode = async (materialId: string, currentMode: 'both' | 'web' | 'original') => {
+    try {
+      const nextMode: 'both' | 'web' | 'original' = currentMode === 'original' ? 'both' : 'original'
+      const res = await updateMaterialDisplayModeAction(materialId, nextMode)
+      if (res.success) {
+        setMaterials(prev =>
+          prev.map(m =>
+            m.id === materialId
+              ? { ...m, metadata: { ...(m.metadata || {}), display_mode: nextMode } }
+              : m
+          )
+        )
+      } else {
+        alert(`Failed to update display mode: ${res.error}`)
+      }
+    } catch (err: any) {
+      alert(`Error updating display mode: ${err.message}`)
     }
   }
 
@@ -1575,6 +1618,7 @@ export function useLessonEditorState() {
             source: q.source || 'ai_generator',
             source_file: q.source_file || null,
             data: q.data || null,
+            points: q.points !== undefined ? q.points : null,
             answerFormat: b.type === 'multiple_choice' ? 'text' : (q.answerFormat || b.defaultAnswerFormat || 'text'),
             answerSource: q.answerSource || (q.answer ? (q.source === 'file_import' ? 'file_import' : 'ai_generated') : null)
           })
@@ -1597,7 +1641,9 @@ export function useLessonEditorState() {
         storage_path: f.storage_path || null,
         downloadable: f.downloadable,
         previewable: f.previewable
-      }))
+      })),
+      mcqWeightPercent: assignmentForm.mcqWeightPercent || 50,
+      essayWeightPercent: assignmentForm.essayWeightPercent || 50
     }
 
     setAssignmentForm({
@@ -2028,6 +2074,7 @@ export function useLessonEditorState() {
               source: q.source || 'ai_generator',
               source_file: q.source_file || null,
               data: q.data || null,
+              points: q.points !== undefined ? q.points : null,
               answerFormat: b.type === 'multiple_choice' ? 'text' : (q.answerFormat || b.defaultAnswerFormat || 'text'),
               answerSource: q.answerSource || (q.answer ? (q.source === 'file_import' ? 'file_import' : 'ai_generated') : null)
             })
@@ -2109,7 +2156,9 @@ export function useLessonEditorState() {
         const instructionsPayload = {
           questions: approvedQuestions,
           data_files: finalDataFiles,
-          reference_files: finalReferenceFiles
+          reference_files: finalReferenceFiles,
+          mcqWeightPercent: assignmentForm.mcqWeightPercent || 50,
+          essayWeightPercent: assignmentForm.essayWeightPercent || 50
         }
         let currentInstructions = JSON.stringify(instructionsPayload)
 
@@ -2267,12 +2316,13 @@ export function useLessonEditorState() {
           }
         }
 
-        const ingestRes = await uploadKnowledgeAction(
-          docTitle,
-          'organization',
-          `flywheel_lesson_${lessonId}.md`,
-          md
-        );
+        const flywheelFormData = new FormData()
+        flywheelFormData.append('title', docTitle)
+        flywheelFormData.append('access_scope', 'organization')
+        const flywheelFile = new File([md], `flywheel_lesson_${lessonId}.md`, { type: 'text/markdown' })
+        flywheelFormData.append('file', flywheelFile)
+
+        const ingestRes = await uploadKnowledgeAction(flywheelFormData);
         if (ingestRes.success) {
           console.log(`--- [RAG FLYWHEEL] Automatically ingested approved lesson and assignment flywheel node.`);
         } else {
@@ -2387,6 +2437,7 @@ export function useLessonEditorState() {
     sandboxInput,
     setSandboxInput,
     dragActive,
+    setDragActive,
     aiType,
     setAiType,
     aiCategory,
@@ -2478,6 +2529,7 @@ export function useLessonEditorState() {
     handleSaveLessonOnly,
     handleCreateMaterial,
     handleDeleteMaterial,
+    handleToggleDisplayMode,
     handleGenerateAISolution,
     handleGenerateAIRubric,
     getSandboxResult,
@@ -2502,6 +2554,7 @@ export function useLessonEditorState() {
     handleAsgDrag,
     handleAsgDrop,
     handleSaveComposer,
+    updateQuestionInBatches,
     fetchLessonDetails
   }
 }

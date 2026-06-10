@@ -65,6 +65,7 @@ export interface SubmitAssignmentInput {
   text: string
   files: Array<{ name: string; size: number; type: string }>
   uploadedUrls: string[]
+  showcaseRequested?: boolean
 }
 
 export async function submitAssignmentAction(input: SubmitAssignmentInput) {
@@ -140,7 +141,8 @@ export async function submitAssignmentAction(input: SubmitAssignmentInput) {
           status: 'submitted',
           attempt_number: nextAttempt,
           is_late: isLate,
-          rubric_snapshot_id: assignment.rubric_snapshot_id
+          rubric_snapshot_id: assignment.rubric_snapshot_id,
+          showcase_requested: input.showcaseRequested || false
         },
       ])
       .select()
@@ -181,6 +183,22 @@ export async function submitAssignmentAction(input: SubmitAssignmentInput) {
       }
     }
 
+    // Generate and save submission embedding for similarity check
+    try {
+      const compiledText = await compileSubmissionTextHelper(newSub.id, input.text, input.uploadedUrls, supabase)
+      const embedding = await getSubmissionEmbedding(compiledText)
+      if (embedding) {
+        await supabase
+          .from('submission_embeddings')
+          .insert({
+            submission_id: newSub.id,
+            embedding: embedding
+          })
+      }
+    } catch (embErr) {
+      console.error('Failed to generate similarity embedding:', embErr)
+    }
+
     // 5. Trigger grading
     try {
       await triggerRubricoreGradingAction(newSub.id)
@@ -205,7 +223,7 @@ export async function fetchStudentGradesAction(classCode: string) {
   const supabase = getSupabaseServer(true)
   try {
     const classId = session.classId
-    const courseIds = []
+    const courseIds: string[] = []
 
     // 1. Get main course from class
     const { data: classData, error: classErr } = await supabase
@@ -302,7 +320,9 @@ export async function fetchStudentGradesAction(classCode: string) {
         id: assign.id,
         title: assign.title,
         lessonTitle: matchingLesson?.title || 'Unknown lesson',
-        moduleTitle: matchingLesson?.modules?.title || 'Unknown module',
+        moduleTitle: (Array.isArray(matchingLesson?.modules)
+          ? matchingLesson.modules[0]?.title
+          : (matchingLesson?.modules as any)?.title) || 'Unknown module',
         dueDate: matchingSchedule?.due_date || null,
         maxScore: assign.max_score,
         submission: matchingSub || null,
@@ -390,7 +410,7 @@ export async function getAssignmentPromptSignedUrlAction(classCode: string, assi
 
     if (signedError) throw signedError
 
-    return { success: true, signedUrl: signedData.signedUrl || signedData.signedURL || signedData.publicUrl || null }
+    return { success: true, signedUrl: signedData.signedUrl || (signedData as any).signedURL || (signedData as any).publicUrl || null }
   } catch (err: any) {
     return { success: false, error: err.message }
   }
@@ -450,7 +470,12 @@ export async function parseAssignmentPromptAction(classCode: string, assignmentI
       tempFilePath = path.join(tempDir, `prompt_${Date.now()}_${path.basename(filePath)}`)
       fs.writeFileSync(tempFilePath, buffer)
 
-      const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+      const pythonPath = path.join(
+        process.cwd(),
+        process.platform === 'win32'
+          ? 'rubricore-engine/.venv/Scripts/python.exe'
+          : 'rubricore-engine/.venv/bin/python'
+      )
       const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
 
       const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
@@ -500,7 +525,7 @@ export async function getStudentMaterialSignedUrlAction(classCode: string, stora
 
     return { 
       success: true, 
-      signedUrl: signedData.signedUrl || signedData.signedURL || signedData.publicUrl || null 
+      signedUrl: signedData.signedUrl || (signedData as any).signedURL || (signedData as any).publicUrl || null 
     }
   } catch (err: any) {
     return { success: false, error: err.message }
@@ -553,7 +578,12 @@ export async function parseStudentMaterialAction(classCode: string, storagePath:
       tempFilePath = path.join(tempDir, `material_${Date.now()}_${path.basename(storagePath)}`)
       fs.writeFileSync(tempFilePath, buffer)
 
-      const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+      const pythonPath = path.join(
+        process.cwd(),
+        process.platform === 'win32'
+          ? 'rubricore-engine/.venv/Scripts/python.exe'
+          : 'rubricore-engine/.venv/bin/python'
+      )
       const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
 
       const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
@@ -577,11 +607,97 @@ export async function parseStudentMaterialAction(classCode: string, storagePath:
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
         fs.unlinkSync(tempFilePath)
-      } catch (e) {
-        console.error('Failed to delete temp file:', e)
+      } catch (e) {}
+    }
+  }
+}
+
+async function compileSubmissionTextHelper(
+  submissionId: string,
+  submittedText: string,
+  uploadedUrls: string[],
+  supabase: any
+): Promise<string> {
+  const tempDir = path.join(process.cwd(), 'scratch')
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+
+  const pythonPath = path.join(
+    process.cwd(),
+    process.platform === 'win32'
+      ? 'rubricore-engine/.venv/Scripts/python.exe'
+      : 'rubricore-engine/.venv/bin/python'
+  )
+  const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
+
+  const extractedPieces: string[] = []
+
+  for (const f of uploadedUrls) {
+    const ext = f.split('.').pop()?.toLowerCase() || ''
+    const { data: downloadData, error: downloadError } = await supabase.storage
+      .from('student-submissions')
+      .download(f)
+
+    if (downloadError || !downloadData) continue
+
+    let tempFilePath: string | null = null
+    try {
+      if (['docx', 'csv', 'xlsx', 'xls', 'pdf'].includes(ext)) {
+        const arrayBuffer = await downloadData.arrayBuffer()
+        const buffer = Buffer.from(arrayBuffer)
+        tempFilePath = path.join(tempDir, `similarity_${Date.now()}_${path.basename(f)}`)
+        fs.writeFileSync(tempFilePath, buffer)
+
+        const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
+        if (stderr.trim()) {
+          console.warn(`Python parsing stderr for similarity file: ${stderr}`)
+        }
+        const parsedOutput = JSON.parse(stdout)
+        if (parsedOutput.extracted_text) {
+          extractedPieces.push(`--- FILE: ${f.split('/').pop()} ---\n${parsedOutput.extracted_text}\n--- END ---`)
+        }
+      } else if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css'].includes(ext)) {
+        const text = await downloadData.text()
+        extractedPieces.push(`--- FILE: ${f.split('/').pop()} ---\n${text}\n--- END ---`)
+      }
+    } catch (err) {
+      console.error(`Error parsing similarity file ${f}:`, err)
+    } finally {
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try {
+          fs.unlinkSync(tempFilePath)
+        } catch (e) {}
       }
     }
   }
+
+  return `Student Notes:\n${submittedText || ''}\n\nDeliverable Files:\n${extractedPieces.join('\n\n')}`
+}
+
+async function getSubmissionEmbedding(text: string): Promise<number[] | null> {
+  const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
+  try {
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/embed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-pilot-actor-user-id': '00000000-0000-0000-0000-000000000000',
+        'x-pilot-organization-id': '00000000-0000-0000-0000-000000000000',
+        'x-pilot-roles': 'system,admin',
+      },
+      body: JSON.stringify({ contents: [text.slice(0, 8000)] }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.status === 'success' && data.embeddings && data.embeddings.length > 0) {
+        return data.embeddings[0]
+      }
+    }
+  } catch (err) {
+    console.error('Failed to generate embedding via RubriCore:', err)
+  }
+  return null
 }
 
 

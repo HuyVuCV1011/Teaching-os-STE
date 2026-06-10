@@ -49,7 +49,7 @@ export async function checkMaterialDeduplication(fileHash: string) {
 export async function registerCanonicalMaterial(input: MaterialInput) {
   let tempFilePath: string | null = null
   try {
-    let dbMetadata = {
+    let dbMetadata: Record<string, any> = {
       ...(input.metadata || {}),
       file_hash: input.fileHash,
     }
@@ -119,7 +119,12 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
           fs.writeFileSync(tempFilePath, buffer)
  
           // Call the Python parser script
-          const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+          const pythonPath = path.join(
+            process.cwd(),
+            process.platform === 'win32'
+              ? 'rubricore-engine/.venv/Scripts/python.exe'
+              : 'rubricore-engine/.venv/bin/python'
+          )
           const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
           
           console.log(`Running python script: "${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
@@ -297,7 +302,7 @@ export async function getSignedUrlAction(
       throw error
     }
 
-    return { success: true, signedUrl: data?.signedUrl || data?.signedURL || data?.publicUrl || null }
+    return { success: true, signedUrl: data?.signedUrl || (data as any)?.signedURL || (data as any)?.publicUrl || null }
   } catch (error: any) {
     console.error('Failed to generate signed URL:', error)
     return { success: false, error: error.message }

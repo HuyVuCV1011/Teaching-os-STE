@@ -76,3 +76,17 @@ skills-lock.json
 
 # Local machine-specific user simulation tests
 src/__tests__/simulate_real_user.test.ts
+
+# Playwright
+/playwright-report/
+/test-results/
+/blob-report/
+.playwright/
+
+# Local E2E and Fuzz tests
+/tests/e2e/
+/tests/DEEPSEEK_QA_GUIDE.md
+
+# Next.js old build cache
+/.next_old/
+

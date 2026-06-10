@@ -229,7 +229,7 @@ export function AssignmentInstructions({
               <div className="border border-slate-800 bg-slate-950 rounded-xl overflow-hidden shadow-md flex flex-col font-mono text-xs max-h-[500px]">
                 <div className="flex-1 overflow-auto p-4 bg-slate-950 text-slate-200 flex">
                   <div className="text-slate-600 select-none text-right pr-4 border-r border-slate-900 min-w-[2rem]">
-                    {lines.map((_, i) => (
+                    {lines.map((_: string, i: number) => (
                       <div key={i}>{i + 1}</div>
                     ))}
                   </div>
@@ -377,7 +377,7 @@ export function AssignmentInstructions({
               </div>
               <div className="flex-1 overflow-auto p-4 bg-slate-950 text-slate-200 flex">
                 <div className="text-slate-600 select-none text-right pr-4 border-r border-slate-900 min-w-[2rem]">
-                  {lines.map((_, i) => (
+                  {lines.map((_: string, i: number) => (
                     <div key={i}>{i + 1}</div>
                   ))}
                 </div>

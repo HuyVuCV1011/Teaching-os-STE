@@ -326,7 +326,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                         const rawList = cellMaterials[i] || []
                         const list = Array.isArray(rawList) ? rawList : (rawList && rawList.id ? [rawList] : [])
                         mappedCellMaterials[i] = list.map((rawM: any) => {
-                          const freshM = materials.find((m) => m.id === rawM.id)
+                          const freshM = materials.find((m: any) => m.id === rawM.id)
                           const finalM = freshM || rawM
                           return {
                             ...finalM,
@@ -335,12 +335,12 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                         })
                       }
 
-                      const unplaced = materials.filter((m) => 
+                      const unplaced = materials.filter((m: any) => 
                         ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type) &&
                         !Object.values(mappedCellMaterials).some((colList: any) => 
                           Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
                         )
-                      ).map((m) => ({
+                      ).map((m: any) => ({
                         ...m,
                         signedUrl: previewSignedUrls[m.id] || m.signedUrl || m.storage_url
                       }))
@@ -381,7 +381,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 </p>
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                {unplaced.map((m) => (
+                                {unplaced.map((m: any) => (
                                   <div key={m.id}>
                                     <AdminMaterialPreviewCard m={m} downloadAllowed={downloadAllowed} />
                                   </div>
@@ -477,7 +477,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                           Attached Data Files (For Download)
                         </h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {dataFiles.map((fileItem, idx) => (
+                          {dataFiles.map((fileItem: any, idx: any) => (
                             <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <span className="block text-xs font-semibold text-slate-200 truncate">
@@ -510,7 +510,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                           Reference Materials (For Reading)
                         </h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {referenceFiles.map((fileItem, idx) => (
+                          {referenceFiles.map((fileItem: any, idx: any) => (
                             <div key={idx} className="p-3 bg-slate-955 border border-slate-850 rounded-xl flex items-center justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <span className="block text-xs font-semibold text-slate-200 truncate">
@@ -563,8 +563,8 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                       }
 
                       const approvedQs: any[] = []
-                      batches.forEach(b => {
-                        b.questions.forEach(q => {
+                      batches.forEach((b: any) => {
+                        b.questions.forEach((q: any) => {
                           if (q.status === 'approved') {
                             approvedQs.push({ ...q, batch: b })
                           }
@@ -652,7 +652,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                     </div>
                                   ) : q.options && Array.isArray(q.options) && q.options.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1.5">
-                                      {q.options.map((opt, oIdx) => {
+                                      {q.options.map((opt: any, oIdx: any) => {
                                         const letter = String.fromCharCode(65 + oIdx)
                                         const isSelected = simulatedAnswers[idx] === letter
                                         return (
@@ -830,7 +830,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                      onChange={(e) => setSelectedModel(e.target.value)}
                      className="w-full bg-slate-955 border border-slate-808 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all font-semibold shadow-inner cursor-pointer"
                   >
-                     <option value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
+                     <option value="gemini-2.0-flash">Gemini 2.0 Flash (Google)</option>
                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
                      <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
                      <option value="groq/llama-3.3-70b-versatile">Llama 3.3 70B (Groq)</option>
@@ -1074,7 +1074,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                             <div className="flex gap-2">
                               <button
                                 type="button"
-                                onClick={() => setAiSelectedMaterials(materials.map(m => m.id))}
+                                onClick={() => setAiSelectedMaterials(materials.map((m: any) => m.id))}
                                 className="text-[10px] text-blue-500 hover:text-blue-400 font-bold"
                               >
                                 [Select All]
@@ -1169,7 +1169,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onChange={(e) => setSelectedModel(e.target.value)}
                               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors"
                             >
-                              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
+                              <option value="gemini-2.0-flash">Gemini 2.0 Flash (Google)</option>
                               <option value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</option>
                               <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
                               <option value="groq/llama-3.3-70b-versatile">Llama 3.3 70B (Groq)</option>

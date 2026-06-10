@@ -98,6 +98,8 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             pollingMessage={workspace.pollingMessage}
             gradingRun={workspace.gradingRun}
             assignment={workspace.assignment}
+            showcaseRequested={workspace.showcaseRequested}
+            setShowcaseRequested={workspace.setShowcaseRequested}
           />
         </div>
       </div>

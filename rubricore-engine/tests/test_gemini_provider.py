@@ -17,7 +17,7 @@ class TestGeminiProvider:
         assert provider.provider_name == "gemini"
         assert provider.model_name == GEMINI_DEFAULT_MODEL
         assert provider.api_key == "test-key-123"
-        assert "gemini-2.5-flash" in provider.api_url
+        assert "gemini-2.0-flash" in provider.api_url
 
     def test_provider_custom_model(self) -> None:
         provider = GeminiProvider(api_key="test-key", model="gemini-2.0-flash")

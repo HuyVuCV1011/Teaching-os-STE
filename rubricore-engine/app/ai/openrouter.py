@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger("rubricore_worker")
 
-OPENROUTER_DEFAULT_MODEL = "google/gemini-2.5-flash:free"
+OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash:free"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
@@ -44,6 +44,7 @@ class OpenRouterProvider:
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.1,
+            "max_tokens": 4096,
             "response_format": {"type": "json_object"}
         }
 

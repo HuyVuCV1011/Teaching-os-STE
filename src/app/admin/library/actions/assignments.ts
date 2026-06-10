@@ -5,6 +5,8 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
+import { cookies } from 'next/headers'
+import { verifyJWT } from '@/lib/jwt'
 
 const execAsync = promisify(exec)
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
@@ -309,7 +311,7 @@ export async function parseAssignmentFileAction(formData: FormData) {
     const file = formData.get('file') as File | null
     if (!file) throw new Error('No file provided')
 
-    const modelChoice = (formData.get('modelChoice') as string) || 'gemini-2.5-flash'
+    const modelChoice = (formData.get('modelChoice') as string) || 'gemini-2.0-flash'
     const ext = file.name.split('.').pop()?.toLowerCase() || ''
 
     const arrayBuffer = await file.arrayBuffer()
@@ -325,7 +327,12 @@ export async function parseAssignmentFileAction(formData: FormData) {
     let extractedText = ''
 
     if (['docx', 'csv', 'xlsx', 'xls', 'pdf'].includes(ext)) {
-      const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+      const pythonPath = path.join(
+        process.cwd(),
+        process.platform === 'win32'
+          ? 'rubricore-engine/.venv/Scripts/python.exe'
+          : 'rubricore-engine/.venv/bin/python'
+      )
       const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
 
       const { stdout, stderr } = await execAsync(`"${pythonPath}" "${scriptPath}" "${tempFilePath}"`)
@@ -400,7 +407,12 @@ export async function readMaterialsTextAction(materialUrls: string[]) {
     fs.mkdirSync(tempDir, { recursive: true })
   }
 
-  const pythonPath = path.join(process.cwd(), 'rubricore-engine/.venv/bin/python')
+  const pythonPath = path.join(
+    process.cwd(),
+    process.platform === 'win32'
+      ? 'rubricore-engine/.venv/Scripts/python.exe'
+      : 'rubricore-engine/.venv/bin/python'
+  )
   const scriptPath = path.join(process.cwd(), 'rubricore-engine/scripts/parse_material.py')
 
   const extractedTexts: string[] = []
@@ -469,7 +481,7 @@ export async function suggestQuestionAnswerAction(params: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model_choice: params.modelChoice || 'gemini-2.5-flash',
+        model_choice: params.modelChoice || 'gemini-2.0-flash',
         question_content: params.questionContent,
         materials_text: params.materialsText || null,
         lesson_context: params.lessonContext || null
@@ -506,7 +518,7 @@ export async function suggestBatchQuestionAnswersAction(params: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model_choice: params.modelChoice || 'gemini-2.5-flash',
+        model_choice: params.modelChoice || 'gemini-2.0-flash',
         questions: params.questions,
         materials_text: params.materialsText || null,
         lesson_context: params.lessonContext || null
@@ -531,3 +543,124 @@ export async function suggestBatchQuestionAnswersAction(params: {
     return { success: false, error: error.message }
   }
 }
+
+async function checkAdminAuth() {
+  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_ADMIN_AUTH === 'true') {
+    return { userId: '00000000-0000-0000-0000-000000000000' }
+  }
+
+  const cookieStore = await cookies()
+  const sbToken = cookieStore.get('sb-access-token') || cookieStore.get('supabase-auth-token')
+
+  if (!sbToken) {
+    throw new Error('Unauthorized: No authentication token found')
+  }
+
+  const secret = process.env.SUPABASE_JWT_SECRET
+  let payload: any = null
+
+  if (secret) {
+    payload = await verifyJWT(sbToken.value, secret)
+  } else {
+    const parts = sbToken.value.split('.')
+    if (parts.length === 3) {
+      payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    }
+  }
+
+  if (!payload) {
+    throw new Error('Unauthorized: Invalid token payload')
+  }
+
+  const role = payload.app_metadata?.role || payload.role
+  const isAuthorized = [
+    'admin',
+    'teacher',
+    'super-admin',
+    'content-admin',
+    'class-operator'
+  ].includes(role || '')
+
+  if (!isAuthorized) {
+    throw new Error('Unauthorized: Insufficient privileges')
+  }
+
+  return { userId: payload.sub }
+}
+
+async function resolveOrganizationId() {
+  const supabase = getSupabaseServer(true)
+  const { data: org, error } = await supabase
+    .from('organizations')
+    .select('id')
+    .limit(1)
+    .single()
+
+  if (error || !org) {
+    throw new Error(`Failed to resolve organization boundary: ${error?.message || 'Not found'}`)
+  }
+
+  return org.id
+}
+
+export async function testGradeRubricAction(input: {
+  criteria: any[]
+  studentAnswer: string
+  assignmentInstructions: string
+  modelAnswer: string
+}) {
+  try {
+    const { userId } = await checkAdminAuth()
+    const orgId = await resolveOrganizationId()
+
+    const rubricSchema = {
+      schema_version: '1.0',
+      criteria: input.criteria.map((c: any) => ({
+        key: c.key,
+        label: c.label,
+        description: c.description || '',
+        weight: String(c.weight || '1.0'),
+        max_points: c.max_points,
+      })),
+      performance_levels: [
+        { key: 'meets', label: 'Meets', score: '1.0', position: 0 }
+      ],
+      descriptors: []
+    }
+
+    const evidencePayload = [
+      {
+        id: 'sandbox-evidence',
+        raw_text: `STUDENT SUBMISSION:\n${input.studentAnswer}\n\nASSIGNMENT INSTRUCTIONS:\n${input.assignmentInstructions}\n\nMODEL SOLUTION KEY:\n${input.modelAnswer}`,
+        value_payload: {}
+      }
+    ]
+
+    const res = await fetch(`${RUBICORE_API_URL}/pilot/grade-submission`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-pilot-actor-user-id': userId,
+        'x-pilot-organization-id': orgId,
+        'x-pilot-roles': 'teacher,admin',
+      },
+      body: JSON.stringify({
+        rubric_schema: rubricSchema,
+        evidence: evidencePayload,
+        ai_allowed: true,
+      }),
+    })
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.detail || errData.error?.message || `Stateless grading API returned HTTP ${res.status}`)
+    }
+
+    const result = await res.json()
+    return { success: true, grading: result }
+  } catch (error: any) {
+    console.error('Sandbox grading failed:', error)
+    return { success: false, error: error.message }
+  }
+}
+

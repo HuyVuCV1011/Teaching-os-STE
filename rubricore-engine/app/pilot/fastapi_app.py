@@ -174,7 +174,7 @@ def create_app() -> FastAPI:
     class RAGRubricGenerationRequest(BaseModel):
         assignment_text: str
         solution_text: str
-        model_choice: str = "gemini-2.5-flash"
+        model_choice: str = "gemini-2.0-flash"
         allowed_access_scopes: list[str] = ["organization", "public_safe"]
 
     @app.post(
@@ -910,7 +910,7 @@ def create_app() -> FastAPI:
         subject_id: UUID | None = None
         sources: list[RefinedKnowledgeSourceRequest]
         existing_concepts: list[dict[str, Any]]
-        model_choice: str = "gemini-2.5-flash"
+        model_choice: str = "gemini-2.0-flash"
 
     @app.post(
         "/pilot/knowledge/refine",

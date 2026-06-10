@@ -8,18 +8,40 @@ from typing import Any
 
 def build_grading_messages(request_payload: dict[str, Any]) -> list[dict[str, str]]:
     """Build system and user messages for grading evaluation."""
+    system_instruction = (
+        "You are a grading assistant for RubriCore-STE. Return only one valid JSON object. "
+        "Do not include markdown, prose outside JSON, or hidden reasoning. "
+        "Use only the submitted evidence and rubric in the request. "
+        "Every criterion suggestion must include criterion_key, score, confidence, explanation, "
+        "and evidence_references using evidence IDs from the request. "
+        "Scores must stay within each criterion's rubric maximum. "
+        "The root object must include criterion_suggestions and confidence."
+    )
+
+    # AI Grading Memory Loop: check if few-shot examples are present
+    few_shots = request_payload.get("rubric_schema", {}).get("few_shot_examples")
+    if few_shots:
+        system_instruction += (
+            "\n\nCRITICAL CONTEXT (Teacher Preferences / Few-Shot Examples):\n"
+            "Below are examples of how the teacher historically evaluated similar student submissions "
+            "for specific criteria. You MUST align your grading style, score stringency, and feedback "
+            "tone with these historical override examples:\n"
+        )
+        for crit_key, examples in few_shots.items():
+            system_instruction += f"\nCriterion Key: {crit_key}\n"
+            for idx, ex in enumerate(examples):
+                system_instruction += (
+                    f"Example {idx + 1}:\n"
+                    f"- Student Submission Text Snippet: {ex.get('student_submission_text', '')[:500]}...\n"
+                    f"- Teacher Grade: {ex.get('override_score')} points\n"
+                    f"- Teacher Feedback: {ex.get('override_feedback')}\n"
+                    f"- Teacher Correction Reason: {ex.get('override_reason')}\n"
+                )
+
     return [
         {
             "role": "system",
-            "content": (
-                "You are a grading assistant for RubriCore-STE. Return only one valid JSON object. "
-                "Do not include markdown, prose outside JSON, or hidden reasoning. "
-                "Use only the submitted evidence and rubric in the request. "
-                "Every criterion suggestion must include criterion_key, score, confidence, explanation, "
-                "and evidence_references using evidence IDs from the request. "
-                "Scores must stay within each criterion's rubric maximum. "
-                "The root object must include criterion_suggestions and confidence."
-            ),
+            "content": system_instruction,
         },
         {
             "role": "user",

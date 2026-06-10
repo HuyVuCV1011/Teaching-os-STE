@@ -189,15 +189,15 @@ describe('middleware', () => {
     })
 
     it('allows access if BYPASS_ADMIN_AUTH is set in dev mode', async () => {
-      process.env.NODE_ENV = 'development'
+      (process.env as any).NODE_ENV = 'development'
       process.env.BYPASS_ADMIN_AUTH = 'true'
 
       const req = makeRequest('/admin/dashboard')
       const res = await middleware(req)
       expect(res.status).toBe(200)
 
-      delete process.env.BYPASS_ADMIN_AUTH
-      process.env.NODE_ENV = 'test'
+      delete process.env.BYPASS_ADMIN_AUTH;
+      (process.env as any).NODE_ENV = 'test'
     })
 
     it('allows super-admin role', async () => {

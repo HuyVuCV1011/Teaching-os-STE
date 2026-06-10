@@ -11,6 +11,8 @@ import { CourseRegistrySidebar } from './components/CourseRegistrySidebar'
 import { SyllabusTimelineCanvas } from './components/SyllabusTimelineCanvas'
 import { SubjectsTaxonomyBento } from './components/SubjectsTaxonomyBento'
 import { RefinedKnowledgeTab } from './components/RefinedKnowledgeTab'
+import { duplicateCourseAction, saveSyllabusStructureAction } from './actions/courses'
+import { toggleLessonPublishStatusAction } from './actions/refined_knowledge'
 
 interface Subject {
   id: string
@@ -115,6 +117,28 @@ function AdminLibraryContent() {
     }
   }
 
+  const handleDuplicateCourse = async (e: React.MouseEvent, courseId: string) => {
+    e.stopPropagation()
+    if (!confirm('Are you sure you want to duplicate this course and all its syllabus content (modules, lessons, materials, assignments)?')) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await duplicateCourseAction(courseId)
+      if (res.success) {
+        alert('Course duplicated successfully!')
+        await fetchData()
+      } else {
+        alert(`Failed to duplicate course: ${res.error}`)
+      }
+    } catch (err: any) {
+      alert(`An error occurred: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Handle Tab sync with query param
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
@@ -154,6 +178,29 @@ function AdminLibraryContent() {
     } catch (err) {
       const error = err as Error
       alert(`Failed to create course: ${error.message}`)
+    }
+  }
+
+  const handleSaveSyllabusStructure = async (updatedModules: any[]) => {
+    setCourseModules(updatedModules)
+    setLoading(true)
+    try {
+      const structure = updatedModules.map((m, idx) => ({
+        moduleId: m.id,
+        orderIndex: idx + 1,
+        lessonIds: m.lessons?.map((l: any) => l.id) || []
+      }))
+      const res = await saveSyllabusStructureAction(selectedCourse!.id, structure)
+      if (res.success) {
+        // reload details
+        await handleSelectCourse(selectedCourse!)
+      } else {
+        alert(`Failed to save syllabus structure: ${res.error}`)
+      }
+    } catch (err: any) {
+      alert(`Error saving syllabus structure: ${err.message}`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -421,6 +468,7 @@ function AdminLibraryContent() {
                   setCourseForm={setCourseForm}
                   handleCreateCourse={handleCreateCourse}
                   handleSelectCourse={handleSelectCourse}
+                  handleDuplicateCourse={handleDuplicateCourse}
                 />
 
                 <SyllabusTimelineCanvas
@@ -441,6 +489,8 @@ function AdminLibraryContent() {
                   redirectToEditor={redirectToEditor}
                   setRedirectToEditor={setRedirectToEditor}
                   router={router}
+                  onSaveSyllabusStructure={handleSaveSyllabusStructure}
+                  onRefreshCourse={() => handleSelectCourse(selectedCourse!)}
                 />
               </div>
             )}
