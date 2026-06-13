@@ -385,3 +385,14 @@ class PromptConfigurationResponse(PilotContract):
 
 class PromptConfigurationSaveRequest(PilotContract):
     prompt_text: str
+
+
+class AutocompleteRequest(PilotContract):
+    model_choice: str = "ollama"
+    text_before: str
+    text_after: str | None = None
+
+
+class AutocompleteResponse(PilotContract):
+    completion: str
+

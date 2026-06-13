@@ -1,0 +1,42 @@
+- description: "Correct solution receives high score"
+  vars:
+    rubric_description: "Verify that the python function computes the factorial of a number correctly using recursion."
+    student_submission: |
+      def factorial(n):
+          if n <= 1:
+              return 1
+          return n * factorial(n - 1)
+    assignment_instructions: "Write a python function `factorial(n)` that returns the factorial of n using recursion. Handle negative numbers optionally or assume positive."
+    solution_key: |
+      def factorial(n):
+          if n <= 1:
+              return 1
+          return n * factorial(n - 1)
+  assert:
+    - type: is-json
+    - type: javascript
+      value: |
+        const data = JSON.parse(output);
+        const syntaxSuggest = data.criterion_suggestions.find(s => s.criterion_key === 'syntax');
+        const logicSuggest = data.criterion_suggestions.find(s => s.criterion_key === 'logic');
+        return syntaxSuggest && parseFloat(syntaxSuggest.score) >= 8 && logicSuggest && parseFloat(logicSuggest.score) >= 18;
+
+- description: "Incorrect solution receives low score on logic"
+  vars:
+    rubric_description: "Verify that the python function computes the factorial of a number correctly using recursion."
+    student_submission: |
+      def factorial(n):
+          return n + 1 # incorrect formula, not recursive
+    assignment_instructions: "Write a python function `factorial(n)` that returns the factorial of n using recursion. Handle negative numbers optionally or assume positive."
+    solution_key: |
+      def factorial(n):
+          if n <= 1:
+              return 1
+          return n * factorial(n - 1)
+  assert:
+    - type: is-json
+    - type: javascript
+      value: |
+        const data = JSON.parse(output);
+        const logicSuggest = data.criterion_suggestions.find(s => s.criterion_key === 'logic');
+        return logicSuggest && parseFloat(logicSuggest.score) <= 10;

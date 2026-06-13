@@ -1,0 +1,11 @@
+prompts:
+  - file://prompt.txt
+
+providers:
+  # To run this, ensure GEMINI_API_KEY is exported in your environment.
+  - id: google:gemini-1.5-flash
+    config:
+      temperature: 0.0
+
+tests:
+  - file://tests.yaml

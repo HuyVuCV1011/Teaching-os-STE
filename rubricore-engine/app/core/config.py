@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    e2b_api_key: str = Field(default="", alias="E2B_API_KEY")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

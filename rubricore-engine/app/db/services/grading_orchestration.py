@@ -687,7 +687,25 @@ def _answer_key_rule_matches(*, rule_type: str, rule: dict[str, Any], observed_v
         if not isinstance(pattern, str) or not pattern:
             return False
         return re.search(pattern, observed_value) is not None
+    if rule_type == "code_execution":
+        from app.core.sandbox import execute_student_code
+        expected = str(rule.get("expected", "success")).strip()
+        test_code = rule.get("test_code") or ""
+        code_to_run = observed_value
+        if test_code:
+            code_to_run = observed_value + "\n\n" + test_code
+        
+        res = execute_student_code(code_to_run)
+        if not res["success"]:
+            return False
+        if expected == "success":
+            return res["success"]
+        if expected.startswith("stdout_contains:"):
+            target_str = expected[len("stdout_contains:"):].strip()
+            return target_str in res["stdout"]
+        return res["success"]
     raise GradingOrchestrationError(f"Unsupported answer key rule type {rule_type!r}.")
+
 
 
 def _normalize_text(value: str) -> str:

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Upload, Eye, EyeOff, GripVertical, Trash2, Edit, Loader2 } from 'lucide-react'
-import RichTextEditor from '@/components/RichTextEditor'
+import NovelRichTextEditor from '@/components/NovelRichTextEditor'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 
 const GRID_LAYOUTS = [
@@ -446,7 +446,7 @@ export function LessonInfoStep({
                   Write Handout Body (Rich Text Editor)
                 </label>
                 <div className="border border-slate-700 rounded-xl overflow-hidden bg-slate-950/20">
-                  <RichTextEditor
+                  <NovelRichTextEditor
                     content={materialForm.manualContent}
                     onChange={(c) => setMaterialForm({ ...materialForm, manualContent: c })}
                   />

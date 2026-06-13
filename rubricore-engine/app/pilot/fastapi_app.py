@@ -71,6 +71,8 @@ from app.pilot.contracts import (
     BatchAnswerItem,
     PromptConfigurationResponse,
     PromptConfigurationSaveRequest,
+    AutocompleteRequest,
+    AutocompleteResponse,
 )
 from app.pilot.db_loaders import (
     load_criterion_result_for_review_action_context,
@@ -354,6 +356,32 @@ def create_app() -> FastAPI:
             return SuggestQuestionAnswerResponse(answer=ans.strip())
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI answer suggest failed: {e}")
+
+    @app.post(
+        "/pilot/autocomplete",
+        response_model=AutocompleteResponse,
+    )
+    def autocomplete_route(
+        request: AutocompleteRequest,
+    ) -> AutocompleteResponse:
+        try:
+            prompt = (
+                "You are a helpful co-writer assisting an instructor in writing an educational handout, lesson materials, or syllabus.\n"
+                "Continue writing the text provided below naturally.\n"
+                "Do NOT repeat the provided text. Provide only the continuation, keeping the tone professional, educational, and clear. Start directly with the continuation.\n\n"
+                f"TEXT TO CONTINUE:\n{request.text_before}"
+            )
+            if request.text_after:
+                prompt += f"\n\nFOLLOWING TEXT (context after cursor):\n{request.text_after}"
+            
+            provider = get_provider(request.model_choice)
+            continuation = provider.generate(
+                "You are an expert curriculum designer and teaching assistant.",
+                prompt,
+            )
+            return AutocompleteResponse(completion=continuation)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI autocomplete failed: {e}")
 
     @app.post(
         "/pilot/suggest-batch-question-answers",

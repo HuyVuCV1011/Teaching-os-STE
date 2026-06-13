@@ -11,3 +11,5 @@ tiktoken>=0.7.0
 python-docx>=1.1.0
 openpyxl>=3.1.0
 markitdown[all]
+e2b-code-interpreter>=1.0.0
+
