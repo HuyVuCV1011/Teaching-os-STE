@@ -6,13 +6,13 @@ This directory contains system designs, specifications, database blueprints, and
 
 ## 📁 Specifications Directory Index
 
-Refer to the documents inside the **[specs/](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/)** directory for implementation-ready guides:
+Refer to the documents inside the **[specs/](specs/)** directory for implementation-ready guides:
 
-- **[00-spec-index.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/00-spec-index.md)**: Index and chronological read-order.
-- **[01-platform-overview.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/01-platform-overview.md)**: Core zones (Showcase, Learner Desk, Admin Terminal).
-- **[06-data-model.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/06-data-model.md)**: Full PostgreSQL table schemas, composite index rules, and soft-delete setups.
-- **[14-integration-contracts.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/14-integration-contracts.md)**: Stateless RubriCore API grading bridge contract and webhook formats.
-- **[15-implementation-rules.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/15-implementation-rules.md)**: Code guidelines and boundary checks.
+- **[00-spec-index.md](specs/00-spec-index.md)**: Index and chronological read-order.
+- **[01-platform-overview.md](specs/01-platform-overview.md)**: Core zones (Showcase, Learner Desk, Admin Terminal).
+- **[06-data-model.md](specs/06-data-model.md)**: Full PostgreSQL table schemas, composite index rules, and soft-delete setups.
+- **[14-integration-contracts.md](specs/14-integration-contracts.md)**: Stateless RubriCore API grading bridge contract and webhook formats.
+- **[15-implementation-rules.md](specs/15-implementation-rules.md)**: Code guidelines and boundary checks.
 
 ---
 

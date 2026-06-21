@@ -41,6 +41,16 @@ function LessonEditorInner() {
     assignmentId,
     assignmentForm,
     setAssignmentForm,
+    promptFile,
+    setPromptFile,
+    promptStoragePath,
+    setPromptStoragePath,
+    solutionFile,
+    setSolutionFile,
+    solutionStoragePath,
+    setSolutionStoragePath,
+    solutionMode,
+    setSolutionMode,
     batches,
     setBatches,
     dataFiles,
@@ -98,7 +108,12 @@ function LessonEditorInner() {
     downloadAllowed,
     setDownloadAllowed,
     saveStage,
-    saveStatus
+    saveStatus,
+    handleParsePromptFile,
+    isParsingFile,
+    content,
+    setContent,
+    setIsDirty
   } = state
 
   // Loader screen
@@ -112,7 +127,7 @@ function LessonEditorInner() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-[95%] mx-auto px-4 lg:px-6 py-6">
       {/* Top Banner */}
       <div className="flex justify-between items-center bg-slate-900 border border-slate-700 p-5 rounded-2xl">
         <div className="flex items-center gap-3">
@@ -197,6 +212,9 @@ function LessonEditorInner() {
               handleDropToColumn={handleDropToColumn}
               handleRemoveFromColumn={handleRemoveFromColumn}
               setVerifyMaterial={setVerifyMaterial}
+              content={content}
+              setContent={setContent}
+              setIsDirty={setIsDirty}
             />
           )}
 
@@ -228,6 +246,19 @@ function LessonEditorInner() {
               pinnedChunks={pinnedChunks}
               setPinnedChunks={setPinnedChunks}
               setActiveBatchIndex={setActiveBatchIndex}
+              promptFile={promptFile}
+              setPromptFile={setPromptFile}
+              promptStoragePath={promptStoragePath}
+              setPromptStoragePath={setPromptStoragePath}
+              solutionFile={solutionFile}
+              setSolutionFile={setSolutionFile}
+              solutionStoragePath={solutionStoragePath}
+              setSolutionStoragePath={setSolutionStoragePath}
+              setSolutionMode={setSolutionMode}
+              handleParsePromptFile={handleParsePromptFile}
+              isParsingFile={isParsingFile}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
             />
           )}
 

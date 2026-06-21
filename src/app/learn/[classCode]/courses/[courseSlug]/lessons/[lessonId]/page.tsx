@@ -6,6 +6,7 @@ import { supabase, getSupabaseServer } from '@/lib/supabase'
 import LessonCompletionButton from '@/components/LessonCompletionButton'
 import LessonDiscussion from '@/components/LessonDiscussion'
 import { ArrowLeft } from 'lucide-react'
+import TheoryRenderer from '@/components/TheoryRenderer'
 
 // Import extracted components and utilities
 import { LockedLessonView } from './components/LockedLessonView'
@@ -85,6 +86,7 @@ export default async function LessonPage({ params }: PageProps) {
     .from('canonical_materials')
     .select('*')
     .eq('lesson_id', lessonId)
+    .in('visibility', ['student', 'both'])
 
   // Fetch assignments attached to this lesson
   const { data: assignmentsData } = await supabase
@@ -96,7 +98,12 @@ export default async function LessonPage({ params }: PageProps) {
   const supabaseAdmin = getSupabaseServer(true)
   const preparedMaterials = await Promise.all(
     (materialsData || []).map(async (m) => {
-      if (['pdf', 'docx', 'csv', 'xlsx'].includes(m.type)) {
+      const isCodeFile = ['code_repo', 'json', 'markdown'].includes(m.type) || 
+        m.storage_url?.endsWith('.ipynb') || 
+        m.storage_url?.endsWith('.py') || 
+        m.storage_url?.endsWith('.sql')
+
+      if (['pdf', 'docx', 'csv', 'xlsx'].includes(m.type) || isCodeFile) {
         try {
           const { data, error } = await supabaseAdmin.storage
             .from('teaching-materials')
@@ -121,7 +128,8 @@ export default async function LessonPage({ params }: PageProps) {
   )
 
   const downloadAllowed = lessonData.download_allowed !== false
-  const links = preparedMaterials.filter((m) => !['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type))
+  const previewableTypes = ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json', 'code_repo']
+  const links = preparedMaterials.filter((m) => !previewableTypes.includes(m.type))
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
@@ -153,15 +161,14 @@ export default async function LessonPage({ params }: PageProps) {
         {/* Main lesson content */}
         <div className="lg:col-span-2 space-y-8">
           {/* Rich Text Lesson Content - Overhauled as a clean white card */}
-          <div className="border border-slate-800 bg-slate-950 rounded-2xl p-6 md:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-6 pb-2 border-b border-slate-800">
-              Overview & Guide
-            </h2>
-            <article
-              className="prose max-w-none text-slate-600 leading-relaxed text-sm"
-              dangerouslySetInnerHTML={{ __html: lessonData.content || '' }}
-            />
-          </div>
+          {lessonData.content && lessonData.content.trim() !== '' && (
+            <div className="border border-slate-800 bg-slate-950 rounded-2xl p-6 md:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-6 pb-2 border-b border-slate-800">
+                Overview & Guide
+              </h2>
+              <TheoryRenderer content={lessonData.content} />
+            </div>
+          )}
 
           {/* Grid-Mapped Materials and fallback listings */}
           {(() => {
@@ -181,7 +188,7 @@ export default async function LessonPage({ params }: PageProps) {
             }
 
             const unplaced = preparedMaterials.filter((m) => 
-              ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json'].includes(m.type) &&
+              previewableTypes.includes(m.type) &&
               !Object.values(cellMaterials).some((colList: any) => 
                 Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
               )

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { calculateFileHash } from '@/lib/hash'
+import { parseAssignmentInstructions } from '@/lib/assignment'
 import {
   fetchStudentSubmissionAction,
   submitAssignmentAction,
@@ -146,7 +147,7 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
     // 1. Fetch assignment details
     const { data: assignmentData } = await supabase
       .from('assignments')
-      .select('*, lessons(title)')
+      .select('*, lessons(title), rubrics(id, title, description, rubric_criteria(*))')
       .eq('id', assignmentId)
       .single()
 
@@ -278,20 +279,14 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
     // Parse questions list from instructions
     let questionsList: any[] = []
     const instructionsStr = assignment?.instructions || ''
-    const trimmed = instructionsStr.trim()
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      try {
-        const parsedObj = JSON.parse(trimmed)
+    const parsedObj = parseAssignmentInstructions(instructionsStr)
+    if (parsedObj) {
+      if (Array.isArray(parsedObj)) {
+        questionsList = parsedObj.filter((q: any) => !q.status || q.status === 'approved')
+      } else {
         const allQuestions = parsedObj.questions || []
         questionsList = allQuestions.filter((q: any) => !q.status || q.status === 'approved')
-      } catch (err) {}
-    } else if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      try {
-        const parsedArr = JSON.parse(trimmed)
-        if (Array.isArray(parsedArr)) {
-          questionsList = parsedArr.filter((q: any) => !q.status || q.status === 'approved')
-        }
-      } catch (err) {}
+      }
     }
 
     if (!email.trim()) return

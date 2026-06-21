@@ -53,10 +53,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
   useEffect(() => {
     async function loadCohortDashboard() {
-      if (!studentEmail) {
-        setLoading(false)
-        return
-      }
+      const activeEmail = studentEmail || 'student@university.edu'
       try {
         // 1. Fetch Class Details
         const { data: classData, error: classError } = await supabase
@@ -108,7 +105,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
             .from('student_lesson_progress')
             .select('lesson_id')
             .eq('class_id', classData.id)
-            .eq('student_email', studentEmail)
+            .eq('student_email', activeEmail)
 
           const completedSet = new Set(progressList?.map(p => p.lesson_id) || [])
 
@@ -129,7 +126,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
             .from('submissions')
             .select('*, grading_results(*)')
             .eq('class_id', classData.id)
-            .eq('student_identifier', studentEmail)
+            .eq('student_identifier', activeEmail)
 
           const publishedResults = subsData
             ?.map(s => s.grading_results)
@@ -155,7 +152,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                   .upsert(
                     {
                       class_id: classData.id,
-                      student_email: studentEmail,
+                      student_email: activeEmail,
                       grade_average: avgGrade
                     },
                     {
@@ -179,7 +176,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
             .from('certificates')
             .select('id')
             .eq('class_id', classData.id)
-            .eq('student_email', studentEmail)
+            .eq('student_email', activeEmail)
             .maybeSingle()
           if (existingCert) {
             setCertificateId(existingCert.id)
@@ -192,7 +189,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
       }
     }
 
-    if (classCode && studentEmail) {
+    if (classCode) {
       loadCohortDashboard()
     }
   }, [classCode, studentEmail])

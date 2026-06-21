@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Sparkles, Upload } from 'lucide-react'
+import { Sparkles, Upload, FileText, Database, BookOpen, Trash2, FileUp, Paperclip, Loader2 } from 'lucide-react'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 
 interface AssignmentFileItem {
@@ -35,6 +35,18 @@ interface BatchItem {
   questions: QuestionItem[]
 }
 
+const AI_MODEL_OPTIONS = [
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Google)' },
+  { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite (Google)' },
+  { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
+  { value: 'groq/llama-3.1-8b-instant', label: 'Llama 3.1 8B (Groq)' },
+  { value: 'openrouter/deepseek/deepseek-chat', label: 'DeepSeek V3 (OpenRouter)' },
+  { value: 'openrouter/google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (OpenRouter)' },
+  { value: 'openrouter/meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Free (OpenRouter)' },
+  { value: 'ollama', label: 'Ollama (Local Llama)' },
+]
+
 interface AssignmentBuilderStepProps {
   hasAssignment: boolean
   setHasAssignment: (val: boolean) => void
@@ -62,6 +74,19 @@ interface AssignmentBuilderStepProps {
   pinnedChunks?: any[]
   setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
   setActiveBatchIndex: (val: number) => void
+  promptFile: File | null
+  setPromptFile: (val: File | null) => void
+  promptStoragePath: string
+  setPromptStoragePath: (val: string) => void
+  solutionFile: File | null
+  setSolutionFile: (val: File | null) => void
+  solutionStoragePath: string
+  setSolutionStoragePath: (val: string) => void
+  setSolutionMode: (val: 'upload' | 'ai') => void
+  handleParsePromptFile: () => Promise<void>
+  isParsingFile: boolean
+  selectedModel: string
+  setSelectedModel: (val: string) => void
 }
 
 export function AssignmentBuilderStep({
@@ -90,7 +115,20 @@ export function AssignmentBuilderStep({
   setClassifyModalOpen,
   pinnedChunks = [],
   setPinnedChunks,
-  setActiveBatchIndex
+  setActiveBatchIndex,
+  promptFile,
+  setPromptFile,
+  promptStoragePath,
+  setPromptStoragePath,
+  solutionFile,
+  setSolutionFile,
+  solutionStoragePath,
+  setSolutionStoragePath,
+  setSolutionMode,
+  handleParsePromptFile,
+  isParsingFile,
+  selectedModel,
+  setSelectedModel
 }: AssignmentBuilderStepProps) {
   const [isRAGDrawerOpen, setIsRAGDrawerOpen] = useState(false)
 
@@ -100,48 +138,69 @@ export function AssignmentBuilderStep({
         <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
           Assignment Parameters
         </h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-350 mr-2">
-            Enable assignment for this lesson
-          </span>
+        <div className="flex items-center gap-4">
+          {hasAssignment && (
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-700 px-2.5 py-1 rounded-xl shadow-inner">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                AI Model:
+              </span>
+              <select
+                value={selectedModel}
+                disabled={isParsingFile}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="bg-transparent border-none text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer py-0.5 pr-2"
+              >
+                {AI_MODEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-slate-900 text-slate-200">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              id="asg_has_assignment_yes"
-              onClick={() => {
-                setHasAssignment(true)
-                if (!assignmentForm.title) {
-                  setAssignmentForm((prev: any) => ({ ...prev, title: title + ' Assignment' }))
-                }
-              }}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                hasAssignment
-                  ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white font-extrabold shadow-md'
-                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              id="asg_has_assignment_no"
-              onClick={() => {
-                if (assignmentId) {
-                  const confirmed = window.confirm(
-                    'Disabling the assignment will delete it, along with its custom rubrics and solution keys, from the database upon saving. Are you sure you want to disable it?'
-                  )
-                  if (!confirmed) return
-                }
-                setHasAssignment(false)
-              }}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                !hasAssignment
-                  ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white font-extrabold shadow-md'
-                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-350'
-              }`}
-            >
-              No
-            </button>
+            <span className="text-xs font-semibold text-slate-350 mr-2">
+              Enable assignment for this lesson
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="asg_has_assignment_yes"
+                onClick={() => {
+                  setHasAssignment(true)
+                  if (!assignmentForm.title) {
+                    setAssignmentForm((prev: any) => ({ ...prev, title: title + ' Assignment' }))
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                  hasAssignment
+                    ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white font-extrabold shadow-md'
+                    : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                id="asg_has_assignment_no"
+                onClick={() => {
+                  if (assignmentId) {
+                    const confirmed = window.confirm(
+                      'Disabling the assignment will delete it, along with its custom rubrics and solution keys, from the database upon saving. Are you sure you want to disable it?'
+                    )
+                    if (!confirmed) return
+                  }
+                  setHasAssignment(false)
+                }}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                  !hasAssignment
+                    ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 text-white font-extrabold shadow-md'
+                    : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-350'
+                }`}
+              >
+                No
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -184,53 +243,193 @@ export function AssignmentBuilderStep({
               </div>
             </div>
 
-            {/* Right Column: Upload File Extractor */}
+            {/* Right Column: Upload Assignment Resources */}
             <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-colors shadow-sm">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
                   <Upload className="w-4 h-4 text-indigo-500" />
-                  Upload File
+                  Assignment Files & Resources
                 </h4>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Drag & drop your own assessment documents, markdown quiz sheets, code templates, or CSV tables. The AI will parse your file and import question sets directly as a structured batch.
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Tải lên tài liệu bài tập: Đề bài, đáp án mẫu, dữ liệu thực hành hoặc tài liệu đọc tham khảo.
                 </p>
               </div>
-              
-              <div
-                onDragEnter={handleAsgDrag}
-                onDragOver={handleAsgDrag}
-                onDragLeave={handleAsgDrag}
-                onDrop={handleAsgDrop}
-                className={`relative border-2 border-dashed rounded-xl p-3 text-center flex flex-col items-center justify-center transition-all ${
-                  asgDragActive
-                    ? 'border-blue-500 bg-blue-500/10'
-                    : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
-                }`}
-              >
-                <input
-                  type="file"
-                  id="asg-file-upload"
-                  multiple={false}
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      const file = e.target.files[0]
-                      setClassifyFile(file)
-                      setClassifyType('data')
-                      setClassifyDownloadable(true)
-                      setClassifyPreviewable(true)
-                      setClassifyModalOpen(true)
-                    }
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  accept=".pdf,.docx,.csv,.xlsx,.xls,.md,.json,.txt,.zip,.js,.ts,.py"
-                />
-                <Upload className="w-5 h-5 text-slate-500 mb-1" />
-                <span className="text-[10px] font-semibold text-slate-350">
-                  Drop file here or click to browse
-                </span>
-                <span className="text-[9px] text-slate-500 mt-0.5 font-mono">
-                  Supported: PDF, DOCX, CSV, MD, ZIP, PY
-                </span>
+
+              <div className="space-y-4">
+                {/* 1. Đề bài / Mô tả (Prompt file) */}
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    Đề bài / Mô tả Bài tập (PDF/MD/Docx) <span className="text-rose-500">*</span>
+                  </label>
+                  {promptFile || promptStoragePath ? (
+                    <div className="flex items-center justify-between text-xs bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl">
+                      <div className="flex items-center gap-2 truncate pr-2 flex-1 min-w-0">
+                        <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                        <span className="text-slate-200 truncate font-semibold">
+                          {promptFile ? promptFile.name : promptStoragePath.split('/').pop()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={isParsingFile}
+                          onClick={handleParsePromptFile}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-md flex items-center gap-1 transition-colors disabled:opacity-50"
+                        >
+                          {isParsingFile ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-200" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5 text-blue-200 animate-pulse" />
+                          )}
+                          <span>AI Trích xuất</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          disabled={isParsingFile}
+                          onClick={() => {
+                            setPromptFile(null)
+                            setPromptStoragePath('')
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-900 border border-slate-850 hover:bg-slate-800 text-rose-500 transition-colors disabled:opacity-50"
+                          title="Xóa đề bài"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative border border-dashed border-slate-800 rounded-xl p-2.5 text-center bg-slate-950/30 hover:border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <input
+                        type="file"
+                        id="prompt-file-upload"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setPromptFile(e.target.files[0])
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        accept=".pdf,.docx,.doc,.md,.txt,.zip"
+                      />
+                      <FileUp className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-[10px] text-slate-400 font-bold">Tải lên đề bài (.pdf, .docx, .md)</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. File đáp án chính thức (Solution key file) */}
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    File đáp án mẫu chính thức (Solution Key - .ipynb/.py/.pdf)
+                  </label>
+                  {solutionFile || solutionStoragePath ? (
+                    <div className="flex items-center justify-between text-xs bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl">
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <FileUp className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="text-slate-200 truncate font-semibold">
+                          {solutionFile ? solutionFile.name : solutionStoragePath.split('/').pop()}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSolutionFile(null)
+                          setSolutionStoragePath('')
+                        }}
+                        className="p-1 rounded bg-slate-900 border border-slate-850 hover:bg-slate-800 text-rose-500 transition-colors"
+                        title="Xóa đáp án"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative border border-dashed border-slate-800 rounded-xl p-2.5 text-center bg-slate-950/30 hover:border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <input
+                        type="file"
+                        id="solution-file-upload-tab2"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSolutionFile(e.target.files[0])
+                            setSolutionMode('upload')
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        accept=".py,.ipynb,.csv,.xlsx,.xls,.pdf,.docx,.doc,.md,.txt,.zip"
+                      />
+                      <FileUp className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-[10px] text-slate-400 font-bold">Tải lên đáp án mẫu (.py, .ipynb, .pdf)</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-slate-800/60 my-1"></div>
+
+                {/* 3. File dữ liệu thực hành */}
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    File dữ liệu thực hành (CSV/Excel/JSON)
+                  </label>
+                  <div className="relative border border-dashed border-slate-800 rounded-xl p-2.5 text-center bg-slate-950/30 hover:border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                    <input
+                      type="file"
+                      id="data-file-upload"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0]
+                          setDataFiles((prev: any) => [
+                            ...prev,
+                            {
+                              name: file.name,
+                              size: file.size,
+                              file: file,
+                              downloadable: true,
+                              previewable: true
+                            }
+                          ])
+                          e.target.value = ''
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      accept=".csv,.xlsx,.xls,.json,.txt"
+                    />
+                    <Database className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[10px] text-slate-400 font-bold">Thêm dữ liệu thực hành (.csv, .xlsx)</span>
+                  </div>
+                </div>
+
+                {/* 4. Tài liệu tham khảo đọc thêm */}
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                    Tài liệu tham khảo đọc thêm
+                  </label>
+                  <div className="relative border border-dashed border-slate-800 rounded-xl p-2.5 text-center bg-slate-950/30 hover:border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                    <input
+                      type="file"
+                      id="ref-file-upload"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0]
+                          setReferenceFiles((prev: any) => [
+                            ...prev,
+                            {
+                              name: file.name,
+                              size: file.size,
+                              file: file,
+                              downloadable: true,
+                              previewable: true
+                            }
+                          ])
+                          e.target.value = ''
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      accept=".pdf,.docx,.doc,.txt"
+                    />
+                    <BookOpen className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[10px] text-slate-400 font-bold">Thêm tài liệu tham khảo (.pdf, .docx)</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

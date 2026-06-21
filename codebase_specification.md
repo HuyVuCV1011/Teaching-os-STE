@@ -110,10 +110,10 @@ rubricore-engine/app/
 ```
 
 ### Key Modules and Responsibilities:
-* **[fastapi_app.py](file:///Users/mac/Data/STE/vuth-portfolio-main/rubricore-engine/app/pilot/fastapi_app.py)**: Serves HTTP request routes. Maps stateless request payloads to AI models and returns structured suggestion matrices.
-* **[ollama.py](file:///Users/mac/Data/STE/vuth-portfolio-main/rubricore-engine/app/ai/ollama.py)**: Adapts requests into chat templates, configures the structured output JSON format schemas, queries the Ollama daemon, and handles normalization of fallback grading models.
-* **[contracts.py](file:///Users/mac/Data/STE/vuth-portfolio-main/rubricore-engine/app/pilot/contracts.py)**: Declares request and response models enforcing static type validation (e.g., `StatelessGradingRequest`, `GradingRunResponse`).
-* **[workflows.py](file:///Users/mac/Data/STE/vuth-portfolio-main/rubricore-engine/app/pilot/workflows.py)**: Controls sequential state progression of a grading run, coordinating database logs with RAG context fetch parameters.
-* **[services/](file:///Users/mac/Data/STE/vuth-portfolio-main/rubricore-engine/app/db/services/)**: Encapsulates core grading logic rules like checking criteria point ceilings, executing teacher override operations, and resolving manual grading scores.
-* **[models/](file:///Users/mac/Data/STE/vuth-portfolio-main/rubricore-engine/app/db/models/)**: Declares mapping objects matching postgres databases (such as `Submission`, `GradingRun`, `RubricVersion`) enabling Alembic migration compatibility.
+* **[fastapi_app.py](rubricore-engine/app/pilot/fastapi_app.py)**: Serves HTTP request routes. Maps stateless request payloads to AI models and returns structured suggestion matrices.
+* **[ollama.py](rubricore-engine/app/ai/ollama.py)**: Adapts requests into chat templates, configures the structured output JSON format schemas, queries the Ollama daemon, and handles normalization of fallback grading models.
+* **[contracts.py](rubricore-engine/app/pilot/contracts.py)**: Declares request and response models enforcing static type validation (e.g., `StatelessGradingRequest`, `GradingRunResponse`).
+* **[workflows.py](rubricore-engine/app/pilot/workflows.py)**: Controls sequential state progression of a grading run, coordinating database logs with RAG context fetch parameters.
+* **[services/](rubricore-engine/app/db/services/)**: Encapsulates core grading logic rules like checking criteria point ceilings, executing teacher override operations, and resolving manual grading scores.
+* **[models/](rubricore-engine/app/db/models/)**: Declares mapping objects matching postgres databases (such as `Submission`, `GradingRun`, `RubricVersion`) enabling Alembic migration compatibility.
 

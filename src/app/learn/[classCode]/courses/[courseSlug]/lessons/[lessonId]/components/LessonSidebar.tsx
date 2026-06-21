@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FileText, Link2, ExternalLink } from 'lucide-react'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import { motion } from 'framer-motion'
+import { parseAssignmentInstructions } from '@/lib/assignment'
 
 interface LessonSidebarProps {
   classCode: string
@@ -33,10 +34,11 @@ export function LessonSidebar({
                 <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-3">
                   {(() => {
                     const instr = assign.instructions || ''
-                    const trimmed = instr.trim()
-                    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                      try {
-                        const parsedObj = JSON.parse(trimmed)
+                    const parsedObj = parseAssignmentInstructions(instr)
+                    if (parsedObj) {
+                      if (Array.isArray(parsedObj)) {
+                        return `${parsedObj.length} Questions: ` + parsedObj.map((q: any, idx: number) => `Q${idx + 1}: ${q.content}`).join('; ')
+                      } else {
                         const qCount = parsedObj.questions?.length || 0
                         const dfCount = parsedObj.data_files?.length || 0
                         const rfCount = parsedObj.reference_files?.length || 0
@@ -45,18 +47,6 @@ export function LessonSidebar({
                         if (dfCount > 0) parts.push(`${dfCount} Data Files`)
                         if (rfCount > 0) parts.push(`${rfCount} Reference Files`)
                         return parts.length > 0 ? parts.join(', ') : 'Assignment details included'
-                      } catch {
-                        // Fallback
-                      }
-                    }
-                    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-                      try {
-                        const parsed = JSON.parse(trimmed)
-                        if (Array.isArray(parsed)) {
-                          return `${parsed.length} Questions: ` + parsed.map((q: any, idx: number) => `Q${idx + 1}: ${q.content}`).join('; ')
-                        }
-                      } catch {
-                        // Fallback
                       }
                     }
                     return instr.replace(/<[^>]*>/g, '')

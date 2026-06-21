@@ -7,6 +7,8 @@ import { renderSimpleMarkdown } from '@/lib/markdown'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { getStudentMaterialSignedUrlAction } from '../actions'
 import { AssignmentQuestionsForm } from './AssignmentQuestionsForm'
+import { parseAssignmentInstructions } from '@/lib/assignment'
+import CodeFileViewer from '@/components/CodeFileViewer'
 
 interface AssignmentInstructionsProps {
   assignment: any
@@ -56,32 +58,22 @@ export function AssignmentInstructions({
   disabled = false
 }: AssignmentInstructionsProps) {
   const instructionsStr = assignment?.instructions || ''
-  const trimmed = instructionsStr.trim()
+  const parsedObj = parseAssignmentInstructions(instructionsStr)
   
   let questionsList: any[] = []
   let dataFiles: any[] = []
   let referenceFiles: any[] = []
   let isNewJsonFormat = false
   
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    try {
-      const parsedObj = JSON.parse(trimmed)
+  if (parsedObj) {
+    if (Array.isArray(parsedObj)) {
+      questionsList = parsedObj.filter((q: any) => !q.status || q.status === 'approved')
+    } else {
       const allQuestions = parsedObj.questions || []
       questionsList = allQuestions.filter((q: any) => !q.status || q.status === 'approved')
       dataFiles = parsedObj.data_files || []
       referenceFiles = parsedObj.reference_files || []
       isNewJsonFormat = true
-    } catch (e) {
-      console.error('Error parsing assignment instructions JSON:', e)
-    }
-  } else if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    try {
-      const parsedArr = JSON.parse(trimmed)
-      if (Array.isArray(parsedArr)) {
-        questionsList = parsedArr.filter((q: any) => !q.status || q.status === 'approved')
-      }
-    } catch (e) {
-      console.error('Error parsing assignment instructions array:', e)
     }
   }
 
@@ -89,7 +81,7 @@ export function AssignmentInstructions({
     if (filesList.length === 0) return null
     return (
       <div className="space-y-3 pt-4 border-t border-slate-800/40">
-        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+        <h5 className="text-xs font-semibold text-slate-550 flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor} animate-pulse`} />
           {title}
         </h5>
@@ -167,6 +159,16 @@ export function AssignmentInstructions({
     return (
       <div className="border border-slate-800 bg-slate-900/10 rounded-2xl overflow-hidden">
         {(() => {
+          if (['ipynb', 'py', 'sql'].includes(ext) && previewSignedUrl) {
+            return (
+              <CodeFileViewer 
+                url={previewSignedUrl} 
+                title={previewingFile.name} 
+                downloadAllowed={true} 
+              />
+            )
+          }
+
           if (ext === 'pdf' && previewSignedUrl) {
             return <DocumentViewer url={previewSignedUrl} title={previewingFile.name} />
           }
@@ -258,7 +260,7 @@ export function AssignmentInstructions({
     if (promptExt === 'pdf') {
       return (
         <div className="space-y-4 pt-4 border-t border-slate-200">
-          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assignment PDF Document</span>
+          <span className="block text-xs font-semibold text-slate-500">Tệp đính kèm PDF</span>
           <DocumentViewer url={promptDownloadUrl} title={assignment?.title} />
         </div>
       )
@@ -302,7 +304,7 @@ export function AssignmentInstructions({
       if (['docx', 'doc'].includes(promptExt || '')) {
         return (
           <div className="space-y-4 pt-4 border-t border-slate-200">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document View (DOCX)</span>
+            <span className="block text-xs font-semibold text-slate-500">Xem tài liệu (DOCX)</span>
             <div 
               className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsedPromptContent.viewer_html || '') }}
@@ -316,7 +318,7 @@ export function AssignmentInstructions({
         const rows = parsedPromptContent.rows || []
         return (
           <div className="space-y-4 pt-4 border-t border-slate-200">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sheet / Table View ({promptExt?.toUpperCase()})</span>
+            <span className="block text-xs font-semibold text-slate-500">Bảng dữ liệu ({promptExt?.toUpperCase()})</span>
             <div className="border border-slate-200 bg-white rounded-xl p-5 text-slate-800 space-y-4 h-[400px] overflow-y-auto flex flex-col shadow-sm">
               <div className="overflow-x-auto border border-slate-150 rounded-xl flex-1 overflow-y-auto">
                 <table className="min-w-full divide-y divide-slate-150 text-xs">
@@ -350,7 +352,7 @@ export function AssignmentInstructions({
       if (['md', 'markdown'].includes(promptExt || '')) {
         return (
           <div className="space-y-4 pt-4 border-t border-slate-200">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Markdown Readme</span>
+            <span className="block text-xs font-semibold text-slate-500">Tài liệu hướng dẫn (Markdown)</span>
             <div 
               className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700"
               dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(parsedPromptContent) }}
@@ -364,14 +366,14 @@ export function AssignmentInstructions({
         const lines = rawCode.split('\n')
         return (
           <div className="space-y-4 pt-4 border-t border-slate-200">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Code File View</span>
+            <span className="block text-xs font-semibold text-slate-500">Xem mã nguồn tệp đính kèm</span>
             <div className="border border-slate-200 bg-slate-950 rounded-xl overflow-hidden shadow-md flex flex-col font-mono text-xs max-h-[500px]">
               <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 text-slate-400 font-semibold select-none">
                 <div className="flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-blue-500" />
                   <span>{assignment.prompt_file_path.split('/').pop()}</span>
                 </div>
-                <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">
+                <span className="text-[10px] bg-blue-500/10 text-blue-600 border border-blue-500/20 px-2 py-0.5 rounded font-medium">
                   {promptExt?.toUpperCase()}
                 </span>
               </div>
@@ -415,23 +417,23 @@ export function AssignmentInstructions({
 
   return (
     <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-6 shadow-xl">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 pb-2 border-b border-slate-800">
-        Work Instructions
+      <h2 className="text-sm font-semibold text-slate-550 pb-2 border-b border-slate-800">
+        Hướng dẫn làm bài
       </h2>
       
       {isNewJsonFormat ? (
         <div className="space-y-6">
           <div className="space-y-1">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Description
+            <span className="block text-xs font-semibold text-slate-500">
+              Mô tả bài tập
             </span>
             <p className="text-sm text-slate-300 leading-relaxed font-medium">
-              Please review the attached reference materials, download/analyze the data files, and complete the questions below.
+              Vui lòng xem các tài liệu tham khảo đính kèm, tải về các tệp tin dữ liệu và hoàn thành câu hỏi ở bên dưới.
             </p>
           </div>
 
-          {renderReferenceOrDataFileList(referenceFiles, 'Reference Materials (For Reading)', 'bg-indigo-500')}
-          {renderReferenceOrDataFileList(dataFiles, 'Attached Data Files (For Download)', 'bg-blue-500')}
+          {renderReferenceOrDataFileList(referenceFiles, 'Tài liệu đọc tham khảo', 'bg-indigo-500')}
+          {renderReferenceOrDataFileList(dataFiles, 'Tệp dữ liệu thực hành đính kèm', 'bg-blue-500')}
 
           {previewingFile && (
             <div className="space-y-4 pt-4 border-t border-slate-800/40">
@@ -448,9 +450,9 @@ export function AssignmentInstructions({
                     setPreviewSignedUrl(null)
                     setPreviewError(null)
                   }}
-                  className="text-slate-400 hover:text-white text-xs transition-colors p-1 bg-slate-900 hover:bg-slate-850 rounded"
+                  className="text-slate-400 hover:text-white text-xs transition-colors p-1 bg-slate-900 hover:bg-slate-850 rounded font-medium"
                 >
-                  ✕ Close Preview
+                  ✕ Đóng xem trước
                 </button>
               </div>
               {renderPreviewContent()}
@@ -481,6 +483,59 @@ export function AssignmentInstructions({
       )}
 
       {renderPromptContent()}
+
+      {/* Rubrics Matrix Section */}
+      {assignment?.rubrics && (
+        <div className="mt-8 pt-6 border-t border-slate-800/60 space-y-4">
+          <div className="text-left">
+            <span className="text-xs text-emerald-600 font-semibold">Tiêu chí đánh giá (Rubric)</span>
+            <h4 className="text-sm font-bold text-slate-100 mt-0.5">{assignment.rubrics.title}</h4>
+            {assignment.rubrics.description && (
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{assignment.rubrics.description}</p>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+            {(assignment.rubrics.rubric_criteria || []).map((crit: any) => {
+              const weightVal = parseFloat(crit.weight || '1');
+              return (
+                <div key={crit.id} className="bg-slate-950/60 border border-slate-850 p-4.5 rounded-xl space-y-3 flex flex-col justify-between hover:border-slate-800 transition-all text-left shadow-sm">
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <h5 className="text-xs font-bold text-slate-200">{crit.name}</h5>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-450 px-2 py-0.5 rounded font-medium">
+                          Hệ số: {weightVal.toFixed(1)}x
+                        </span>
+                        <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 px-2 py-0.5 rounded font-semibold">
+                          {crit.max_points} điểm
+                        </span>
+                      </div>
+                    </div>
+                    {crit.description && (
+                      <p className="text-[11px] text-slate-500 leading-relaxed">{crit.description}</p>
+                    )}
+                  </div>
+                  
+                  {/* Visual Indicator of weight */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] text-slate-550 font-medium">
+                      <span>Tỷ trọng điểm</span>
+                      <span>{(weightVal * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1 bg-slate-900 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-emerald-500 rounded-full transition-all" 
+                        style={{ width: `${Math.min(weightVal * 50, 100)}%` }} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-4 pt-6 border-t border-slate-800/60 text-xs">
         <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">

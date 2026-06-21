@@ -313,26 +313,39 @@ export async function generateAssignmentQuestionsAction(params: {
   }
 }
 
-export async function parseAssignmentFileAction(formData: FormData) {
-  let tempFilePath: string | null = null
-  try {
-    const file = formData.get('file') as File | null
-    if (!file) throw new Error('No file provided')
+async function extractTextFromFile(file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
 
-    const modelChoice = (formData.get('modelChoice') as string) || 'gemini-2.0-flash'
-    const ext = file.name.split('.').pop()?.toLowerCase() || ''
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const tempDir = path.join(process.cwd(), 'scratch')
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true })
+  if (ext === 'ipynb') {
+    try {
+      const notebook = JSON.parse(buffer.toString('utf-8'))
+      const cells = notebook.cells || []
+      let notebookText = ''
+      cells.forEach((cell: any, idx: number) => {
+        const cellType = cell.cell_type || 'code'
+        const source = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '')
+        notebookText += `\n\n--- Cell #${idx + 1} (${cellType}) ---\n${source}`
+      })
+      return notebookText
+    } catch (err) {
+      console.warn(`Failed to parse .ipynb as JSON, falling back to raw:`, err)
+      return buffer.toString('utf-8')
     }
-    tempFilePath = path.join(tempDir, `upload_${Date.now()}_${file.name}`)
-    fs.writeFileSync(tempFilePath, buffer)
+  }
 
-    let extractedText = ''
+  if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
+    return buffer.toString('utf-8')
+  }
+
+  const tempDir = path.join(process.cwd(), 'scratch')
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+  const tempFilePath = path.join(tempDir, `extract_${Date.now()}_${file.name}`)
+  try {
+    fs.writeFileSync(tempFilePath, buffer)
 
     if (['docx', 'csv', 'xlsx', 'xls', 'pdf'].includes(ext)) {
       const pythonPath = path.join(
@@ -353,11 +366,33 @@ export async function parseAssignmentFileAction(formData: FormData) {
         throw new Error(`Python script error: ${parsedOutput.error}`)
       }
 
-      extractedText = parsedOutput.extracted_text || ''
-    } else if (['markdown', 'md', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
-      extractedText = buffer.toString('utf-8')
+      return parsedOutput.extracted_text || ''
     } else {
       throw new Error(`Unsupported file type for parsing: ${ext}`)
+    }
+  } finally {
+    if (fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath)
+      } catch (e) {
+        console.error('Failed to delete temp file:', e)
+      }
+    }
+  }
+}
+
+export async function parseAssignmentFileAction(formData: FormData) {
+  try {
+    const file = formData.get('file') as File | null
+    if (!file) throw new Error('No file provided')
+
+    const solutionFile = formData.get('solutionFile') as File | null
+    const modelChoice = (formData.get('modelChoice') as string) || 'gemini-2.0-flash'
+
+    const extractedPromptText = await extractTextFromFile(file)
+    let extractedSolutionText = ''
+    if (solutionFile) {
+      extractedSolutionText = await extractTextFromFile(solutionFile)
     }
 
     // Call Python FastAPI parser route
@@ -369,7 +404,8 @@ export async function parseAssignmentFileAction(formData: FormData) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model_choice: modelChoice,
-          file_content: extractedText,
+          file_content: extractedPromptText,
+          solution_content: extractedSolutionText || null,
         }),
       })
     } catch (fetchErr: any) {
@@ -381,10 +417,10 @@ export async function parseAssignmentFileAction(formData: FormData) {
       let parsedDetail = ''
       try {
         const errJson = JSON.parse(errText)
-        parsedDetail = errJson.detail
+        parsedDetail = errJson.detail || errJson.error?.message || errJson.message || ''
       } catch {}
       const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
-      throw new Error(`AI file parsing failed: ${errMsg}`)
+      throw new Error(errMsg)
     }
 
     const data = await res.json()
@@ -397,14 +433,6 @@ export async function parseAssignmentFileAction(formData: FormData) {
   } catch (error: any) {
     console.error('Failed to parse uploaded assignment file:', error)
     return { success: false, error: error.message }
-  } finally {
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      try {
-        fs.unlinkSync(tempFilePath)
-      } catch (e) {
-        console.error('Failed to delete temp file:', e)
-      }
-    }
   }
 }
 

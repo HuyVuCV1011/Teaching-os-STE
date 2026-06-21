@@ -2,6 +2,7 @@
 
 import React from 'react'
 import DocumentViewer from '@/components/DocumentViewer'
+import CodeFileViewer from '@/components/CodeFileViewer'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import { FileText, Code } from 'lucide-react'
 import { renderSimpleMarkdown } from '@/lib/markdown'
@@ -301,6 +302,13 @@ export function StudentMaterialPreviewCard({
               {JSON.stringify(m.metadata?.viewer_artifact?.viewer_json || m.metadata?.viewer_artifact?.raw_text || {}, null, 2)}
             </pre>
           </div>
+        </div>
+      )}
+
+      {/* Code / Notebook Preview */}
+      {(m.type === 'code_repo' || m.storage_url?.endsWith('.ipynb') || m.storage_url?.endsWith('.py') || m.storage_url?.endsWith('.sql')) && (
+        <div className="w-full">
+          <CodeFileViewer url={m.signedUrl || m.storage_url} title={m.title} downloadAllowed={downloadAllowed} />
         </div>
       )}
     </div>

@@ -203,8 +203,8 @@ npm run start
 <details>
 <summary>📁 Project References</summary>
 
-- [Explore Codebase Specs](file:///Users/mac/Data/STE/vuth-portfolio-main/codebase_specification.md)
-- [View Docs Index](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/README.md)
-- [Features & UAT Verification Guide](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/ELEARNING_FEATURES_VERIFICATION_GUIDE.md)
+- [Explore Codebase Specs](codebase_specification.md)
+- [View Docs Index](docs/README.md)
+- [Features & UAT Verification Guide](docs/ELEARNING_FEATURES_VERIFICATION_GUIDE.md)
 
 </details>

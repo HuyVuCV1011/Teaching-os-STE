@@ -204,7 +204,7 @@ function AIGradingSandbox({ question, criteria, selectedModel }: { question: Que
             type="button"
             onClick={handleTestGrade}
             disabled={loading || !studentAnswer.trim() || criteria.length === 0}
-            className="px-4 py-2 rounded-lg bg-indigo-650 hover:bg-indigo-700 disabled:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-650/20 shadow-sm"
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600/20 shadow-sm"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5 animate-pulse" />}
             <span>Run AI Test Grade</span>

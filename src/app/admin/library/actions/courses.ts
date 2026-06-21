@@ -195,9 +195,27 @@ export async function saveSyllabusStructureAction(
     await checkAdminAuth()
     const supabase = getSupabaseServer(true)
 
-    // Run updates sequentially
+    // 1. Move all affected lessons to a temporary negative order_index first 
+    // to avoid unique constraint collisions (uq_module_lesson_order)
+    for (let modIdx = 0; modIdx < structure.length; modIdx++) {
+      const mod = structure[modIdx]
+      if (mod.lessonIds && mod.lessonIds.length > 0) {
+        for (let i = 0; i < mod.lessonIds.length; i++) {
+          const lessonId = mod.lessonIds[i]
+          const { error: tempErr } = await supabase
+            .from('lessons')
+            .update({
+              order_index: -(i + 1 + modIdx * 100)
+            })
+            .eq('id', lessonId)
+          if (tempErr) throw tempErr
+        }
+      }
+    }
+
+    // 2. Perform modules and final lesson updates sequentially
     for (const mod of structure) {
-      // 1. Update module order_index
+      // Update module order_index
       const { error: modErr } = await supabase
         .from('modules')
         .update({ order_index: mod.orderIndex })
@@ -205,7 +223,7 @@ export async function saveSyllabusStructureAction(
         .eq('course_id', courseId)
       if (modErr) throw modErr
 
-      // 2. Update lessons order_index and module_id
+      // Update lessons to final module_id and positive order_index
       if (mod.lessonIds && mod.lessonIds.length > 0) {
         for (let i = 0; i < mod.lessonIds.length; i++) {
           const lessonId = mod.lessonIds[i]
@@ -227,4 +245,113 @@ export async function saveSyllabusStructureAction(
     return { success: false, error: error.message }
   }
 }
+
+/**
+ * Deletes a lesson and re-orders the remaining lessons in the course to prevent gaps.
+ */
+export async function deleteLessonAction(lessonId: string) {
+  try {
+    await checkAdminAuth()
+    const supabase = getSupabaseServer(true)
+
+    // 1. Fetch lesson info to find its module and course
+    const { data: lesson, error: fetchErr } = await supabase
+      .from('lessons')
+      .select('id, module_id, modules(course_id)')
+      .eq('id', lessonId)
+      .single()
+
+    if (fetchErr || !lesson) {
+      throw new Error(`Lesson not found: ${fetchErr?.message || 'Unknown'}`)
+    }
+
+    const courseId = lesson.modules?.course_id
+
+    // 2. Delete the lesson
+    const { error: delErr } = await supabase
+      .from('lessons')
+      .delete()
+      .eq('id', lessonId)
+
+    if (delErr) throw delErr
+
+    // 3. Re-order remaining lessons in this course
+    if (courseId) {
+      const { data: remainingLessons, error: listErr } = await supabase
+        .from('lessons')
+        .select('id, order_index')
+        .eq('modules.course_id', courseId)
+        .order('order_index', { ascending: true })
+
+      if (!listErr && remainingLessons) {
+        for (let i = 0; i < remainingLessons.length; i++) {
+          await supabase
+            .from('lessons')
+            .update({ order_index: i + 1 })
+            .eq('id', remainingLessons[i].id)
+        }
+      }
+    }
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Failed to delete lesson:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Deletes a module (which deletes nested lessons via cascade) and re-orders remaining modules.
+ */
+export async function deleteModuleAction(moduleId: string) {
+  try {
+    await checkAdminAuth()
+    const supabase = getSupabaseServer(true)
+
+    // 1. Fetch module info to find its course
+    const { data: mod, error: fetchErr } = await supabase
+      .from('modules')
+      .select('id, course_id')
+      .eq('id', moduleId)
+      .single()
+
+    if (fetchErr || !mod) {
+      throw new Error(`Module not found: ${fetchErr?.message || 'Unknown'}`)
+    }
+
+    const courseId = mod.course_id
+
+    // 2. Delete the module
+    const { error: delErr } = await supabase
+      .from('modules')
+      .delete()
+      .eq('id', moduleId)
+
+    if (delErr) throw delErr
+
+    // 3. Re-order remaining modules in this course
+    if (courseId) {
+      const { data: remainingMods, error: listErr } = await supabase
+        .from('modules')
+        .select('id, order_index')
+        .eq('course_id', courseId)
+        .order('order_index', { ascending: true })
+
+      if (!listErr && remainingMods) {
+        for (let i = 0; i < remainingMods.length; i++) {
+          await supabase
+            .from('modules')
+            .update({ order_index: i + 1 })
+            .eq('id', remainingMods[i].id)
+        }
+      }
+    }
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Failed to delete module:', error)
+    return { success: false, error: error.message }
+  }
+}
+
 

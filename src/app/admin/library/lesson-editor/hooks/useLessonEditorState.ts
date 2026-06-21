@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { calculateFileHash } from '@/lib/hash'
+import { parseAssignmentInstructions } from '@/lib/assignment'
 import {
   checkMaterialDeduplication,
   registerCanonicalMaterial,
@@ -179,6 +180,7 @@ export function useLessonEditorState() {
   const [currentStep, setCurrentStep] = useState<number>(1)
   const [isDirty, setIsDirty] = useState(false)
   const [initialLoaded, setInitialLoaded] = useState(false)
+  const [currentLessonId, setCurrentLessonId] = useState<string | null>(null)
 
   // Lesson outline & syllabus hierarchy
   const [lesson, setLesson] = useState<any>(null)
@@ -627,12 +629,19 @@ export function useLessonEditorState() {
 
   useEffect(() => {
     if (lessonId) {
-      fetchLessonDetails()
+      const isDifferent = lessonId !== currentLessonId
+      if (isDifferent) {
+        setCurrentLessonId(lessonId)
+        setInitialLoaded(false)
+      }
+      fetchLessonDetails(undefined, isDifferent)
     }
-  }, [lessonId])
+  }, [lessonId, currentLessonId])
 
-  async function fetchLessonDetails(preferredAssignmentId?: string) {
-    setLoading(true)
+  async function fetchLessonDetails(preferredAssignmentId?: string, forceShowLoader?: boolean) {
+    if (forceShowLoader || !initialLoaded) {
+      setLoading(true)
+    }
     let loadedBatches: BatchItem[] = []
     try {
       const [
@@ -676,15 +685,10 @@ export function useLessonEditorState() {
         let mcqW = 50
         let essayW = 50
         if (activeAs.instructions && activeAs.instructions.trim()) {
-          try {
-            const instr = activeAs.instructions.trim()
-            if (instr.startsWith('{')) {
-              const parsed = JSON.parse(instr)
-              mcqW = parsed.mcqWeightPercent !== undefined ? parsed.mcqWeightPercent : 50
-              essayW = parsed.essayWeightPercent !== undefined ? parsed.essayWeightPercent : 50
-            }
-          } catch (e) {
-            console.error('Failed to parse weights:', e)
+          const parsed = parseAssignmentInstructions(activeAs.instructions)
+          if (parsed && !Array.isArray(parsed)) {
+            mcqW = parsed.mcqWeightPercent !== undefined ? parsed.mcqWeightPercent : 50
+            essayW = parsed.essayWeightPercent !== undefined ? parsed.essayWeightPercent : 50
           }
         }
 
@@ -731,85 +735,85 @@ export function useLessonEditorState() {
 
         try {
           if (activeAs.instructions && activeAs.instructions.trim()) {
-            const instr = activeAs.instructions.trim()
-            if (instr.startsWith('{')) {
-              const parsed = JSON.parse(instr)
-              const dataFilesLoaded = parsed.data_files || []
-              const referenceFilesLoaded = parsed.reference_files || []
-              
-              setDataFiles(dataFilesLoaded)
-              setReferenceFiles(referenceFilesLoaded)
-              
-              const questions = parsed.questions || []
-              const groupedBatches: BatchItem[] = []
-              questions.forEach((q: any) => {
-                const qItem: QuestionItem = {
-                  id: q.id || generateUUID(),
-                  content: q.content || '',
-                  options: q.options || undefined,
-                  answer: q.answer || undefined,
-                  status: q.status || 'approved',
-                  answerFormat: q.answerFormat || undefined,
-                  answerSource: q.answerSource || undefined,
-                  data: q.data || undefined,
-                  source: q.source || 'ai_generator',
-                  source_file: q.source_file || null,
-                  points: (q.points !== undefined && q.points !== null) ? q.points : undefined
+            const parsedObj = parseAssignmentInstructions(activeAs.instructions)
+            if (parsedObj) {
+              if (Array.isArray(parsedObj)) {
+                if (parsedObj.length > 0) {
+                  const questions = parsedObj.map((q: any) => ({
+                    id: q.id || generateUUID(),
+                    content: q.content || '',
+                    options: q.options || undefined,
+                    answer: q.answer || undefined,
+                    status: 'approved' as const,
+                    answerFormat: q.answerFormat || undefined,
+                    answerSource: q.answerSource || undefined,
+                    data: q.data || undefined,
+                    source: 'ai_generator' as const,
+                    source_file: null,
+                    points: (q.points !== undefined && q.points !== null) ? q.points : undefined
+                  }))
+                  const hasOptions = questions.some(q => q.options && q.options.length > 0)
+                  const parsedBatch: BatchItem = {
+                    id: Date.now(),
+                    type: hasOptions ? 'multiple_choice' : 'essay',
+                    category: 'theory',
+                    defaultAnswerFormat: questions[0]?.answerFormat || 'text',
+                    questions
+                  }
+                  setBatches([parsedBatch])
+                  loadedBatches = [parsedBatch]
+                  setDataFiles([])
+                  setReferenceFiles([])
                 }
+              } else {
+                const dataFilesLoaded = parsedObj.data_files || []
+                const referenceFilesLoaded = parsedObj.reference_files || []
                 
-                const qType = q.type || (q.options && q.options.length > 0 ? 'multiple_choice' : 'essay')
-                const qCategory = q.category || 'theory'
+                setDataFiles(dataFilesLoaded)
+                setReferenceFiles(referenceFilesLoaded)
                 
-                let match = groupedBatches.find(b => {
-                  if (qItem.source === 'file_import') {
-                    return b.questions.some(bq => bq.source === 'file_import' && bq.source_file === qItem.source_file)
+                const questions = parsedObj.questions || []
+                const groupedBatches: BatchItem[] = []
+                questions.forEach((q: any) => {
+                  const qItem: QuestionItem = {
+                    id: q.id || generateUUID(),
+                    content: q.content || '',
+                    options: q.options || undefined,
+                    answer: q.answer || undefined,
+                    status: q.status || 'approved',
+                    answerFormat: q.answerFormat || undefined,
+                    answerSource: q.answerSource || undefined,
+                    data: q.data || undefined,
+                    source: q.source || 'ai_generator',
+                    source_file: q.source_file || null,
+                    points: (q.points !== undefined && q.points !== null) ? q.points : undefined
+                  }
+                  
+                  const qType = q.type || (q.options && q.options.length > 0 ? 'multiple_choice' : 'essay')
+                  const qCategory = q.category || 'theory'
+                  
+                  let match = groupedBatches.find(b => {
+                    if (qItem.source === 'file_import') {
+                      return b.questions.some(bq => bq.source === 'file_import' && bq.source_file === qItem.source_file)
+                    } else {
+                      return b.type === qType && b.category === qCategory && b.questions.every(bq => bq.source !== 'file_import')
+                    }
+                  })
+                  
+                  if (match) {
+                    match.questions.push(qItem)
                   } else {
-                    return b.type === qType && b.category === qCategory && b.questions.every(bq => bq.source !== 'file_import')
+                    groupedBatches.push({
+                      id: Date.now() + Math.random(),
+                      type: qType,
+                      category: qCategory,
+                      defaultAnswerFormat: q.answerFormat || 'text',
+                      questions: [qItem]
+                    })
                   }
                 })
-                
-                if (match) {
-                  match.questions.push(qItem)
-                } else {
-                  groupedBatches.push({
-                    id: Date.now() + Math.random(),
-                    type: qType,
-                    category: qCategory,
-                    defaultAnswerFormat: q.answerFormat || 'text',
-                    questions: [qItem]
-                  })
-                }
-              })
-              setBatches(groupedBatches)
-              loadedBatches = groupedBatches
-            } else if (instr.startsWith('[')) {
-              const parsed = JSON.parse(instr)
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                const questions = parsed.map((q: any) => ({
-                  id: q.id || generateUUID(),
-                  content: q.content || '',
-                  options: q.options || undefined,
-                  answer: q.answer || undefined,
-                  status: 'approved' as const,
-                  answerFormat: q.answerFormat || undefined,
-                  answerSource: q.answerSource || undefined,
-                  data: q.data || undefined,
-                  source: 'ai_generator' as const,
-                  source_file: null,
-                  points: (q.points !== undefined && q.points !== null) ? q.points : undefined
-                }))
-                const hasOptions = questions.some(q => q.options && q.options.length > 0)
-                const parsedBatch: BatchItem = {
-                  id: Date.now(),
-                  type: hasOptions ? 'multiple_choice' : 'essay',
-                  category: 'theory',
-                  defaultAnswerFormat: questions[0]?.answerFormat || 'text',
-                  questions
-                }
-                setBatches([parsedBatch])
-                loadedBatches = [parsedBatch]
-                setDataFiles([])
-                setReferenceFiles([])
+                setBatches(groupedBatches)
+                loadedBatches = groupedBatches
               }
             }
           }
@@ -2200,6 +2204,137 @@ export function useLessonEditorState() {
     }
   }
 
+  const handleParsePromptFile = async () => {
+    let fileToParse: File | Blob | null = promptFile
+    let solutionFileToParse: File | Blob | null = solutionFile
+
+    setIsParsingFile(true)
+    try {
+      if (!fileToParse && promptStoragePath) {
+        try {
+          const res = await getSignedUrlAction('assignment-prompts', promptStoragePath)
+          if (res.success && res.signedUrl) {
+            const fileRes = await fetch(res.signedUrl)
+            fileToParse = await fileRes.blob()
+          }
+        } catch (err: any) {
+          console.error("Failed to download prompt file from storage:", err)
+        }
+      }
+
+      if (!solutionFileToParse && solutionStoragePath) {
+        try {
+          const res = await getSignedUrlAction('assignment-solutions', solutionStoragePath)
+          if (res.success && res.signedUrl) {
+            const fileRes = await fetch(res.signedUrl)
+            solutionFileToParse = await fileRes.blob()
+          }
+        } catch (err: any) {
+          console.error("Failed to download solution file from storage:", err)
+        }
+      }
+
+      if (!fileToParse) {
+        alert("Vui lòng tải lên file đề bài trước khi thực hiện trích xuất câu hỏi!")
+        return
+      }
+
+      const formData = new FormData()
+      const promptFileName = promptFile?.name || (typeof promptStoragePath === 'string' && promptStoragePath ? promptStoragePath.split('/').pop() : null) || 'prompt_file'
+      formData.append('file', fileToParse, promptFileName)
+      if (solutionFileToParse) {
+        const solutionFileName = solutionFile?.name || (typeof solutionStoragePath === 'string' && solutionStoragePath ? solutionStoragePath.split('/').pop() : null) || 'solution_file'
+        formData.append('solutionFile', solutionFileToParse, solutionFileName)
+      }
+      formData.append('modelChoice', selectedModel)
+
+      const res = await parseAssignmentFileAction(formData)
+      if (res.success && res.questions) {
+        if (res.questions.length === 0) {
+          alert("Không tìm thấy câu hỏi nào trong file đề bài. Vui lòng kiểm tra lại nội dung file.");
+          return;
+        }
+
+        const mappedQuestions = res.questions.map((q: any) => {
+          let detectedType = 'essay';
+          const rawType = String(q.type || '').toLowerCase().trim();
+          if (
+            rawType.includes('choice') ||
+            rawType.includes('mc') ||
+            rawType.includes('select') ||
+            (q.options && q.options.length > 0)
+          ) {
+            detectedType = 'multiple_choice';
+          }
+
+          return {
+            id: (q.id && String(q.id).length > 5) ? q.id : generateUUID(),
+            content: q.content || '',
+            options: q.options && Array.isArray(q.options)
+              ? q.options.map((opt: string, oIdx: number) => cleanOptionText(opt, oIdx))
+              : undefined,
+            answer: q.answer || undefined,
+            answerSource: q.answer ? (q.answer_source || 'file_import') : undefined,
+            status: 'pending' as const,
+            data: q.data || undefined,
+            source: 'file_import' as const,
+            source_file: promptFile?.name || promptStoragePath.split('/').pop() || 'prompt_file',
+            detectedType
+          };
+        });
+
+        const mcQuestions = mappedQuestions.filter((q: any) => q.detectedType === 'multiple_choice');
+        const essayQuestions = mappedQuestions.filter((q: any) => q.detectedType === 'essay');
+
+        let updatedBatches = [...batches];
+        let mcBatchCreated = false;
+
+        if (mcQuestions.length > 0) {
+          const mcQuestionsWithFormat = mcQuestions.map((q: any) => {
+            const { detectedType, ...rest } = q;
+            return {
+              ...rest,
+              answerFormat: 'text' as const
+            };
+          });
+
+          const newBatch: BatchItem = {
+            id: Date.now(),
+            type: 'multiple_choice',
+            category: 'theory',
+            defaultAnswerFormat: 'text',
+            questions: mcQuestionsWithFormat
+          };
+
+          updatedBatches.push(newBatch);
+          setBatches(updatedBatches);
+          mcBatchCreated = true;
+        }
+
+        if (essayQuestions.length > 0) {
+          const essayQuestionsCleaned = essayQuestions.map((q: any) => {
+            const { detectedType, ...rest } = q;
+            return rest;
+          });
+          setParsedQuestionsTemp(essayQuestionsCleaned);
+          setParsedFileNameTemp(promptFile?.name || promptStoragePath.split('/').pop() || 'prompt_file');
+          setShowEssayFormatModal(true);
+        } else if (mcBatchCreated) {
+          setActiveBatchIndex(updatedBatches.length - 1);
+          setActiveQuestionIndex(0);
+          setModalStep(3);
+          setShowAiModal(true);
+        }
+      } else {
+        alert(`Trích xuất câu hỏi thất bại: ${res.error || 'Lỗi không xác định'}`)
+      }
+    } catch (err: any) {
+      alert(`Trích xuất câu hỏi thất bại: ${err.message}`)
+    } finally {
+      setIsParsingFile(false)
+    }
+  }
+
   const handleApplyEssayFormat = (format: 'text' | 'file' | 'both') => {
     if (parsedQuestionsTemp.length === 0) return
 
@@ -2639,9 +2774,11 @@ export function useLessonEditorState() {
     solutionFile,
     setSolutionFile,
     solutionStoragePath,
+    setSolutionStoragePath,
     promptFile,
     setPromptFile,
     promptStoragePath,
+    setPromptStoragePath,
     generatingSolution,
     criteriaList,
     setCriteriaList,
@@ -2770,6 +2907,7 @@ export function useLessonEditorState() {
     handleSuggestAllMissingAnswers,
     handleGenerateRubric,
     handleConfirmClassification,
+    handleParsePromptFile,
     handleApplyEssayFormat,
     handleAsgDrag,
     handleAsgDrop,

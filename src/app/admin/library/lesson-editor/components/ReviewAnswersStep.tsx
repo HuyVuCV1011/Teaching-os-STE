@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ClipboardList, CheckCircle, Sparkles, Loader2, Eye, FileCode, BookOpen, Brain, Paperclip, FileCheck } from 'lucide-react'
+import { ClipboardList, CheckCircle, Sparkles, Loader2, Eye, FileCode, BookOpen, Brain, Paperclip, FileCheck, Trash2, FileUp } from 'lucide-react'
 import { getSignedUrlAction } from '@/app/admin/library/actions/materials'
 import { cleanOptionText } from '../hooks/useLessonEditorState'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
@@ -140,6 +140,8 @@ export function ReviewAnswersStep({
         </div>
       ) : (
         <div className="space-y-6 animate-fade-in">
+
+
           {/* Split View */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[500px] overflow-hidden items-stretch">
             {/* Left Pane: Questions List */}

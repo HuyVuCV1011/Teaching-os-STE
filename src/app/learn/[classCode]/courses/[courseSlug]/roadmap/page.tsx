@@ -3,18 +3,9 @@
 import React, { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import ReactFlow, {
-  Handle,
-  Position,
-  Node,
-  Edge,
-  MarkerType,
-  Background,
-} from 'reactflow'
-import dagre from 'dagre'
 import { supabase } from '@/lib/supabase'
-import { Lock, Unlock, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react'
-import 'reactflow/dist/style.css'
+import { Lock, Loader2, ArrowLeft, CheckCircle2, Clock, FileText, ChevronRight } from 'lucide-react'
+import { motion } from 'motion/react'
 
 function getCookie(name: string): string {
   if (typeof document === 'undefined') return ''
@@ -22,125 +13,22 @@ function getCookie(name: string): string {
   return match ? decodeURIComponent(match[2]) : ''
 }
 
-interface LessonNodeData {
+interface LessonStatus {
+  id: string
   title: string
+  order_index: number
   isLocked: boolean
-  isCompleted?: boolean
-  hasAssignment?: boolean
-  onClick: () => void
-  onSubmitClick?: () => void
-  orderIndex: string
+  isCompleted: boolean
+  hasAssignment: boolean
+  assignmentId?: string
   visibleAfter: string | null
 }
 
-// Custom Lesson Node Component for ReactFlow
-function CustomLessonNode({ data }: { data: LessonNodeData }) {
-  const isLocked = data.isLocked
-  const isCompleted = data.isCompleted
-
-  return (
-    <div
-      onClick={isLocked ? undefined : data.onClick}
-      className={`relative pl-6 pr-4 py-3.5 rounded-2xl border text-left min-w-[220px] transition-all duration-300 ${
-        isLocked
-          ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
-          : isCompleted
-          ? 'bg-slate-950 border-emerald-500/30 text-slate-100 hover:border-emerald-500 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(16,185,129,0.06)]'
-          : 'bg-slate-950 border-blue-500/30 text-slate-100 hover:border-blue-600 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(59,130,246,0.06)]'
-      }`}
-    >
-      {/* Target connection point */}
-      <Handle type="target" position={Position.Left} className="opacity-0" />
-
-      {/* Accent strip on the left edge to visually group status */}
-      {!isLocked && (
-        <div
-          className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
-            isCompleted ? 'bg-emerald-500' : 'bg-blue-600'
-          }`}
-        />
-      )}
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <span className="block text-[9px] font-bold text-slate-500 font-mono uppercase tracking-widest">
-            Lesson {data.orderIndex}
-          </span>
-          <span className="block text-xs font-bold leading-relaxed text-slate-100 truncate max-w-[160px]">
-            {data.title}
-          </span>
-          
-          {isLocked && data.visibleAfter && (
-            <span className="block text-[8px] text-amber-600 font-semibold mt-1">
-              Unlocks: {new Date(data.visibleAfter).toLocaleDateString()}
-            </span>
-          )}
-          
-          {!isLocked && data.hasAssignment && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                data.onSubmitClick?.()
-              }}
-              className="inline-flex items-center gap-1 text-[8px] bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full font-bold mt-1 transition-all cursor-pointer"
-            >
-              Submit Task
-            </button>
-          )}
-        </div>
-
-        <div className="shrink-0 mt-0.5">
-          {isLocked ? (
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
-          ) : isCompleted ? (
-            <div className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="w-3 h-3" />
-            </div>
-          ) : (
-            <div className="w-4 h-4 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center animate-pulse">
-              <Unlock className="w-3 h-3" />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Source connection point */}
-      <Handle type="source" position={Position.Right} className="opacity-0" />
-    </div>
-  )
-}
-
-const nodeTypes = {
-  lessonNode: CustomLessonNode,
-}
-
-const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-  const dagreGraph = new dagre.graphlib.Graph()
-  dagreGraph.setDefaultEdgeLabel(() => ({}))
-  dagreGraph.setGraph({ rankdir: 'LR', nodesep: 70, ranksep: 100 })
-
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: 220, height: 70 })
-  })
-
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target)
-  })
-
-  dagre.layout(dagreGraph)
-
-  const layoutedNodes = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id)
-    return {
-      ...node,
-      position: {
-        x: nodeWithPosition.x - 110,
-        y: nodeWithPosition.y - 35,
-      },
-    }
-  })
-
-  return { nodes: layoutedNodes, edges }
+interface ModuleWithLessons {
+  id: string
+  title: string
+  order_index: number
+  lessons: LessonStatus[]
 }
 
 interface RoadmapProps {
@@ -158,38 +46,9 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
 
   const [loading, setLoading] = useState(true)
   const [courseTitle, setCourseTitle] = useState('')
-  const [syllabusNodes, setSyllabusNodes] = useState<Node[]>([])
-  const [syllabusEdges, setSyllabusEdges] = useState<Edge[]>([])
-
-  const onNodesChange = (changes: any[]) => {
-    setSyllabusNodes((nds) => {
-      let nextNodes = [...nds]
-      changes.forEach((change) => {
-        if (change.type === 'position') {
-          nextNodes = nextNodes.map((node) => {
-            if (node.id === change.id) {
-              return {
-                ...node,
-                position: change.position || node.position
-              }
-            }
-            return node
-          })
-        }
-      })
-
-      // Save custom positions (deferred side-effect)
-      setTimeout(() => {
-        const positions = nextNodes.reduce((acc: any, node) => {
-          acc[node.id] = node.position
-          return acc
-        }, {})
-        localStorage.setItem(`roadmap_pos_${classCode}_${courseSlug}`, JSON.stringify(positions))
-      }, 0)
-
-      return nextNodes
-    })
-  }
+  const [modules, setModules] = useState<ModuleWithLessons[]>([])
+  const [totalLessons, setTotalLessons] = useState(0)
+  const [completedCount, setCompletedCount] = useState(0)
 
   useEffect(() => {
     async function loadRoadmap() {
@@ -265,18 +124,16 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           assignmentsData?.forEach(a => lessonAssignmentMap.set(a.lesson_id, a.id))
         }
 
-        const rawNodes: Node[] = []
-        const rawEdges: Edge[] = []
+        const processedModules: ModuleWithLessons[] = []
         const now = new Date()
+        let tCount = 0
+        let cCount = 0
 
-        let prevNodeId: string | null = null
-
-        // 5. Map modules and lessons to visual flow nodes
         modulesData?.forEach((mod: any) => {
           const lessons = mod.lessons || []
           lessons.sort((a: any, b: any) => a.order_index - b.order_index)
 
-          lessons.forEach((lesson: any) => {
+          const processedLessons: LessonStatus[] = lessons.map((lesson: any) => {
             const schedule = scheduleMap.get(lesson.id)
             const visibleAfterStr = schedule?.visible_after
             
@@ -290,80 +147,39 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
             }
 
             const isCompleted = completedLessonIds.has(lesson.id)
-            const hasAssignment = lessonAssignmentMap.has(lesson.id)
+            const assignmentId = lessonAssignmentMap.get(lesson.id)
+            const hasAssignment = !!assignmentId
 
-            const nodeId = `lesson-${lesson.id}`
-            rawNodes.push({
-              id: nodeId,
-              type: 'lessonNode',
-              data: {
-                title: lesson.title,
-                isLocked,
-                isCompleted,
-                hasAssignment,
-                visibleAfter: visibleAfterStr,
-                orderIndex: `${mod.order_index}.${lesson.order_index}`,
-                onClick: () => {
-                  router.push(`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`)
-                },
-                onSubmitClick: () => {
-                  const assignmentId = lessonAssignmentMap.get(lesson.id)
-                  if (assignmentId) {
-                    router.push(`/learn/${classCode}/assignments/${assignmentId}`)
-                  }
-                },
-              },
-              position: { x: 0, y: 0 },
-            })
-
-            // Draw directional connection edges
-            if (prevNodeId) {
-              rawEdges.push({
-                id: `edge-${prevNodeId}-${nodeId}`,
-                source: prevNodeId,
-                target: nodeId,
-                animated: !isLocked,
-                style: { stroke: isLocked ? '#e2e8f0' : '#3b82f6', strokeWidth: 2.5 },
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  color: isLocked ? '#e2e8f0' : '#3b82f6',
-                },
-              })
+            tCount++
+            if (isCompleted) {
+              cCount++
             }
 
-            prevNodeId = nodeId
+            return {
+              id: lesson.id,
+              title: lesson.title,
+              order_index: lesson.order_index,
+              isLocked,
+              isCompleted,
+              hasAssignment,
+              assignmentId,
+              visibleAfter: visibleAfterStr,
+            }
+          })
+
+          processedModules.push({
+            id: mod.id,
+            title: mod.title,
+            order_index: mod.order_index,
+            lessons: processedLessons,
           })
         })
 
-        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-          rawNodes,
-          rawEdges
-        )
-
-        // Check local storage for custom positions
-        const savedPosKey = `roadmap_pos_${classCode}_${courseSlug}`
-        let savedPositions: Record<string, { x: number; y: number }> = {}
-        try {
-          const stored = localStorage.getItem(savedPosKey)
-          if (stored) {
-            savedPositions = JSON.parse(stored)
-          }
-        } catch (e) {
-          console.error('Failed to parse saved roadmap positions', e)
-        }
-
-        const nodesWithSavedPositions = layoutedNodes.map(node => {
-          if (savedPositions[node.id]) {
-            return {
-              ...node,
-              position: savedPositions[node.id]
-            }
-          }
-          return node
-        })
-
-        setSyllabusNodes(nodesWithSavedPositions)
-        setSyllabusEdges(layoutedEdges)
+        // Sort modules by order_index
+        processedModules.sort((a, b) => a.order_index - b.order_index)
+        setModules(processedModules)
+        setTotalLessons(tCount)
+        setCompletedCount(cCount)
       } catch (err) {
         console.error('Failed to parse syllabus tree:', err)
       } finally {
@@ -374,64 +190,170 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
     loadRoadmap()
   }, [classCode, courseSlug, router])
 
+  const progressPercentage = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
+
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/learn/${classCode}/dashboard`}
-            className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 transition-all shadow-sm"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <span className="text-xs text-slate-500 font-semibold">Course Roadmap</span>
-            <h1 className="text-2xl font-bold text-white mt-0.5">{courseTitle || 'Loading...'}</h1>
-          </div>
+    <div className="min-h-screen flex flex-col space-y-6 max-w-4xl mx-auto px-4 py-8">
+      {/* Top Bar Navigation */}
+      <div className="flex items-center gap-3">
+        <Link
+          href={`/learn/${classCode}/dashboard`}
+          className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 transition-all shadow-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <div>
+          <span className="text-xs text-slate-500 font-semibold">Course Roadmap</span>
+          <h2 className="text-sm font-bold text-slate-100 mt-0.5">{courseTitle || 'Loading...'}</h2>
         </div>
-
-        {syllabusNodes.length > 0 && (
-          <button
-            onClick={() => {
-              localStorage.removeItem(`roadmap_pos_${classCode}_${courseSlug}`)
-              window.location.reload()
-            }}
-            className="px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-600 bg-slate-950 text-xs font-semibold text-slate-500 hover:text-slate-100 transition-all cursor-pointer focus-visible:outline-none shadow-sm"
-          >
-            Reset Grid Layout
-          </button>
-        )}
       </div>
 
-      <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden relative shadow-[0_4px_30px_rgba(0,0,0,0.015)]">
-        {loading ? (
-          <div className="absolute inset-0 flex flex-col justify-center items-center gap-4 text-slate-400 bg-slate-950/80 z-30">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            <span className="text-sm">Synthesizing learning path...</span>
+      {loading ? (
+        <div className="flex-1 flex flex-col justify-center items-center gap-4 py-32 text-slate-400">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <span className="text-sm">Synthesizing learning path...</span>
+        </div>
+      ) : modules.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center py-32 text-slate-500 text-sm">
+          Syllabus is empty. No lessons mapped to this course yet.
+        </div>
+      ) : (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex flex-col space-y-8 pb-16"
+        >
+          {/* Course Progress Card */}
+          <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="space-y-1">
+              <span className="text-xs text-blue-600 font-bold uppercase tracking-wider">Course Syllabus</span>
+              <h1 className="text-2xl font-bold text-slate-100">{courseTitle}</h1>
+              <p className="text-xs text-slate-400">Class Cohort: {classCode.toUpperCase()}</p>
+            </div>
+            {totalLessons > 0 && (
+              <div className="w-full md:w-64 space-y-2 shrink-0">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-400">Syllabus Progress</span>
+                  <span className="text-slate-100">{completedCount}/{totalLessons} Completed</span>
+                </div>
+                <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 transition-all duration-500 ease-out rounded-full"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        ) : syllabusNodes.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-            Roadmap is empty. No lessons mapped to this course yet.
+
+          {/* Modules timeline list */}
+          <div className="space-y-12">
+            {modules.map((mod, modIdx) => (
+              <div key={mod.id} className="space-y-6">
+                {/* Module Header Card */}
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="h-8 w-8 rounded-lg bg-blue-600/10 border border-blue-500/25 flex items-center justify-center font-bold text-blue-600 text-sm">
+                    {modIdx + 1}
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Module {modIdx + 1}</span>
+                    <h3 className="text-base font-bold text-slate-100 leading-snug">{mod.title}</h3>
+                  </div>
+                </div>
+
+                {/* Module Lessons list */}
+                <div className="relative pl-6 space-y-6">
+                  {/* Timeline vertical line */}
+                  <div className="absolute left-3.5 top-2 bottom-2 w-0.5 border-l-2 border-dashed border-slate-800 pointer-events-none" />
+
+                  {mod.lessons.map((lesson, lessonIdx) => {
+                    const isLocked = lesson.isLocked
+                    const isCompleted = lesson.isCompleted
+                    
+                    return (
+                      <div key={lesson.id} className="relative group">
+                        {/* Timeline status dot */}
+                        <div className={`absolute -left-[19px] top-6 w-3 h-3 rounded-full border-2 transition-all duration-300 z-10 ${
+                          isLocked 
+                            ? 'bg-slate-900 border-slate-800' 
+                            : isCompleted 
+                            ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' 
+                            : 'bg-blue-600 border-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                        }`} />
+
+                        {/* Lesson Card */}
+                        <div className={`rounded-xl border p-5 transition-all duration-300 ${
+                          isLocked
+                            ? 'bg-slate-900/50 border-slate-800/60 text-slate-500 opacity-60'
+                            : isCompleted
+                            ? 'bg-slate-950 border-slate-800 hover:border-emerald-500/50 shadow-sm'
+                            : 'bg-slate-950 border-slate-800 hover:border-blue-500/50 shadow-sm ring-1 ring-blue-500/5'
+                        }`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="space-y-1">
+                              <span className="block text-[9px] font-bold text-slate-500 font-mono uppercase tracking-widest">
+                                Lesson {mod.order_index}.{lesson.order_index}
+                              </span>
+                              <h4 className={`text-sm font-bold leading-relaxed ${isLocked ? 'text-slate-500' : 'text-slate-100 group-hover:text-blue-500 transition-colors'}`}>
+                                {lesson.title}
+                              </h4>
+                              {isLocked && lesson.visibleAfter && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-100/50 px-2 py-0.5 rounded-full mt-1">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  Unlocks: {new Date(lesson.visibleAfter).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                              {/* Submit Assignment button */}
+                              {!isLocked && lesson.hasAssignment && (
+                                <button
+                                  onClick={() => {
+                                    if (lesson.assignmentId) {
+                                      router.push(`/learn/${classCode}/assignments/${lesson.assignmentId}`)
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-slate-100 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  Submit Task
+                                </button>
+                              )}
+
+                              {/* Action Link button */}
+                              {isLocked ? (
+                                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-600 flex items-center justify-center">
+                                  <Lock className="w-4 h-4" />
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    router.push(`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`)
+                                  }}
+                                  className={`inline-flex items-center gap-1 text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                                    isCompleted 
+                                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
+                                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/10'
+                                  }`}
+                                >
+                                  <span>{isCompleted ? 'Review' : 'Start'}</span>
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ) : (
-          <ReactFlow
-            nodes={syllabusNodes}
-            edges={syllabusEdges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            fitView
-            fitViewOptions={{ padding: 0.3 }}
-            nodesConnectable={false}
-            nodesDraggable={true}
-            zoomOnScroll={true}
-            zoomOnPinch={true}
-            zoomOnDoubleClick={false}
-            panOnDrag={true}
-          >
-            <Background color="#cbd5e1" gap={18} size={1} />
-          </ReactFlow>
-        )}
-      </div>
+        </motion.div>
+      )}
     </div>
   )
 }

@@ -188,30 +188,52 @@ def build_assignment_questions_messages(
     ]
 
 
-def build_parse_questions_messages(file_content: str) -> list[dict[str, str]]:
+def build_parse_questions_messages(file_content: str, solution_content: str | None = None) -> list[dict[str, str]]:
     """Build system and user messages for parsing questions from file content."""
+    system_prompt = (
+        "You are an educational assistant helper. Read the provided file content and identify all assignment questions.\n"
+        "Return only one valid JSON object. Do not include markdown code block syntax.\n"
+        "The JSON must have a single root key 'questions' which is an array of objects. "
+        "Each object must contain:\n"
+        "- id: integer (starting from 1)\n"
+        "- content: string (the question text or task description)\n"
+        "- options: array of strings (e.g. ['A. ...', 'B. ...', 'C. ...', 'D. ...']) if multiple choice, otherwise null\n"
+    )
+    if solution_content:
+        system_prompt += (
+            "- answer: string or null. We have provided a companion solution key / master solution file content. "
+            "You must match each identified question with its corresponding correct answer/solution from the solution key, and copy it here. "
+            "CRITICAL: You must extract the FULL, COMPLETE code block, explanation, and solution text. "
+            "Never truncate the code, never use placeholders like '...', '# ...', 'TODO', or write only the function header. "
+            "You must output the exact, complete, runnable code block or complete text answer found in the solution key. "
+            "Set 'answer_source' to 'file_import'.\n"
+        )
+    else:
+        system_prompt += (
+            "- answer: string or null. Only extract an answer when the source file explicitly contains an answer key, sample solution, rubric outline, or teacher solution for that exact question. "
+            "Do not invent or solve missing answers during parsing.\n"
+        )
+    
+    system_prompt += (
+        "- answer_source: string or null. Use 'file_import' when answer was explicitly extracted from the source file or matched from the provided solution key; otherwise null.\n"
+        "- type: string ('multiple_choice' or 'essay')\n"
+        "- data: object or null\n\n"
+        "This task is extraction, not answer generation. If a question has no explicit answer in the provided file(s), set answer to null and answer_source to null.\n"
+        "If no questions are found, return the JSON with an empty list for 'questions'."
+    )
+
+    user_prompt = f"Extract questions from the following content:\n\n{file_content}"
+    if solution_content:
+        user_prompt += f"\n\nHere is the companion solution key file content containing the answers:\n\n{solution_content}"
+
     return [
         {
             "role": "system",
-            "content": (
-                "You are an educational assistant helper. Read the provided file content and identify all assignment questions.\n"
-                "Return only one valid JSON object. Do not include markdown code block syntax.\n"
-                "The JSON must have a single root key 'questions' which is an array of objects. "
-                "Each object must contain:\n"
-                "- id: integer (starting from 1)\n"
-                "- content: string (the question text or task description)\n"
-                "- options: array of strings (e.g. ['A. ...', 'B. ...', 'C. ...', 'D. ...']) if multiple choice, otherwise null\n"
-                "- answer: string or null. Only extract an answer when the source file explicitly contains an answer key, sample solution, rubric outline, or teacher solution for that exact question. Do not invent or solve missing answers during parsing.\n"
-                "- answer_source: string or null. Use 'file_import' when answer was explicitly extracted from the source file; otherwise null.\n"
-                "- type: string ('multiple_choice' or 'essay')\n"
-                "- data: object or null\n\n"
-                "This task is extraction, not answer generation. If a question has no explicit answer in the file, set answer to null and answer_source to null.\n"
-                "If no questions are found, return the JSON with an empty list for 'questions'."
-            ),
+            "content": system_prompt,
         },
         {
             "role": "user",
-            "content": f"Extract questions from the following content:\n\n{file_content}",
+            "content": user_prompt,
         },
     ]
 

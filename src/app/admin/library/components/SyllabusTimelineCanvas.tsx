@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Plus, HelpCircle, BookOpenText, Layers, ChevronUp, ChevronDown, Edit, Eye, Loader2, GripVertical } from 'lucide-react'
+import { Plus, HelpCircle, BookOpenText, Layers, ChevronUp, ChevronDown, Edit, Eye, Loader2, GripVertical, Trash2 } from 'lucide-react'
 import { SyllabusRoadmapVisualizer } from './SyllabusRoadmapVisualizer'
 import { toggleLessonPublishStatusAction } from '../actions/refined_knowledge'
+import { deleteLessonAction, deleteModuleAction } from '../actions/courses'
 
 interface SyllabusTimelineCanvasProps {
   selectedCourse: any | null
@@ -50,6 +51,36 @@ export function SyllabusTimelineCanvas({
 }: SyllabusTimelineCanvasProps) {
   // Roadmap Visualizer state
   const [showRoadmapMap, setShowRoadmapMap] = useState(false)
+
+  const handleDeleteLesson = async (lessonId: string, title: string) => {
+    if (confirm(`Are you sure you want to delete the lesson "${title}"? This action cannot be undone.`)) {
+      try {
+        const res = await deleteLessonAction(lessonId)
+        if (res.success) {
+          if (onRefreshCourse) onRefreshCourse()
+        } else {
+          alert(`Failed to delete lesson: ${res.error}`)
+        }
+      } catch (err: any) {
+        alert(`Error deleting lesson: ${err.message}`)
+      }
+    }
+  }
+
+  const handleDeleteModule = async (moduleId: string, title: string) => {
+    if (confirm(`Are you sure you want to delete the module "${title}" and all its lessons? This action cannot be undone.`)) {
+      try {
+        const res = await deleteModuleAction(moduleId)
+        if (res.success) {
+          if (onRefreshCourse) onRefreshCourse()
+        } else {
+          alert(`Failed to delete module: ${res.error}`)
+        }
+      } catch (err: any) {
+        alert(`Error deleting module: ${err.message}`)
+      }
+    }
+  }
 
   // Drag and drop state
   const [draggedModuleId, setDraggedModuleId] = useState<string | null>(null)
@@ -254,7 +285,7 @@ export function SyllabusTimelineCanvas({
         {/* Global Saving Order Banner */}
         {savingReorder && (
           <div className="p-3 bg-indigo-50 border border-indigo-150 rounded-2xl flex items-center justify-center gap-2 text-indigo-700 text-xs font-bold animate-pulse">
-            <Loader2 className="w-4 h-4 animate-spin text-indigo-650" />
+            <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
             <span>Synchronizing Syllabus order with database transaction...</span>
           </div>
         )}
@@ -374,8 +405,17 @@ export function SyllabusTimelineCanvas({
                             disabled={modIdx === courseModules.length - 1}
                             onClick={() => handleMoveModule(mod.id, 'down')}
                             className="w-7 h-7 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-500 hover:text-slate-100 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-500 flex items-center justify-center shadow-sm transition-all"
+                            title="Move Module Down"
                           >
                             <ChevronDown className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteModule(mod.id, mod.title)}
+                            className="w-7 h-7 rounded-full bg-slate-900 hover:bg-red-950 border border-slate-800 hover:border-red-900 text-slate-500 hover:text-red-500 flex items-center justify-center shadow-sm transition-all ml-1"
+                            title="Delete Module"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
 
@@ -547,12 +587,34 @@ export function SyllabusTimelineCanvas({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
+                                  router.push(`/admin/presentation/${lesson.id}`)
+                                }}
+                                className="p-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-500 hover:text-indigo-500 hover:bg-slate-950 transition-all shadow-sm"
+                                title="Present / View Lesson"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
                                   router.push(`/admin/library/lesson-editor?lessonId=${lesson.id}`)
                                 }}
                                 className="p-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-500 hover:text-blue-600 hover:bg-slate-950 transition-all shadow-sm"
                                 title="Open Composer Editor"
                               >
                                 <Edit className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteLesson(lesson.id, lesson.title)
+                                }}
+                                className="p-2 rounded-xl bg-slate-900 hover:bg-red-950 border border-slate-800 text-slate-500 hover:text-red-500 hover:bg-slate-950 transition-all shadow-sm"
+                                title="Delete Lesson"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </div>

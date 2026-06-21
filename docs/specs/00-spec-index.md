@@ -30,24 +30,24 @@ All surfaces across the Teaching OS must render using the **Light theme** (defau
 
 ## 📁 Document Inventory & Read Order
 
-1.  **[01-platform-overview.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/01-platform-overview.md)**: Product mission and application zones.
-2.  **[02-domain-model.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/02-domain-model.md)**: Unified domain terminology and edge cases.
-3.  **[03-bounded-contexts.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/03-bounded-contexts.md)**: System boundaries and write-ownership.
-4.  **[04-roles-and-access.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/04-roles-and-access.md)**: Permission matrix mapping.
-5.  **[05-routing-and-navigation.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/05-routing-and-navigation.md)**: Next.js App Router folders and layout grids.
-6.  **[06-data-model.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/06-data-model.md)**: Database Postgres tables schema.
-7.  **[07-storage-and-assets.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/07-storage-and-assets.md)**: Supabase Storage file rules.
-8.  **[08-content-system.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/08-content-system.md)**: Content catalog rules and drafts.
-9.  **[09-learning-delivery.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/09-learning-delivery.md)**: Release gates and calendars.
-10. **[10-assessment-and-submissions.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/10-assessment-and-submissions.md)**: Upload validation rules.
-11. **[11-grading-and-rubrics.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/11-grading-and-rubrics.md)**: Evaluation score matrix mapping.
-12. **[12-admin-workflows.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/12-admin-workflows.md)**: Flowcharts for CMS tasks.
-13. **[13-learner-experience.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/13-learner-experience.md)**: Roadmap React Flow views.
-14. **[14-integration-contracts.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/14-integration-contracts.md)**: Webhooks schemas.
-15. **[15-implementation-rules.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/15-implementation-rules.md)**: Coding guidelines.
-16. **[16-open-decisions.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/16-open-decisions.md)**: Pending CMS updates.
-17. **[17-rag-knowledge-hub.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/17-rag-knowledge-hub.md)**: RAG & Knowledge Library specifications.
-18. **[AGENTS.md](file:///Users/mac/Data/STE/vuth-portfolio-main/docs/specs/AGENTS.md)**: Command guidelines.
+1.  **[01-platform-overview.md](01-platform-overview.md)**: Product mission and application zones.
+2.  **[02-domain-model.md](02-domain-model.md)**: Unified domain terminology and edge cases.
+3.  **[03-bounded-contexts.md](03-bounded-contexts.md)**: System boundaries and write-ownership.
+4.  **[04-roles-and-access.md](04-roles-and-access.md)**: Permission matrix mapping.
+5.  **[05-routing-and-navigation.md](05-routing-and-navigation.md)**: Next.js App Router folders and layout grids.
+6.  **[06-data-model.md](06-data-model.md)**: Database Postgres tables schema.
+7.  **[07-storage-and-assets.md](07-storage-and-assets.md)**: Supabase Storage file rules.
+8.  **[08-content-system.md](08-content-system.md)**: Content catalog rules and drafts.
+9.  **[09-learning-delivery.md](09-learning-delivery.md)**: Release gates and calendars.
+10. **[10-assessment-and-submissions.md](10-assessment-and-submissions.md)**: Upload validation rules.
+11. **[11-grading-and-rubrics.md](11-grading-and-rubrics.md)**: Evaluation score matrix mapping.
+12. **[12-admin-workflows.md](12-admin-workflows.md)**: Flowcharts for CMS tasks.
+13. **[13-learner-experience.md](13-learner-experience.md)**: Roadmap React Flow views.
+14. **[14-integration-contracts.md](14-integration-contracts.md)**: Webhooks schemas.
+15. **[15-implementation-rules.md](15-implementation-rules.md)**: Coding guidelines.
+16. **[16-open-decisions.md](16-open-decisions.md)**: Pending CMS updates.
+17. **[17-rag-knowledge-hub.md](17-rag-knowledge-hub.md)**: RAG & Knowledge Library specifications.
+18. **[AGENTS.md](../../AGENTS.md)**: Command guidelines.
 
 ---
 

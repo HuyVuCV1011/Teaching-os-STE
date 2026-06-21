@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -344,6 +344,7 @@ class AssignmentGenerationResponse(PilotContract):
 class ParseFileQuestionsRequest(PilotContract):
     model_choice: str = "ollama"
     file_content: str
+    solution_content: str | None = None
 
 
 class SuggestQuestionAnswerRequest(PilotContract):
@@ -358,7 +359,7 @@ class SuggestQuestionAnswerResponse(PilotContract):
 
 
 class SuggestBatchQuestionItem(BaseModel):
-    id: int
+    id: Union[int, str]
     content: str
 
 
@@ -370,7 +371,7 @@ class SuggestBatchQuestionAnswersRequest(PilotContract):
 
 
 class BatchAnswerItem(BaseModel):
-    id: int
+    id: Union[int, str]
     answer: str
 
 

@@ -137,10 +137,11 @@ def generate_assignment_questions(
 def parse_file_questions(
     model_choice: str,
     file_content: str,
+    solution_content: str | None = None,
 ) -> dict[str, Any]:
     """AI parses assignment questions from file content."""
     provider = get_provider(model_choice)
-    messages = build_parse_questions_messages(file_content)
+    messages = build_parse_questions_messages(file_content, solution_content)
     system_instruction = messages[0]["content"]
     user_prompt = messages[1]["content"]
 
@@ -336,8 +337,9 @@ class AIBroker:
         cls,
         model_choice: str,
         file_content: str,
+        solution_content: str | None = None,
     ) -> dict[str, Any]:
-        return parse_file_questions(model_choice, file_content)
+        return parse_file_questions(model_choice, file_content, solution_content)
 
     @classmethod
     def suggest_batch_question_answers(

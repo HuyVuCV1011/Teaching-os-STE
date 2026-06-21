@@ -619,7 +619,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                               setSimulatedAnswers((prev: any) => ({ ...prev, [idx]: e.target.value }))
                                             }}
                                             placeholder="Type your simulated essay response..."
-                                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 h-24 placeholder-slate-600"
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500 h-24 placeholder-slate-600"
                                           />
                                           <div className="text-[10px] text-slate-500 text-right">
                                             {(simulatedAnswers[idx] || '').trim().split(/\s+/).filter(Boolean).length} words
@@ -1022,7 +1022,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-blue-500 animate-pulse" />
                 <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-                  AI Assignment Generator
+                  {batches[activeBatchIndex]?.questions?.some((q: any) => q.source === 'file_import')
+                    ? 'Parsed Assignment Preview'
+                    : 'AI Assignment Generator'}
                 </h3>
               </div>
               <button
@@ -1226,7 +1228,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiType('multiple_choice')}
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiType === 'multiple_choice'
-                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                                  ? 'bg-blue-600/10 border-blue-500 text-slate-100 ring-1 ring-blue-500/30'
                                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
@@ -1248,7 +1250,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiType('essay')}
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiType === 'essay'
-                                  ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
+                                  ? 'bg-purple-600/10 border-purple-500 text-slate-100 ring-1 ring-purple-500/30'
                                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
@@ -1278,7 +1280,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiCategory('theory')}
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiCategory === 'theory'
-                                  ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
+                                  ? 'bg-amber-600/10 border-amber-500 text-slate-100 ring-1 ring-amber-500/30'
                                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
@@ -1300,7 +1302,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               onClick={() => setAiCategory('code')}
                               className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                                 aiCategory === 'code'
-                                  ? 'bg-emerald-600/10 border-emerald-500 text-white ring-1 ring-emerald-500/30'
+                                  ? 'bg-emerald-600/10 border-emerald-500 text-slate-100 ring-1 ring-emerald-500/30'
                                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                               }`}
                             >
@@ -1330,7 +1332,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 onClick={() => setAiDefaultAnswerFormat('text')}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
                                   aiDefaultAnswerFormat === 'text'
-                                    ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30'
+                                    ? 'bg-blue-600/10 border-blue-500 text-slate-100 ring-1 ring-blue-500/30'
                                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                                 }`}
                               >
@@ -1343,7 +1345,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 onClick={() => setAiDefaultAnswerFormat('file')}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
                                   aiDefaultAnswerFormat === 'file'
-                                    ? 'bg-amber-600/10 border-amber-500 text-white ring-1 ring-amber-500/30'
+                                    ? 'bg-amber-600/10 border-amber-500 text-slate-100 ring-1 ring-amber-500/30'
                                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                                 }`}
                               >
@@ -1356,7 +1358,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                 onClick={() => setAiDefaultAnswerFormat('both')}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all min-h-[72px] ${
                                   aiDefaultAnswerFormat === 'both'
-                                    ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30'
+                                    ? 'bg-purple-600/10 border-purple-500 text-slate-100 ring-1 ring-purple-500/30'
                                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
                                 }`}
                               >
@@ -1377,9 +1379,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               type="button"
                               onClick={() => setAiDifficulty('easy')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
-                                aiDifficulty === 'easy'
-                                  ? 'bg-emerald-600/10 border-emerald-500 text-white ring-1 ring-emerald-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  aiDifficulty === 'easy'
+                                    ? 'bg-emerald-600/10 border-emerald-500 text-slate-100 ring-1 ring-emerald-500/30 font-bold'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🟢 Easy</span>
@@ -1388,9 +1390,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               type="button"
                               onClick={() => setAiDifficulty('medium')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
-                                aiDifficulty === 'medium'
-                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  aiDifficulty === 'medium'
+                                    ? 'bg-blue-600/10 border-blue-500 text-slate-100 ring-1 ring-blue-500/30 font-bold'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🔵 Medium</span>
@@ -1399,9 +1401,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               type="button"
                               onClick={() => setAiDifficulty('hard')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
-                                aiDifficulty === 'hard'
-                                  ? 'bg-rose-600/10 border-rose-500 text-white ring-1 ring-rose-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  aiDifficulty === 'hard'
+                                    ? 'bg-rose-600/10 border-rose-500 text-slate-100 ring-1 ring-rose-500/30 font-bold'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🔴 Hard</span>
@@ -1419,9 +1421,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               type="button"
                               onClick={() => setAiLanguage('vietnamese')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
-                                aiLanguage === 'vietnamese'
-                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  aiLanguage === 'vietnamese'
+                                    ? 'bg-blue-600/10 border-blue-500 text-slate-100 ring-1 ring-blue-500/30 font-bold'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs"> Tiếng Việt</span>
@@ -1430,9 +1432,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               type="button"
                               onClick={() => setAiLanguage('english')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
-                                aiLanguage === 'english'
-                                  ? 'bg-blue-600/10 border-blue-500 text-white ring-1 ring-blue-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  aiLanguage === 'english'
+                                    ? 'bg-blue-600/10 border-blue-500 text-slate-100 ring-1 ring-blue-500/30 font-bold'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🇺🇸 English</span>
@@ -1441,9 +1443,9 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                               type="button"
                               onClick={() => setAiLanguage('both')}
                               className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all min-h-[60px] ${
-                                aiLanguage === 'both'
-                                  ? 'bg-purple-600/10 border-purple-500 text-white ring-1 ring-purple-500/30 font-bold'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                                  aiLanguage === 'both'
+                                    ? 'bg-purple-600/10 border-purple-500 text-slate-100 ring-1 ring-purple-500/30 font-bold'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
                               }`}
                             >
                               <span className="block text-xs">🌐 Bilingual</span>
@@ -1478,10 +1480,10 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                         type="button"
                         disabled={materials.length > 0 && aiSelectedMaterials.length === 0}
                         onClick={handleStartGenerating}
-                        className={`group relative px-12 py-4 text-white rounded-2xl text-sm font-bold shadow-xl transition-all duration-300 flex items-center gap-3 overflow-hidden ${
+                        className={`group relative px-12 py-4 rounded-2xl text-sm font-bold shadow-xl transition-all duration-300 flex items-center gap-3 overflow-hidden ${
                           materials.length > 0 && aiSelectedMaterials.length === 0
-                            ? 'bg-slate-800 border border-slate-700 cursor-not-allowed opacity-50'
-                            : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 hover:scale-[1.03]'
+                            ? 'bg-slate-800 border border-slate-700 text-slate-400 cursor-not-allowed opacity-50'
+                            : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 hover:scale-[1.03]'
                         }`}
                       >
                         <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

@@ -329,6 +329,7 @@ def create_app() -> FastAPI:
             res = AIBroker.parse_file_questions(
                 model_choice=request.model_choice,
                 file_content=request.file_content,
+                solution_content=request.solution_content,
             )
             questions_list = res.get("questions", [])
             return AssignmentGenerationResponse(questions=questions_list)
