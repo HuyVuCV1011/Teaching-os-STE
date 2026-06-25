@@ -8,6 +8,7 @@ interface CodeFileViewerProps {
   url: string
   title: string
   downloadAllowed?: boolean
+  isSplit?: boolean
 }
 
 // Inline SVG for the STE Wise company logo, with clean dark text for light headers
@@ -71,7 +72,7 @@ function highlightCode(code: string, lang: 'python' | 'sql' | 'other' = 'other')
   return html
 }
 
-export default function CodeFileViewer({ url, title, downloadAllowed = true }: CodeFileViewerProps) {
+export default function CodeFileViewer({ url, title, downloadAllowed = true, isSplit = false }: CodeFileViewerProps) {
   const [content, setContent] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -208,7 +209,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true }: C
       const cells = notebookData.cells || []
 
       return (
-        <div className="space-y-4 font-sans text-left">
+        <div className={`space-y-4 font-sans text-left ${isSplit ? 'h-full flex flex-col' : ''}`}>
           {/* Colab Notebook Header Controls */}
           <div className="flex items-center justify-between p-3.5 bg-white border border-slate-800 rounded-2xl shrink-0 shadow-sm">
             <div className="flex items-center gap-3">
@@ -232,7 +233,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true }: C
           </div>
 
           {/* Notebook Canvas */}
-          <div className="bg-[#f8f9fa] border border-slate-800 rounded-2xl p-4 md:p-6 space-y-5">
+          <div className={`bg-[#f8f9fa] border border-slate-800 rounded-2xl p-4 md:p-6 space-y-5 ${isSplit ? 'flex-1 min-h-0 overflow-y-auto custom-scrollbar' : ''}`}>
             {cells.map((cell: any, idx: number) => {
               const cellSource = Array.isArray(cell.source) ? cell.source.join('') : cell.source || ''
               
@@ -378,7 +379,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true }: C
     : "bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 border border-slate-500/20"
 
   return (
-    <div className={`border ${borderCol} ${editorBg} rounded-2xl overflow-hidden shadow-sm flex flex-col max-h-[1600px] w-full font-sans text-left`}>
+    <div className={`border ${borderCol} ${editorBg} rounded-2xl overflow-hidden shadow-sm flex flex-col w-full font-sans text-left ${isSplit ? 'h-full' : 'max-h-[1600px]'}`}>
       {/* File Header Tab Bar */}
       <div className={`flex items-center justify-between ${headerBg} border-b ${borderCol} shrink-0`}>
         {/* Active Tab */}

@@ -373,7 +373,7 @@ function AdminLibraryContent() {
   }
 
   return (
-    <div className="space-y-10 max-w-7xl mx-auto px-4 py-8">
+    <div className="space-y-10 max-w-[1600px] mx-auto px-6 py-8">
       {/* Page Title & Navigation Header (Double-Bezel Outer Shell) */}
       <div className="p-1 rounded-[2rem] bg-slate-900/5 ring-1 ring-slate-800/5 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-950 border border-slate-800/30 p-8 rounded-[calc(2rem-0.25rem)] relative overflow-hidden">
@@ -455,7 +455,7 @@ function AdminLibraryContent() {
         ) : (
           <>
             {activeTab === 'courses' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <CourseRegistrySidebar
                   courses={courses}
                   subjects={subjects}

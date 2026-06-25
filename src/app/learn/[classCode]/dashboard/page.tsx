@@ -43,6 +43,8 @@ export default function LearnerDashboard({ params }: DashboardProps) {
   const [certificateId, setCertificateId] = useState<string | null>(null)
   const [showCertificateModal, setShowCertificateModal] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
+  const [suggestedLesson, setSuggestedLesson] = useState<any | null>(null)
+  const [dueAssignments, setDueAssignments] = useState<any[]>([])
 
   useEffect(() => {
     const email = getCookie(`student_email_${classCode}`)
@@ -95,10 +97,29 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           // 4. Fetch All Lessons for assigned courses
           const { data: lessonsList } = await supabase
             .from('lessons')
-            .select('id, module_id, metadata, modules(course_id)')
+            .select('id, title, order_index, module_id, metadata, modules(id, title, order_index, course_id, courses(id, title, slug))')
             .in('modules.course_id', courseIds)
 
           const activeLessons = (lessonsList || []).filter((l: any) => l.modules && l.metadata?.status !== 'draft')
+
+          // Fetch all schedules for this class
+          const { data: schedulesList } = await supabase
+            .from('class_schedules')
+            .select('*')
+            .eq('class_id', classData.id)
+
+          const scheduleMap = new Map(schedulesList?.map(s => [s.lesson_id, s]) || [])
+
+          // Fetch assignments for the cohort
+          const lessonIds = (lessonsList || []).map(l => l.id)
+          let assignmentsList: any[] = []
+          if (lessonIds.length > 0) {
+            const { data: assignData } = await supabase
+              .from('assignments')
+              .select('id, title, lesson_id')
+              .in('lesson_id', lessonIds)
+            assignmentsList = assignData || []
+          }
 
           // 5. Fetch Completed Lesson Progress
           const { data: progressList } = await supabase
@@ -178,9 +199,70 @@ export default function LearnerDashboard({ params }: DashboardProps) {
             .eq('class_id', classData.id)
             .eq('student_email', activeEmail)
             .maybeSingle()
+
           if (existingCert) {
             setCertificateId(existingCert.id)
           }
+
+          // Calculate suggested lesson (first unlocked, uncompleted)
+          const sortedLessons = [...(lessonsList || [])]
+            .filter((l: any) => l.modules && l.metadata?.status !== 'draft')
+            .sort((a: any, b: any) => {
+              const modDiff = (a.modules.order_index || 0) - (b.modules.order_index || 0)
+              if (modDiff !== 0) return modDiff
+              return (a.order_index || 0) - (b.order_index || 0)
+            })
+
+          const now = new Date()
+          let foundSuggested: any = null
+          for (const l of sortedLessons) {
+            if (completedSet.has(l.id)) continue
+            const sched = scheduleMap.get(l.id)
+            const visibleAfterStr = sched?.visible_after
+            let isLocked = true
+            if (visibleAfterStr) {
+              const unlockTime = new Date(visibleAfterStr)
+              if (unlockTime <= now) {
+                isLocked = false
+              }
+            }
+            if (!isLocked) {
+              foundSuggested = {
+                id: l.id,
+                title: l.title,
+                courseName: l.modules.courses.title,
+                courseSlug: l.modules.courses.slug,
+              }
+              break
+            }
+          }
+          setSuggestedLesson(foundSuggested)
+
+          // Calculate due assignments
+          const submittedAssignmentIds = new Set(subsData?.map(s => s.assignment_id) || [])
+          const dueSoonList: any[] = []
+          const sevenDaysFromNow = new Date()
+          sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
+
+          schedulesList?.forEach(sched => {
+            if (sched.due_date) {
+              const dueDate = new Date(sched.due_date)
+              if (dueDate > now && dueDate <= sevenDaysFromNow) {
+                const assocAssignment = assignmentsList.find(a => a.lesson_id === sched.lesson_id)
+                if (assocAssignment && !submittedAssignmentIds.has(assocAssignment.id)) {
+                  const daysRemaining = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                  dueSoonList.push({
+                    id: assocAssignment.id,
+                    title: assocAssignment.title,
+                    dueDate,
+                    daysRemaining,
+                  })
+                }
+              }
+            }
+          })
+          dueSoonList.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+          setDueAssignments(dueSoonList.slice(0, 3))
         }
       } catch (err) {
         console.error('Failed to load student courses:', err)
@@ -281,7 +363,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 p-8 shadow-[0_2px_12px_rgba(0,0,0,0.01)]"
+        className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 p-8 shadow-sm"
       >
         {/* Ambient radial accent in background */}
         <div className="absolute right-0 top-0 w-80 h-full bg-gradient-to-l from-blue-500/[0.04] to-transparent pointer-events-none" />
@@ -292,11 +374,33 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">
             My Learning Desk
           </h1>
-          <p className="text-slate-600 max-w-xl text-xs leading-relaxed">
+          <p className="text-slate-400 max-w-xl text-xs leading-relaxed">
             Welcome to your student workspace. Select any of the courses assigned to your cohort below to launch your roadmap and check materials.
           </p>
         </div>
       </motion.div>
+
+      {/* Continue Learning card */}
+      {suggestedLesson && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-blue-600/5 border border-blue-500/20 rounded-2xl p-5 border-l-4 border-l-blue-600 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm"
+        >
+          <div>
+            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider block">Continue Learning</span>
+            <h3 className="text-sm font-bold text-slate-100 mt-1">{suggestedLesson.title}</h3>
+            <span className="text-xs text-slate-500 mt-0.5 block">{suggestedLesson.courseName}</span>
+          </div>
+          <Link
+            href={`/learn/${classCode}/courses/${suggestedLesson.courseSlug}/lessons/${suggestedLesson.id}`}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5 shrink-0 border-0"
+          >
+            <span>Continue</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </motion.div>
+      )}
 
       {/* Main Workspace Layout (2-Column Asymmetric Grid) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -311,7 +415,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           </div>
 
           {courses.length === 0 ? (
-            <div className="text-center py-20 border border-dashed border-slate-800 bg-slate-950 rounded-2xl text-slate-500 text-sm flex flex-col items-center justify-center gap-2 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+            <div className="text-center py-20 border border-dashed border-slate-800 bg-slate-950 rounded-2xl text-slate-500 text-sm flex flex-col items-center justify-center gap-2 shadow-sm">
               <Award className="w-8 h-8 text-slate-400" />
               <span>No courses currently assigned to this cohort. Contact your coordinator.</span>
             </div>
@@ -331,11 +435,11 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                     key={course.id}
                     variants={itemVariants}
                     whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                    className="border border-slate-800 bg-slate-950 rounded-2xl p-6 flex flex-col justify-between hover:border-slate-700 transition-all duration-200 group relative overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.01)]"
+                    className="border border-slate-800 bg-slate-950 rounded-2xl p-6 flex flex-col justify-between hover:border-slate-700 transition-all duration-200 group relative overflow-hidden shadow-sm"
                   >
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono font-bold text-slate-600">
+                        <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono font-bold text-slate-400">
                           v{course.version || 1}
                         </span>
                         {percent === 100 && (
@@ -360,7 +464,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                         <span>Progress: {progress.completed} / {progress.total} Lessons</span>
                         <span>{percent}%</span>
                       </div>
-                      <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-850">
+                      <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
                             percent === 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-blue-600 to-indigo-600'
@@ -370,7 +474,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                       </div>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-slate-850 flex justify-end">
+                    <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
                       <Link
                         href={`/learn/${classCode}/courses/${course.slug}/roadmap`}
                         className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors group"
@@ -395,7 +499,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2, type: 'spring' }}
-              className="border border-emerald-500/20 bg-emerald-500/[0.02] rounded-2xl p-6 shadow-[0_2px_12px_rgba(0,0,0,0.01)] space-y-4"
+              className="border border-emerald-500/20 bg-emerald-500/[0.02] rounded-2xl p-6 shadow-sm space-y-4"
             >
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 shrink-0 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shadow-md">
@@ -420,19 +524,61 @@ export default function LearnerDashboard({ params }: DashboardProps) {
             </motion.div>
           )}
 
+          {/* Due Soon Widget */}
+          {dueAssignments.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="border border-amber-500/20 bg-amber-500/[0.02] rounded-2xl p-5 space-y-4 shadow-sm"
+            >
+              <h3 className="text-xs font-bold text-amber-600 flex items-center gap-2 uppercase tracking-wider">
+                Due Soon
+              </h3>
+              <div className="space-y-3">
+                {dueAssignments.map((due) => {
+                  let badgeColor = 'bg-slate-800 text-slate-400'
+                  if (due.daysRemaining < 2) {
+                    badgeColor = 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
+                  } else if (due.daysRemaining <= 5) {
+                    badgeColor = 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                  }
+
+                  return (
+                    <div key={due.id} className="flex justify-between items-start gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800">
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/learn/${classCode}/assignments/${due.id}`}
+                          className="text-xs font-bold text-slate-100 hover:text-blue-500 transition-colors block leading-snug truncate"
+                        >
+                          {due.title}
+                        </Link>
+                        <span className="text-[10px] text-slate-500 mt-1 block">
+                          Due: {new Date(due.dueDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${badgeColor} shrink-0`}>
+                        {due.daysRemaining < 1 ? 'Due today' : due.daysRemaining === 1 ? '1 day left' : `${due.daysRemaining} days left`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </motion.div>
+          )}
+
           {/* Announcements Notice Board */}
           {announcements.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="border border-slate-800 bg-slate-950 rounded-2xl p-6 space-y-4 shadow-[0_2px_12px_rgba(0,0,0,0.01)]"
+              className="border border-slate-800 bg-slate-950 rounded-2xl p-6 space-y-4 shadow-sm"
             >
               <h3 className="text-xs font-bold text-amber-600 flex items-center gap-2 uppercase tracking-wider">
                 <Megaphone className="w-4 h-4" />
                 Class Announcements
               </h3>
-              <div className="divide-y divide-slate-850">
+              <div className="divide-y divide-slate-800">
                 {announcements.map((ann) => (
                   <div key={ann.id} className="py-3.5 first:pt-0 last:pb-0 space-y-1">
                     <div className="flex justify-between items-baseline gap-2">

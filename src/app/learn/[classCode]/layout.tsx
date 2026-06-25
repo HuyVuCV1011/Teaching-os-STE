@@ -12,6 +12,7 @@ import {
   ChevronRight,
   LogOut,
   Sparkles,
+  FileText,
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -27,6 +28,21 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
 
   const [classInfo, setClassInfo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [isZenMode, setIsZenMode] = useState(false)
+
+  useEffect(() => {
+    // Check initial state from localStorage
+    const saved = localStorage.getItem('zen_mode') === 'true'
+    setIsZenMode(saved)
+
+    const handleToggle = (e: Event) => {
+      const customEvent = e as CustomEvent
+      setIsZenMode(customEvent.detail)
+    }
+
+    window.addEventListener('toggle-zen-mode', handleToggle)
+    return () => window.removeEventListener('toggle-zen-mode', handleToggle)
+  }, [])
 
   useEffect(() => {
     async function fetchClassInfo() {
@@ -59,6 +75,11 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
       icon: Map,
     },
     {
+      name: 'Assignments',
+      href: `/learn/${classCode}/grades`,
+      icon: FileText,
+    },
+    {
       name: 'My Marks & Grades',
       href: `/learn/${classCode}/grades`,
       icon: GraduationCap,
@@ -78,7 +99,9 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-indigo-500/[0.03] blur-[130px] pointer-events-none" />
 
       {/* Sidebar: Premium Floating White surface over off-white layout background */}
-      <aside className="w-64 border-r border-slate-800/80 bg-slate-950 flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20 shadow-[0_4px_30px_rgba(0,0,0,0.01)]">
+      <aside className={`border-r border-slate-800/80 bg-slate-950 flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20 shadow-[0_4px_30px_rgba(0,0,0,0.01)] transition-all duration-300 ${
+        isZenMode ? 'w-0 opacity-0 -translate-x-full border-r-0 pointer-events-none' : 'w-64 opacity-100 translate-x-0'
+      }`}>
         <div>
           {/* Header/Logo */}
           <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800/80">
@@ -92,7 +115,7 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
           </div>
 
           {/* Class Cohort Identifier: Styled like a premium ID badge */}
-          <div className="p-4 mx-4 my-4 rounded-xl bg-slate-900 border border-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]">
+          <div className="p-4 mx-4 my-4 rounded-xl bg-slate-900 border border-slate-800">
             {loading ? (
               <div className="space-y-2 animate-pulse">
                 <div className="h-2.5 w-12 bg-slate-800 rounded" />

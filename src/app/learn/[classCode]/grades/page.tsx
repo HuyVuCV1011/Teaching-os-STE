@@ -122,7 +122,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
       {/* Stats Cards Dashboard Row */}
       {gradesData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-sm">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600">
               <GraduationCap className="w-5 h-5" />
             </div>
@@ -131,13 +131,13 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
               <span className="block text-xl font-black text-slate-100 mt-0.5">
                 {gradedAssignments.length > 0 ? `${averageGrade.toFixed(1)}%` : '—'}
               </span>
-              <span className="block text-[9px] text-slate-550 font-semibold mt-0.5">
+              <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
                 {gradedAssignments.length} graded assignment(s)
               </span>
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-sm">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
@@ -146,13 +146,13 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
               <span className="block text-xl font-black text-slate-100 mt-0.5">
                 {completedAssignments} / {totalAssignments}
               </span>
-              <span className="block text-[9px] text-slate-550 font-semibold mt-0.5">
+              <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
                 {totalAssignments - completedAssignments} pending assignment(s)
               </span>
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-sm">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
               isEligibleForCertificate 
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 shadow-sm' 
@@ -165,7 +165,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
               <span className={`block text-xs font-bold mt-1 ${isEligibleForCertificate ? 'text-emerald-600' : 'text-slate-500'}`}>
                 {isEligibleForCertificate ? 'UNLOCKED (Passing)' : 'LOCKED (In Progress)'}
               </span>
-              <span className="block text-[9px] text-slate-550 font-semibold mt-0.5">
+              <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
                 Requires 100% complete & &gt;= 60% avg
               </span>
             </div>
@@ -174,12 +174,12 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
       )}
 
       {gradesData.length === 0 ? (
-        <div className="border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center py-24 text-slate-500 bg-slate-950 text-sm gap-2 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+        <div className="border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center py-24 text-slate-500 bg-slate-950 text-sm gap-2 shadow-sm">
           <FileSpreadsheet className="w-8 h-8 text-slate-400" />
           <span>No assignments registered for this class course syllabus yet.</span>
         </div>
       ) : (
-        <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.015)]">
+        <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800/80">
               <thead className="bg-slate-900 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800">
@@ -191,7 +191,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                   <th className="py-4 px-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850 bg-slate-950 text-sm">
+              <tbody className="divide-y divide-slate-800 bg-slate-950 text-sm">
                 {gradesData.map((row) => {
                   const hasSub = !!row.submission
                   const isGraded = !!row.grade
@@ -293,7 +293,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                         Overall Evaluator Feedback
                                       </h4>
-                                      <p className="text-xs text-slate-600 mt-1 whitespace-pre-line leading-relaxed">
+                                      <p className="text-xs text-slate-400 mt-1 whitespace-pre-line leading-relaxed">
                                         {row.grade.overall_feedback || 'No written summary comments registered.'}
                                       </p>
                                     </div>
@@ -305,7 +305,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                                         </h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                           {row.grade.rubric_scores.map((rs: any) => (
-                                            <div key={rs.id} className="p-4 bg-slate-900 rounded-xl border border-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]">
+                                            <div key={rs.id} className="p-4 bg-slate-900 rounded-xl border border-slate-800">
                                               <div className="flex justify-between items-start gap-2">
                                                 <span className="text-xs font-bold text-slate-100 truncate">
                                                   {rs.rubric_criteria?.name}

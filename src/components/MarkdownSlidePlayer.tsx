@@ -7,7 +7,8 @@ import {
   Maximize2, 
   Minimize2, 
   Play, 
-  RotateCcw
+  RotateCcw,
+  PanelLeft
 } from 'lucide-react'
 import { renderSimpleMarkdown } from '@/lib/markdown'
 
@@ -20,6 +21,7 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
   const [slides, setSlides] = useState<string[]>([])
   const [currentSlide, setCurrentSlide] = useState<number>(0)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Parse markdown by splitting at '---'
@@ -43,15 +45,27 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
     })
   }
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation and shortcut for sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input/textarea
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        document.activeElement?.hasAttribute('contenteditable')
+      ) {
+        return
+      }
+
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault()
         changeSlide(1)
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
         changeSlide(-1)
+      } else if (e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        setIsSidebarOpen(prev => !prev)
       }
     }
     
@@ -71,13 +85,35 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
     }
   }
 
+  // Auto-collapse sidebar in fullscreen mode
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
+      const isCurrentlyFullscreen = !!document.fullscreenElement
+      setIsFullscreen(isCurrentlyFullscreen)
+      if (isCurrentlyFullscreen) {
+        setIsSidebarOpen(false)
+      } else {
+        setIsSidebarOpen(true)
+      }
     }
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
+
+  // Auto-scroll selected thumbnail into view
+  useEffect(() => {
+    if (!isSidebarOpen) return
+    const timer = setTimeout(() => {
+      const activeThumb = document.getElementById(`slide-thumb-${currentSlide}`)
+      if (activeThumb) {
+        activeThumb.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        })
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [currentSlide, isSidebarOpen])
 
   if (slides.length === 0) {
     return (
@@ -99,11 +135,20 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
       {/* Top Header Bar */}
       <div className="flex items-center justify-between px-6 py-4 bg-slate-900/60 backdrop-blur-md border-b border-slate-800/80 z-20 shrink-0">
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`p-1.5 mr-1 rounded-lg transition-colors cursor-pointer ${
+              isSidebarOpen ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+            }`}
+            title={isSidebarOpen ? 'Ẩn thanh điều hướng (T)' : 'Hiện thanh điều hướng (T)'}
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
           <Play className="w-4 h-4 text-emerald-500" />
           <h4 className="text-xs font-bold text-slate-350 uppercase tracking-widest truncate max-w-xs sm:max-w-md">
             {title || 'Markdown Slides'}
           </h4>
-          <span className="ml-2 text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+          <span className="ml-2 text-[9px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider hidden sm:inline-block">
             Web-Native Slides
           </span>
         </div>
@@ -112,7 +157,7 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setCurrentSlide(0)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
             title="Restart Slideshow"
           >
             <RotateCcw className="w-4 h-4" />
@@ -120,7 +165,7 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
           <div className="h-4 w-px bg-slate-800 mx-1" />
           <button
             onClick={toggleFullscreen}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen presentation'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -128,23 +173,64 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
         </div>
       </div>
 
-      {/* Main Slide Canvas */}
-      <div className="flex-1 overflow-y-auto flex items-center justify-center p-8 md:p-16 bg-slate-950 relative z-0 custom-scrollbar">
-        <div className="w-full max-w-4xl mx-auto flex flex-col justify-center min-h-[300px]">
-          {/* We render the simple markdown content with custom presentation styling */}
-          <div
-            className="prose max-w-none text-slate-100 leading-relaxed text-center space-y-6 md:space-y-8
-              prose-headings:text-slate-100 prose-headings:font-bold prose-headings:tracking-tight 
-              prose-h1:text-3xl md:prose-h1:text-5xl prose-h1:border-b-0 prose-h1:pb-0 prose-h1:mb-8
-              prose-h2:text-2xl md:prose-h2:text-4xl prose-h2:border-b-0
-              prose-h3:text-xl md:prose-h3:text-2xl
-              prose-p:text-base md:prose-p:text-xl prose-p:text-slate-400 prose-p:mx-auto prose-p:max-w-2xl
-              prose-strong:text-slate-100 prose-strong:font-bold
-              prose-code:text-rose-500 prose-code:font-mono prose-code:text-sm md:prose-code:text-base prose-code:bg-slate-900/40 prose-code:px-2 prose-code:py-1 prose-code:rounded
-              prose-blockquote:text-slate-500 prose-blockquote:italic prose-blockquote:text-lg md:prose-blockquote:text-xl
-              flex flex-col items-center justify-center"
-            dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(activeSlideContent) }}
-          />
+      {/* Middle Layout Container */}
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {/* Left Sidebar */}
+        {isSidebarOpen && (
+          <div className="w-[190px] bg-slate-950 border-r border-slate-800/80 flex flex-col overflow-y-auto p-4 gap-3 shrink-0 custom-scrollbar select-none">
+            {slides.map((slide, idx) => (
+              <button
+                key={idx}
+                id={`slide-thumb-${idx}`}
+                onClick={() => setCurrentSlide(idx)}
+                className="flex items-start gap-2 group cursor-pointer text-left w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 rounded"
+              >
+                <span className={`text-[10px] font-mono font-bold w-4 text-right pt-1.5 shrink-0 ${
+                  currentSlide === idx ? 'text-emerald-500' : 'text-slate-500 group-hover:text-slate-350'
+                }`}>
+                  {idx + 1}
+                </span>
+                <div className={`relative aspect-[16/9] w-[130px] rounded-lg border overflow-hidden transition-all duration-200 shrink-0 ${
+                  currentSlide === idx 
+                    ? 'border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)] ring-1 ring-emerald-500' 
+                    : 'border-slate-800 bg-slate-900/30 group-hover:border-slate-700 group-hover:bg-slate-900/50'
+                }`}>
+                  {/* Scaled-down simplified slide content preview */}
+                  <div className="absolute inset-0 w-[520px] h-[292px] scale-[0.25] origin-top-left p-6 bg-slate-950 flex flex-col justify-center items-center text-center overflow-hidden pointer-events-none select-none">
+                    <div 
+                      className="prose prose-invert max-w-none text-[7px] leading-tight space-y-1.5 text-center
+                        prose-headings:text-slate-100 prose-headings:font-bold prose-headings:my-0.5
+                        prose-h1:text-[11px] prose-h2:text-[9px] prose-h3:text-[8px]
+                        prose-p:text-[6px] prose-p:text-slate-400 prose-p:my-0.5
+                        prose-ul:my-0.5 prose-ul:pl-2 prose-li:my-0.2
+                        prose-pre:hidden prose-blockquote:hidden prose-img:max-h-12 prose-img:mx-auto prose-img:object-contain prose-img:my-0.5"
+                      dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(slide) }}
+                    />
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Main Slide Canvas */}
+        <div className="flex-1 overflow-y-auto flex items-center justify-center p-8 md:p-16 bg-slate-950 relative z-0 custom-scrollbar">
+          <div className="w-full max-w-4xl mx-auto flex flex-col justify-center min-h-[300px]">
+            {/* We render the simple markdown content with custom presentation styling */}
+            <div
+              className="prose max-w-none text-slate-100 leading-relaxed text-center space-y-6 md:space-y-8
+                prose-headings:text-slate-100 prose-headings:font-bold prose-headings:tracking-tight 
+                prose-h1:text-3xl md:prose-h1:text-5xl prose-h1:border-b-0 prose-h1:pb-0 prose-h1:mb-8
+                prose-h2:text-2xl md:prose-h2:text-4xl prose-h2:border-b-0
+                prose-h3:text-xl md:prose-h3:text-2xl
+                prose-p:text-base md:prose-p:text-xl prose-p:text-slate-400 prose-p:mx-auto prose-p:max-w-2xl
+                prose-strong:text-slate-100 prose-strong:font-bold
+                prose-code:text-rose-500 prose-code:font-mono prose-code:text-sm md:prose-code:text-base prose-code:bg-slate-900/40 prose-code:px-2 prose-code:py-1 prose-code:rounded
+                prose-blockquote:text-slate-500 prose-blockquote:italic prose-blockquote:text-lg md:prose-blockquote:text-xl
+                flex flex-col items-center justify-center"
+              dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(activeSlideContent) }}
+            />
+          </div>
         </div>
       </div>
 
@@ -153,7 +239,7 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
         <button
           onClick={() => changeSlide(-1)}
           disabled={currentSlide <= 0}
-          className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
+          className="p-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -165,7 +251,7 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
         <button
           onClick={() => changeSlide(1)}
           disabled={currentSlide >= slides.length - 1}
-          className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
+          className="p-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center cursor-pointer"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -173,3 +259,4 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
     </div>
   )
 }
+

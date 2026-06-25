@@ -81,7 +81,7 @@ export function AssignmentInstructions({
     if (filesList.length === 0) return null
     return (
       <div className="space-y-3 pt-4 border-t border-slate-800/40">
-        <h5 className="text-xs font-semibold text-slate-550 flex items-center gap-1.5">
+        <h5 className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor} animate-pulse`} />
           {title}
         </h5>
@@ -89,7 +89,7 @@ export function AssignmentInstructions({
           {filesList.map((fileItem, idx) => (
             <div
               key={idx}
-              className="p-3 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-800 transition-all"
+              className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-800 transition-all"
             >
               <div className="min-w-0 flex-1 space-y-0.5">
                 <span className="block text-xs font-semibold text-slate-200 truncate">
@@ -141,7 +141,7 @@ export function AssignmentInstructions({
 
     if (previewLoading) {
       return (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 font-mono text-xs border border-slate-850 rounded-xl bg-slate-950/30">
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 font-mono text-xs border border-slate-800 rounded-xl bg-slate-950/30">
           <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
           <span>Loading preview artifact...</span>
         </div>
@@ -417,7 +417,7 @@ export function AssignmentInstructions({
 
   return (
     <div className="border border-slate-800 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-6 shadow-xl">
-      <h2 className="text-sm font-semibold text-slate-550 pb-2 border-b border-slate-800">
+      <h2 className="text-sm font-semibold text-slate-500 pb-2 border-b border-slate-800">
         Hướng dẫn làm bài
       </h2>
       
@@ -450,7 +450,7 @@ export function AssignmentInstructions({
                     setPreviewSignedUrl(null)
                     setPreviewError(null)
                   }}
-                  className="text-slate-400 hover:text-white text-xs transition-colors p-1 bg-slate-900 hover:bg-slate-850 rounded font-medium"
+                  className="text-slate-400 hover:text-white text-xs transition-colors p-1 bg-slate-900 hover:bg-slate-800 rounded font-medium"
                 >
                   ✕ Đóng xem trước
                 </button>
@@ -499,7 +499,7 @@ export function AssignmentInstructions({
             {(assignment.rubrics.rubric_criteria || []).map((crit: any) => {
               const weightVal = parseFloat(crit.weight || '1');
               return (
-                <div key={crit.id} className="bg-slate-950/60 border border-slate-850 p-4.5 rounded-xl space-y-3 flex flex-col justify-between hover:border-slate-800 transition-all text-left shadow-sm">
+                <div key={crit.id} className="bg-slate-950/60 border border-slate-800 p-4.5 rounded-xl space-y-3 flex flex-col justify-between hover:border-slate-800 transition-all text-left shadow-sm">
                   <div className="space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <h5 className="text-xs font-bold text-slate-200">{crit.name}</h5>
@@ -519,7 +519,7 @@ export function AssignmentInstructions({
                   
                   {/* Visual Indicator of weight */}
                   <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] text-slate-550 font-medium">
+                    <div className="flex justify-between text-[10px] text-slate-500 font-medium">
                       <span>Tỷ trọng điểm</span>
                       <span>{(weightVal * 100).toFixed(0)}%</span>
                     </div>
@@ -538,7 +538,7 @@ export function AssignmentInstructions({
       )}
 
       <div className="flex flex-wrap gap-4 pt-6 border-t border-slate-800/60 text-xs">
-        <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">
+        <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-800 px-3.5 py-2 rounded-xl">
           <Calendar className="w-4 h-4 text-blue-600" />
           <span>
             Due Date:{' '}
@@ -547,7 +547,7 @@ export function AssignmentInstructions({
               : 'Not specified'}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-850 px-3.5 py-2 rounded-xl">
+        <div className="flex items-center gap-2 text-slate-400 bg-slate-950/60 border border-slate-800 px-3.5 py-2 rounded-xl">
           <span className="font-bold text-blue-600">Max Points:</span>
           <span>{assignment?.max_score} points</span>
         </div>

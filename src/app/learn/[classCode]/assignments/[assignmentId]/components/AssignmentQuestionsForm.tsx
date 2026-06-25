@@ -29,7 +29,7 @@ export function AssignmentQuestionsForm({
 
   return (
     <div className="space-y-4 pt-6 border-t border-slate-800/60">
-      <h5 className="text-xs font-semibold text-slate-550 flex items-center gap-1.5">
+      <h5 className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         Danh sách câu hỏi ({questionsList.length})
       </h5>
@@ -50,7 +50,7 @@ export function AssignmentQuestionsForm({
                       {q.type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'}
                     </span>
                     {q.points && (
-                      <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-850 text-slate-400 text-[10px] font-medium font-mono">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-slate-400 text-[10px] font-medium font-mono">
                         {q.points} điểm
                       </span>
                     )}
@@ -90,7 +90,7 @@ export function AssignmentQuestionsForm({
                       }}
                       disabled={disabled}
                       placeholder="Nhập câu trả lời hoặc lời giải của bạn tại đây..."
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-blue-500 h-28 leading-relaxed font-sans placeholder-slate-600 disabled:opacity-50"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-blue-500 h-28 leading-relaxed font-sans placeholder-slate-600 disabled:opacity-50"
                     />
                     <div className="flex justify-between items-center text-[10px]">
                       {q.answerFormat === 'both' ? (
@@ -124,14 +124,14 @@ export function AssignmentQuestionsForm({
                       className={`flex items-center gap-3 p-3 rounded-xl border text-left text-xs transition-all duration-200 ${
                         isSelected
                           ? 'bg-blue-600/10 border-blue-500 text-slate-100 shadow-sm ring-1 ring-blue-500/25 font-bold'
-                          : 'bg-slate-950 border-slate-850 text-slate-350 hover:bg-slate-900/50 hover:border-slate-800'
+                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-900/50 hover:border-slate-800'
                       } disabled:opacity-50`}
                     >
                       <span
                         className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-[10px] shrink-0 ${
                           isSelected
                             ? 'bg-blue-600 border-blue-600 text-white'
-                            : 'border-slate-700 text-slate-550'
+                            : 'border-slate-700 text-slate-500'
                         }`}
                       >
                         {letter}

@@ -9,7 +9,7 @@ import requests
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-SOURCE_ROOT = r"D:\HuyVu-Workspace\02_Teaching\drive-download-20260620T191028Z-3-001\Tài liệu XD"
+SOURCE_ROOT = r"D:\HuyVu-Workspace\02_Teaching\MindX\Tài liệu XD"
 
 def load_env_local():
     env = {}
@@ -152,6 +152,15 @@ class SupabaseClient:
             return data[0] if data else None
         return None
 
+    def update(self, table, record_id, data):
+        endpoint = f"{self.url}/rest/v1/{table}"
+        params = {"id": f"eq.{record_id}"}
+        res = requests.patch(endpoint, json=data, params=params, headers=self.headers)
+        if res.status_code not in (200, 204):
+            print(f"Failed to update {table} ID {record_id}: Status {res.status_code}, Response: {res.text}")
+            res.raise_for_status()
+        return res.json() if res.content else None
+
     def upload_file(self, bucket, storage_path, local_filepath):
         mime_type, _ = mimetypes.guess_type(local_filepath)
         if not mime_type:
@@ -179,6 +188,53 @@ class SupabaseClient:
             res.raise_for_status()
         return res.json()
 
+def register_or_update_material(supabase, lesson_id, title, material_type, storage_path, visibility, file_hash, original_filename):
+    existing_mat = supabase.select_one("canonical_materials", {
+        "lesson_id": lesson_id,
+        "title": title
+    })
+    if existing_mat:
+        needs_update = False
+        update_data = {}
+        if existing_mat.get("storage_url") != storage_path:
+            update_data["storage_url"] = storage_path
+            needs_update = True
+        if existing_mat.get("visibility") != visibility:
+            update_data["visibility"] = visibility
+            needs_update = True
+        if existing_mat.get("type") != material_type:
+            update_data["type"] = material_type
+            needs_update = True
+        
+        existing_meta = existing_mat.get("metadata") or {}
+        if existing_meta.get("file_hash") != file_hash or existing_meta.get("original_filename") != original_filename:
+            existing_meta["file_hash"] = file_hash
+            existing_meta["original_filename"] = original_filename
+            existing_meta["display_mode"] = "both"
+            update_data["metadata"] = existing_meta
+            needs_update = True
+            
+        if needs_update:
+            print(f"Updating canonical material in DB: '{title}'...")
+            supabase.update("canonical_materials", existing_mat["id"], update_data)
+        else:
+            print(f"Canonical material already exists and is up-to-date: '{title}'")
+    else:
+        print(f"Registering new canonical material in DB: '{title}' (Visibility: {visibility})")
+        supabase.insert("canonical_materials", {
+            "lesson_id": lesson_id,
+            "title": title,
+            "type": material_type,
+            "storage_url": storage_path,
+            "visibility": visibility,
+            "metadata": {
+                "file_hash": file_hash,
+                "original_filename": original_filename,
+                "display_mode": "both"
+            }
+        })
+
+# Main processing and seeding flow
 def run_process_and_seed():
     print("====================================================")
     print("STEP 1: INITIALIZING CONVERTERS AND CLIENTS")
@@ -305,12 +361,24 @@ def run_process_and_seed():
                     if lower_name.endswith(".pptx"):
                         pdf_filename = filename.replace(".pptx", ".pdf")
                         pdf_filepath = os.path.join(current_dir, pdf_filename)
-                        if converter.convert_pptx_to_pdf(filepath, pdf_filepath):
+                        
+                        need_conversion = True
+                        if os.path.exists(pdf_filepath):
+                            if os.path.getmtime(pdf_filepath) >= os.path.getmtime(filepath):
+                                need_conversion = False
+                        
+                        if need_conversion:
+                            if converter.convert_pptx_to_pdf(filepath, pdf_filepath):
+                                upload_filepath = pdf_filepath
+                                material_type = "pdf"
+                                title = filename.replace(".pptx", " (Slides)")
+                            else:
+                                continue
+                        else:
+                            print(f"PDF already exists for {filename}. Skipping conversion.")
                             upload_filepath = pdf_filepath
                             material_type = "pdf"
                             title = filename.replace(".pptx", " (Slides)")
-                        else:
-                            continue
                         
                         if "teacher" in lower_name:
                             visibility = "teacher"
@@ -356,6 +424,10 @@ def run_process_and_seed():
                         visibility = "both"
 
                     elif lower_name.endswith(".pdf"):
+                        # Skip if it is the slide PDF (which is generated and registered by PPTX)
+                        if "slide" in lower_name and (lower_name.startswith("xd_lesson") or lower_name.startswith("[xd_lesson")):
+                            print(f"Skipping slide PDF file: {filename} (handled by PPTX)")
+                            continue
                         material_type = "pdf"
                         title = filename
                         if "teacher" in lower_name:
@@ -379,27 +451,16 @@ def run_process_and_seed():
                     # Upload to Supabase Storage
                     supabase.upload_file("teaching-materials", storage_path, upload_filepath)
 
-                    # Register in canonical_materials
-                    existing_mat = supabase.select_one("canonical_materials", {
-                        "lesson_id": l_db["id"],
-                        "storage_url": storage_path
-                    })
-                    if existing_mat:
-                        print(f"Material '{title}' already registered in DB (ID: {existing_mat['id']}). Skipping insertion.")
-                    else:
-                        print(f"Registering canonical material: {title} (Visibility: {visibility}, Type: {material_type})")
-                        supabase.insert("canonical_materials", {
-                            "lesson_id": l_db["id"],
-                            "title": title,
-                            "type": material_type,
-                            "storage_url": storage_path,
-                            "visibility": visibility,
-                            "metadata": {
-                                "file_hash": file_hash,
-                                "original_filename": filename,
-                                "display_mode": "both"
-                            }
-                        })
+                    register_or_update_material(
+                        supabase=supabase,
+                        lesson_id=l_db["id"],
+                        title=title,
+                        material_type=material_type,
+                        storage_path=storage_path,
+                        visibility=visibility,
+                        file_hash=file_hash,
+                        original_filename=filename
+                    )
 
             process_directory(folder_path)
 
@@ -411,22 +472,16 @@ def run_process_and_seed():
             storage_path = sanitize_storage_path(f"courses/xd/lesson-3/Shopee_SQL_test_{file_hash[:10]}.sql")
             supabase.upload_file("teaching-materials", storage_path, shopee_sql)
             
-            existing_shopee = supabase.select_one("canonical_materials", {
-                "lesson_id": l_db["id"],
-                "storage_url": storage_path
-            })
-            if existing_shopee:
-                print("Shopee SQL test.sql already registered in Lesson 3. Skipping insertion.")
-            else:
-                print(f"Registering Shopee SQL test.sql in Lesson 3...")
-                supabase.insert("canonical_materials", {
-                    "lesson_id": l_db["id"],
-                    "title": "Shopee SQL test.sql",
-                    "type": "code_repo",
-                    "storage_url": storage_path,
-                    "visibility": "both",
-                    "metadata": {"file_hash": file_hash}
-                })
+            register_or_update_material(
+                supabase=supabase,
+                lesson_id=l_db["id"],
+                title="Shopee SQL test.sql",
+                material_type="code_repo",
+                storage_path=storage_path,
+                visibility="both",
+                file_hash=file_hash,
+                original_filename="Shopee SQL test.sql"
+            )
 
         print("\n====================================================")
         print("SEEDING COMPLETED SUCCESSFULLY!")

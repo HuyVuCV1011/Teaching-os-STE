@@ -32,7 +32,7 @@ export function LockedLessonView({
           <span>Unlocks on {new Date(visibleAfter).toLocaleDateString()}</span>
         </div>
       ) : (
-        <span className="text-xs text-slate-550 italic">Unlock schedule not configured.</span>
+        <span className="text-xs text-slate-500 italic">Unlock schedule not configured.</span>
       )}
       <Link
         href={`/learn/${classCode}/courses/${courseSlug}/roadmap`}

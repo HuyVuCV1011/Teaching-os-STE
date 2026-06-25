@@ -11,7 +11,7 @@ import requests
 sys.stdout.reconfigure(encoding='utf-8')
 
 # Source directory containing the teaching materials
-SOURCE_ROOT = r"D:\HuyVu-Workspace\02_Teaching\drive-download-20260620T191028Z-3-001\Tài liệu DA\Tài liệu DA (từ 10-10-2025)"
+SOURCE_ROOT = r"D:\HuyVu-Workspace\02_Teaching\MindX\Tài liệu DA\Tài liệu DA (từ 10-10-2025)"
 
 # Load Supabase configuration from .env.local
 def load_env_local():
@@ -82,61 +82,53 @@ def sanitize_storage_path(path):
 
 # COM Automation wrappers for Office conversions
 class OfficeConverter:
-    def __init__(self):
-        self.powerpoint = None
-        self.word = None
-
     def convert_pptx_to_pdf(self, pptx_path, pdf_path):
-        if not self.powerpoint:
-            try:
-                self.powerpoint = win32com.client.Dispatch("PowerPoint.Application")
-            except Exception as e:
-                print(f"Failed to start PowerPoint: {e}")
-                return False
+        powerpoint = None
         try:
+            powerpoint = win32com.client.Dispatch("PowerPoint.Application")
+            powerpoint.DisplayAlerts = 0
             abs_pptx = os.path.abspath(pptx_path)
             abs_pdf = os.path.abspath(pdf_path)
             print(f"Converting PPTX to PDF: {os.path.basename(pptx_path)}")
-            # WithWindow=False runs PowerPoint presentation in the background
-            presentation = self.powerpoint.Presentations.Open(abs_pptx, WithWindow=False)
-            presentation.SaveAs(abs_pdf, 32) # 32 is PDF format
+            presentation = powerpoint.Presentations.Open(abs_pptx, WithWindow=False)
+            presentation.SaveAs(abs_pdf, 32)
             presentation.Close()
             return True
         except Exception as e:
             print(f"Error converting presentation {pptx_path}: {e}")
             return False
+        finally:
+            if powerpoint:
+                try:
+                    powerpoint.Quit()
+                except:
+                    pass
 
     def convert_docx_to_pdf(self, docx_path, pdf_path):
-        if not self.word:
-            try:
-                self.word = win32com.client.Dispatch("Word.Application")
-                self.word.Visible = False
-            except Exception as e:
-                print(f"Failed to start Word: {e}")
-                return False
+        word = None
         try:
+            word = win32com.client.Dispatch("Word.Application")
+            word.DisplayAlerts = 0
+            word.Visible = False
             abs_docx = os.path.abspath(docx_path)
             abs_pdf = os.path.abspath(pdf_path)
             print(f"Converting DOCX to PDF: {os.path.basename(docx_path)}")
-            doc = self.word.Documents.Open(abs_docx)
-            doc.SaveAs(abs_pdf, FileFormat=17) # 17 is PDF format
+            doc = word.Documents.Open(abs_docx, ConfirmConversions=False)
+            doc.SaveAs(abs_pdf, FileFormat=17)
             doc.Close()
             return True
         except Exception as e:
             print(f"Error converting document {docx_path}: {e}")
             return False
+        finally:
+            if word:
+                try:
+                    word.Quit(0)
+                except:
+                    pass
 
     def cleanup(self):
-        if self.powerpoint:
-            try:
-                self.powerpoint.Quit()
-            except:
-                pass
-        if self.word:
-            try:
-                self.word.Quit(0) # 0 = wdDoNotSaveChanges
-            except:
-                pass
+        pass
 
 # Supabase REST API wrappers using requests
 class SupabaseClient:
@@ -154,13 +146,23 @@ class SupabaseClient:
 
     def insert(self, table, data):
         endpoint = f"{self.url}/rest/v1/{table}"
-        # If input is a single dict, put it inside a list
         payload = data if isinstance(data, list) else [data]
         res = requests.post(endpoint, json=payload, headers=self.headers)
         if res.status_code not in (200, 201):
             print(f"Failed to insert into {table}: Status {res.status_code}, Response: {res.text}")
             res.raise_for_status()
         return res.json()
+
+    def select(self, table, filters=None):
+        endpoint = f"{self.url}/rest/v1/{table}"
+        params = {}
+        if filters:
+            for k, v in filters.items():
+                params[k] = f"eq.{v}"
+        res = requests.get(endpoint, params=params, headers=self.headers)
+        if res.status_code == 200:
+            return res.json()
+        return []
 
     def select_one(self, table, filters=None):
         endpoint = f"{self.url}/rest/v1/{table}"
@@ -174,8 +176,17 @@ class SupabaseClient:
             return data[0] if data else None
         return None
 
+    def update(self, table, record_id, data):
+        endpoint = f"{self.url}/rest/v1/{table}"
+        params = {"id": f"eq.{record_id}"}
+        res = requests.patch(endpoint, json=data, params=params, headers=self.headers)
+        if res.status_code not in (200, 204):
+            print(f"Failed to update {table} ID {record_id}: Status {res.status_code}, Response: {res.text}")
+            res.raise_for_status()
+        return res.json() if res.content else None
+
     def upload_file(self, bucket, storage_path, local_filepath):
-        # Determine mime type
+        import time
         mime_type, _ = mimetypes.guess_type(local_filepath)
         if not mime_type:
             if local_filepath.endswith('.ipynb'):
@@ -183,10 +194,6 @@ class SupabaseClient:
             else:
                 mime_type = 'application/octet-stream'
 
-        # Upload file to Supabase Storage bucket
-        # Endpoint: POST /storage/v1/object/{bucket}/{path}
-        # To overwrite, we use the upsert header: x-upsert: true
-        # URL needs to be properly escaped
         escaped_path = storage_path.replace("\\", "/").strip("/")
         endpoint = f"{self.url}/storage/v1/object/{bucket}/{escaped_path}"
         
@@ -194,15 +201,71 @@ class SupabaseClient:
         headers["Content-Type"] = mime_type
         headers["x-upsert"] = "true"
         
-        print(f"Uploading {os.path.basename(local_filepath)} to storage path '{escaped_path}'...")
-        with open(local_filepath, 'rb') as f:
-            file_data = f.read()
+        file_size_mb = os.path.getsize(local_filepath) / 1024 / 1024
+        print(f"Uploading {os.path.basename(local_filepath)} ({file_size_mb:.2f} MB) to storage path '{escaped_path}'...")
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with open(local_filepath, 'rb') as f:
+                    file_data = f.read()
+                res = requests.post(endpoint, data=file_data, headers=headers, timeout=600)
+                if res.status_code not in (200, 201):
+                    print(f"Upload attempt {attempt + 1} failed: Status {res.status_code}, Response: {res.text}")
+                    res.raise_for_status()
+                return res.json()
+            except (requests.exceptions.RequestException, Exception) as e:
+                print(f"Attempt {attempt + 1} failed with error: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+                else:
+                    raise e
 
-        res = requests.post(endpoint, data=file_data, headers=headers)
-        if res.status_code not in (200, 201):
-            print(f"Failed to upload {local_filepath}: Status {res.status_code}, Response: {res.text}")
-            res.raise_for_status()
-        return res.json()
+def register_or_update_material(supabase, lesson_id, title, material_type, storage_path, visibility, file_hash, original_filename):
+    existing_mat = supabase.select_one("canonical_materials", {
+        "lesson_id": lesson_id,
+        "title": title
+    })
+    if existing_mat:
+        needs_update = False
+        update_data = {}
+        if existing_mat.get("storage_url") != storage_path:
+            update_data["storage_url"] = storage_path
+            needs_update = True
+        if existing_mat.get("visibility") != visibility:
+            update_data["visibility"] = visibility
+            needs_update = True
+        if existing_mat.get("type") != material_type:
+            update_data["type"] = material_type
+            needs_update = True
+        
+        existing_meta = existing_mat.get("metadata") or {}
+        if existing_meta.get("file_hash") != file_hash or existing_meta.get("original_filename") != original_filename:
+            existing_meta["file_hash"] = file_hash
+            existing_meta["original_filename"] = original_filename
+            existing_meta["display_mode"] = "both"
+            update_data["metadata"] = existing_meta
+            needs_update = True
+            
+        if needs_update:
+            print(f"Updating canonical material in DB: '{title}'...")
+            supabase.update("canonical_materials", existing_mat["id"], update_data)
+        else:
+            print(f"Canonical material already exists and is up-to-date: '{title}'")
+    else:
+        print(f"Registering new canonical material in DB: '{title}' (Visibility: {visibility})")
+        supabase.insert("canonical_materials", {
+            "lesson_id": lesson_id,
+            "title": title,
+            "type": material_type,
+            "storage_url": storage_path,
+            "visibility": visibility,
+            "metadata": {
+                "file_hash": file_hash,
+                "original_filename": original_filename,
+                "display_mode": "both"
+            }
+        })
 
 # Main processing and seeding flow
 def run_process_and_seed():
@@ -243,13 +306,12 @@ def run_process_and_seed():
         else:
             print(f"Course '{course_title}' already exists (ID: {course['id']})")
 
-        # Define Modules mapping
+        # Define Modules mapping (Matched exactly with database structures)
         modules_def = [
             {"title": "Cơ sở phân tích dữ liệu & Python", "order": 1},
-            {"title": "Mô hình hồi quy & Thuật toán", "order": 2},
-            {"title": "Phân nhóm & Thuật toán phân lớp", "order": 3},
-            {"title": "Khai phá luật kết hợp & Case study", "order": 4},
-            {"title": "Đánh giá & Dự án cuối khóa", "order": 5}
+            {"title": "Các thuật toán supervised learning", "order": 2},
+            {"title": "Các thuật toán unsupervised learning", "order": 3},
+            {"title": "AI Agent", "order": 4}
         ]
         
         modules = {}
@@ -271,19 +333,19 @@ def run_process_and_seed():
         # 12 Lessons mapping
         lessons = {}
         
-        # Helper to map Lesson number to Module ID
+        # Helper to map Lesson number to Module ID based on database structure
         def get_module_for_lesson(n):
-            if n in (1, 2, 3):
+            if n in (1, 2):
                 return modules[1]["id"]
-            elif n in (4, 5):
-                return modules[2]["id"] # Linear and nonlinear regression
-            elif n in (6, 7, 8, 9):
-                return modules[3]["id"] # Classification algorithms
-            elif n in (10, 11, 12):
-                return modules[4]["id"] # Association rules and case studies
+            elif n in (3, 4, 5, 6, 7, 8):
+                return modules[2]["id"]
+            elif n in (9, 10, 11):
+                return modules[3]["id"]
+            elif n in (12, 13):
+                return modules[4]["id"]
             return modules[4]["id"]
 
-        # Define Lesson titles mapping
+        # Define Lesson titles mapping (Matched exactly with database structures)
         lesson_titles = {
             1: "Giới thiệu môn học & Python cơ bản",
             2: "Làm việc với dữ liệu & Numpy/Pandas",
@@ -292,30 +354,58 @@ def run_process_and_seed():
             5: "Giới thiệu bài toán Hồi quy nâng cao",
             6: "Giới thiệu bài toán phân loại (Classification)",
             7: "Tiền xử lý dữ liệu & Chuẩn bị Case Study",
-            8: "Đánh giá mô hình Phân loại",
+            8: "Đánh giá mô hình Phân loại (Classification)",
             9: "Thuật toán phân cụm K-Means Clustering",
             10: "Khai phá luật kết hợp (Association Rules)",
             11: "Case study: Retail Marketing & Telecom",
-            12: "Tổng kết học phần & Đánh giá bài giảng",
+            12: "AI Agent",
             13: "Đồ án & Đánh giá cuối khóa"
         }
 
+        # Fetch existing lessons for this course to match in memory (avoiding NFC/NFD mismatch)
+        import unicodedata
+        def normalize_text(t):
+            return unicodedata.normalize('NFC', str(t)).strip().lower()
+
+        # Fetch all lessons under the course modules
+        existing_lessons = []
+        for m_id in [m["id"] for m in modules.values()]:
+            ls = supabase.select("lessons", {"module_id": m_id})
+            existing_lessons.extend(ls)
+
+        def find_existing_lesson(m_id, title):
+            norm_title = normalize_text(title)
+            for l in existing_lessons:
+                if l["module_id"] == m_id and normalize_text(l["title"]) == norm_title:
+                    return l
+            return None
+
         # Create Lesson records in Database
+        def get_module_order_for_lesson(n):
+            mapping = {
+                1: 1, 2: 2,                  # Module 1
+                3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, # Module 2
+                9: 1, 10: 2, 11: 3,          # Module 3
+                12: 1, 13: 2                 # Module 4
+            }
+            return mapping.get(n, n)
+
         for n in range(1, 14):
             l_title = lesson_titles[n]
-            m_id = get_module_for_lesson(n) if n <= 12 else modules[5]["id"]
+            m_id = get_module_for_lesson(n)
             
-            l_db = supabase.select_one("lessons", {"module_id": m_id, "title": l_title})
+            l_db = find_existing_lesson(m_id, l_title)
             if not l_db:
                 print(f"Creating Lesson {n}: {l_title}...")
                 l_db = supabase.insert("lessons", {
                     "module_id": m_id,
                     "title": l_title,
-                    "order_index": n,
+                    "order_index": get_module_order_for_lesson(n),
                     "content": f"<h3>Giới thiệu nội dung buổi {n}</h3><p>Đây là tài liệu lý thuyết, slide bài giảng và các bài tập thực hành dành cho buổi học số {n}. Vui lòng đọc kỹ các học liệu đính kèm bên dưới và tham gia thực hành đầy đủ.</p>",
                     "download_allowed": True,
                     "grid_layout": "1-col"
                 })[0]
+                existing_lessons.append(l_db)
             lessons[n] = l_db
 
         # Now let's loop through Lesson directories in 01. Tài liệu lý thuyết
@@ -353,14 +443,26 @@ def run_process_and_seed():
                 if lower_name.endswith(".pptx"):
                     pdf_filename = filename.replace(".pptx", ".pdf")
                     pdf_filepath = os.path.join(lesson_path, pdf_filename)
-                    # Convert to PDF
-                    if converter.convert_pptx_to_pdf(filepath, pdf_filepath):
+                    
+                    need_conversion = True
+                    if os.path.exists(pdf_filepath):
+                        if os.path.getmtime(pdf_filepath) >= os.path.getmtime(filepath):
+                            need_conversion = False
+                    
+                    if need_conversion:
+                        if converter.convert_pptx_to_pdf(filepath, pdf_filepath):
+                            upload_filepath = pdf_filepath
+                            material_type = "pdf"
+                            title = filename.replace(".pptx", " (Slides)")
+                        else:
+                            print(f"Skipping conversion for {filename}")
+                            continue
+                    else:
+                        print(f"PDF already exists for {filename}. Skipping conversion.")
                         upload_filepath = pdf_filepath
                         material_type = "pdf"
                         title = filename.replace(".pptx", " (Slides)")
-                    else:
-                        print(f"Skipping conversion for {filename}")
-                        continue
+                        
                     # Visibility check
                     if "teacher" in lower_name:
                         visibility = "teacher"
@@ -370,14 +472,25 @@ def run_process_and_seed():
                 elif lower_name.endswith(".docx"):
                     pdf_filename = filename.replace(".docx", ".pdf")
                     pdf_filepath = os.path.join(lesson_path, pdf_filename)
-                    # Convert to PDF
-                    if converter.convert_docx_to_pdf(filepath, pdf_filepath):
+                    
+                    need_conversion = True
+                    if os.path.exists(pdf_filepath):
+                        if os.path.getmtime(pdf_filepath) >= os.path.getmtime(filepath):
+                            need_conversion = False
+                            
+                    if need_conversion:
+                        if converter.convert_docx_to_pdf(filepath, pdf_filepath):
+                            upload_filepath = pdf_filepath
+                            material_type = "pdf"
+                            title = filename.replace(".docx", "")
+                        else:
+                            print(f"Skipping conversion for {filename}")
+                            continue
+                    else:
+                        print(f"PDF already exists for {filename}. Skipping conversion.")
                         upload_filepath = pdf_filepath
                         material_type = "pdf"
                         title = filename.replace(".docx", "")
-                    else:
-                        print(f"Skipping conversion for {filename}")
-                        continue
                     
                     if "teacher" in lower_name:
                         visibility = "teacher"
@@ -416,20 +529,16 @@ def run_process_and_seed():
                 # Upload to Supabase Storage bucket 'teaching-materials'
                 supabase.upload_file("teaching-materials", storage_path, upload_filepath)
 
-                # Insert into canonical_materials in DB
-                print(f"Registering canonical material in DB: {title} (Visibility: {visibility})")
-                supabase.insert("canonical_materials", {
-                    "lesson_id": lesson_db_id,
-                    "title": title,
-                    "type": material_type,
-                    "storage_url": storage_path,
-                    "visibility": visibility,
-                    "metadata": {
-                        "file_hash": file_hash,
-                        "original_filename": filename,
-                        "display_mode": "both"
-                    }
-                })
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=lesson_db_id,
+                    title=title,
+                    material_type=material_type,
+                    storage_path=storage_path,
+                    visibility=visibility,
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
 
         # Process Practice notebooks in 02. Tài liệu thực hành
         practice_root = os.path.join(SOURCE_ROOT, "02. Tài liệu thực hành")
@@ -441,7 +550,7 @@ def run_process_and_seed():
 
             lower_name = filename.lower()
             lesson_num = None
-            for n in range(1, 13):
+            for n in range(12, 0, -1):
                 if f"lesson {n}" in lower_name:
                     lesson_num = n
                     break
@@ -461,19 +570,16 @@ def run_process_and_seed():
 
             # Insert into canonical_materials
             title = filename
-            print(f"Registering practice notebook: {title} (Visibility: student)")
-            supabase.insert("canonical_materials", {
-                "lesson_id": lesson_db_id,
-                "title": title,
-                "type": "code_repo",
-                "storage_url": storage_path,
-                "visibility": "student",
-                "metadata": {
-                    "file_hash": file_hash,
-                    "original_filename": filename,
-                    "display_mode": "both"
-                }
-            })
+            register_or_update_material(
+                supabase=supabase,
+                lesson_id=lesson_db_id,
+                title=title,
+                material_type="code_repo",
+                storage_path=storage_path,
+                visibility="student",
+                file_hash=file_hash,
+                original_filename=filename
+            )
 
         # Process Lesson 13 (Final Evaluation & Project) from 03, 04, 05
         final_lesson_id = lessons[13]["id"]
@@ -485,19 +591,31 @@ def run_process_and_seed():
             if filename.endswith(".docx"):
                 pdf_filename = filename.replace(".docx", ".pdf")
                 pdf_filepath = os.path.join(final_test_root, pdf_filename)
-                if converter.convert_docx_to_pdf(filepath, pdf_filepath):
-                    file_hash = get_file_hash(pdf_filepath)
-                    raw_path = f"courses/apm/lesson-13/{pdf_filename.replace('.pdf', '')}_{file_hash[:10]}.pdf"
-                    storage_path = sanitize_storage_path(raw_path)
-                    supabase.upload_file("teaching-materials", storage_path, pdf_filepath)
-                    supabase.insert("canonical_materials", {
-                        "lesson_id": final_lesson_id,
-                        "title": filename.replace(".docx", ""),
-                        "type": "pdf",
-                        "storage_url": storage_path,
-                        "visibility": "student",
-                        "metadata": {"file_hash": file_hash}
-                    })
+                
+                need_conversion = True
+                if os.path.exists(pdf_filepath):
+                    if os.path.getmtime(pdf_filepath) >= os.path.getmtime(filepath):
+                        need_conversion = False
+                        
+                if need_conversion:
+                    if not converter.convert_docx_to_pdf(filepath, pdf_filepath):
+                        print(f"Failed to convert {filename}")
+                        continue
+                
+                file_hash = get_file_hash(pdf_filepath)
+                raw_path = f"courses/apm/lesson-13/{pdf_filename.replace('.pdf', '')}_{file_hash[:10]}.pdf"
+                storage_path = sanitize_storage_path(raw_path)
+                supabase.upload_file("teaching-materials", storage_path, pdf_filepath)
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=final_lesson_id,
+                    title=filename.replace(".docx", ""),
+                    material_type="pdf",
+                    storage_path=storage_path,
+                    visibility="student",
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
 
         # 2. Final Project
         final_project_root = os.path.join(SOURCE_ROOT, "03. Final Test - Final Project", "Final Project")
@@ -506,32 +624,46 @@ def run_process_and_seed():
             if filename.endswith(".docx"):
                 pdf_filename = filename.replace(".docx", ".pdf")
                 pdf_filepath = os.path.join(final_project_root, pdf_filename)
-                if converter.convert_docx_to_pdf(filepath, pdf_filepath):
-                    file_hash = get_file_hash(pdf_filepath)
-                    raw_path = f"courses/apm/lesson-13/{pdf_filename.replace('.pdf', '')}_{file_hash[:10]}.pdf"
-                    storage_path = sanitize_storage_path(raw_path)
-                    supabase.upload_file("teaching-materials", storage_path, pdf_filepath)
-                    supabase.insert("canonical_materials", {
-                        "lesson_id": final_lesson_id,
-                        "title": filename.replace(".docx", ""),
-                        "type": "pdf",
-                        "storage_url": storage_path,
-                        "visibility": "student",
-                        "metadata": {"file_hash": file_hash}
-                    })
+                
+                need_conversion = True
+                if os.path.exists(pdf_filepath):
+                    if os.path.getmtime(pdf_filepath) >= os.path.getmtime(filepath):
+                        need_conversion = False
+                        
+                if need_conversion:
+                    if not converter.convert_docx_to_pdf(filepath, pdf_filepath):
+                        print(f"Failed to convert {filename}")
+                        continue
+                        
+                file_hash = get_file_hash(pdf_filepath)
+                raw_path = f"courses/apm/lesson-13/{pdf_filename.replace('.pdf', '')}_{file_hash[:10]}.pdf"
+                storage_path = sanitize_storage_path(raw_path)
+                supabase.upload_file("teaching-materials", storage_path, pdf_filepath)
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=final_lesson_id,
+                    title=filename.replace(".docx", ""),
+                    material_type="pdf",
+                    storage_path=storage_path,
+                    visibility="student",
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
             elif filename.endswith(".xlsx"):
                 file_hash = get_file_hash(filepath)
                 raw_path = f"courses/apm/lesson-13/{os.path.splitext(filename)[0]}_{file_hash[:10]}.xlsx"
                 storage_path = sanitize_storage_path(raw_path)
                 supabase.upload_file("teaching-materials", storage_path, filepath)
-                supabase.insert("canonical_materials", {
-                    "lesson_id": final_lesson_id,
-                    "title": filename,
-                    "type": "xlsx",
-                    "storage_url": storage_path,
-                    "visibility": "student",
-                    "metadata": {"file_hash": file_hash}
-                })
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=final_lesson_id,
+                    title=filename,
+                    material_type="xlsx",
+                    storage_path=storage_path,
+                    visibility="student",
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
 
         # 3. Project tham khảo (Reference projects)
         ref_root = os.path.join(SOURCE_ROOT, "04. Project tham khảo")
@@ -542,32 +674,52 @@ def run_process_and_seed():
                 raw_path = f"courses/apm/lesson-13/reference/{os.path.splitext(filename)[0]}_{file_hash[:10]}.pdf"
                 storage_path = sanitize_storage_path(raw_path)
                 supabase.upload_file("teaching-materials", storage_path, filepath)
-                supabase.insert("canonical_materials", {
-                    "lesson_id": final_lesson_id,
-                    "title": f"Project tham khảo: {filename.replace('.pdf', '')}",
-                    "type": "pdf",
-                    "storage_url": storage_path,
-                    "visibility": "student",
-                    "metadata": {"file_hash": file_hash}
-                })
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=final_lesson_id,
+                    title=f"Project tham khảo: {filename.replace('.pdf', '')}",
+                    material_type="pdf",
+                    storage_path=storage_path,
+                    visibility="student",
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
 
         # 4. Bài giải mẫu Final test (Teacher only!)
         solution_root = os.path.join(SOURCE_ROOT, "05. Bài giải mẫu Final test")
         for filename in os.listdir(solution_root):
             filepath = os.path.join(solution_root, filename)
-            if filename.endswith(".pdf"):
+            lower_name = filename.lower()
+            if lower_name.endswith(".pdf"):
                 file_hash = get_file_hash(filepath)
                 raw_path = f"courses/apm/lesson-13/solutions/{os.path.splitext(filename)[0]}_{file_hash[:10]}.pdf"
                 storage_path = sanitize_storage_path(raw_path)
                 supabase.upload_file("teaching-materials", storage_path, filepath)
-                supabase.insert("canonical_materials", {
-                    "lesson_id": final_lesson_id,
-                    "title": f"Bài giải mẫu: {filename.replace('.pdf', '')}",
-                    "type": "pdf",
-                    "storage_url": storage_path,
-                    "visibility": "teacher",
-                    "metadata": {"file_hash": file_hash}
-                })
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=final_lesson_id,
+                    title=f"Bài giải mẫu: {filename.replace('.pdf', '')}",
+                    material_type="pdf",
+                    storage_path=storage_path,
+                    visibility="teacher",
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
+            elif lower_name.endswith(".ipynb"):
+                file_hash = get_file_hash(filepath)
+                raw_path = f"courses/apm/lesson-13/solutions/{os.path.splitext(filename)[0]}_{file_hash[:10]}.ipynb"
+                storage_path = sanitize_storage_path(raw_path)
+                supabase.upload_file("teaching-materials", storage_path, filepath)
+                register_or_update_material(
+                    supabase=supabase,
+                    lesson_id=final_lesson_id,
+                    title=f"Bài giải mẫu: {filename.replace('.ipynb', '')}",
+                    material_type="code_repo",
+                    storage_path=storage_path,
+                    visibility="teacher",
+                    file_hash=file_hash,
+                    original_filename=filename
+                )
 
         print("\n====================================================")
         print("SEEDING COMPLETED SUCCESSFULLY!")

@@ -91,7 +91,7 @@ export function SyllabusTimelineCanvas({
 
   if (!selectedCourse) {
     return (
-      <div className="lg:col-span-2 p-1 rounded-[2.5rem] bg-slate-900/5 ring-1 ring-slate-800/5 shadow-sm h-fit">
+      <div className="lg:col-span-3 p-1 rounded-[2.5rem] bg-slate-900/5 ring-1 ring-slate-800/5 shadow-sm h-fit">
         <div className="h-full border border-dashed border-slate-800/80 rounded-3xl flex flex-col items-center justify-center py-28 text-slate-500 text-sm font-medium gap-4 shadow-inner bg-slate-900/5 min-h-[450px]">
           <HelpCircle className="w-10 h-10 text-slate-700 animate-pulse" />
           <span>Select a course registry node from the catalog to configure roadmaps.</span>
@@ -255,7 +255,7 @@ export function SyllabusTimelineCanvas({
   }
 
   return (
-    <div className="lg:col-span-2 p-1 rounded-[2.5rem] bg-slate-900/5 ring-1 ring-slate-800/5 shadow-sm h-fit animate-fade-in">
+    <div className="lg:col-span-3 p-1 rounded-[2.5rem] bg-slate-900/5 ring-1 ring-slate-800/5 shadow-sm h-fit animate-fade-in">
       <div className="bg-slate-955 border border-slate-800/30 rounded-[calc(2.5rem-0.25rem)] p-8 space-y-8 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-1/4 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
 

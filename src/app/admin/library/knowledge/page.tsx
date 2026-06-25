@@ -293,7 +293,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
+    <div className="p-8 max-w-[1600px] mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6">
         <div className="space-y-2">

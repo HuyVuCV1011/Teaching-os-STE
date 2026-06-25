@@ -23,7 +23,7 @@ export function GradingStatusPanel({ gradingResult, assignment }: GradingStatusP
           <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             Teacher Feedback
           </span>
-          <p className="text-xs text-slate-350 mt-1 whitespace-pre-line leading-relaxed">
+          <p className="text-xs text-slate-300 mt-1 whitespace-pre-line leading-relaxed">
             {gradingResult.overall_feedback || 'No written feedback logged.'}
           </p>
         </div>
@@ -36,7 +36,7 @@ export function GradingStatusPanel({ gradingResult, assignment }: GradingStatusP
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {gradingResult.rubric_scores.map((rs: any) => (
-                <div key={rs.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-850">
+                <div key={rs.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800">
                   <span className="block text-[10px] font-semibold text-slate-400 truncate">
                     {rs.rubric_criteria?.name}
                   </span>

@@ -4,8 +4,8 @@ import React, { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Lock, Loader2, ArrowLeft, CheckCircle2, Clock, FileText, ChevronRight } from 'lucide-react'
-import { motion } from 'motion/react'
+import { Lock, Loader2, ArrowLeft, CheckCircle2, Clock, FileText, ChevronRight, ChevronDown } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
 
 function getCookie(name: string): string {
   if (typeof document === 'undefined') return ''
@@ -49,6 +49,9 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
   const [modules, setModules] = useState<ModuleWithLessons[]>([])
   const [totalLessons, setTotalLessons] = useState(0)
   const [completedCount, setCompletedCount] = useState(0)
+  
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({})
+  const [activeLessonId, setActiveLessonId] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadRoadmap() {
@@ -180,6 +183,35 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         setModules(processedModules)
         setTotalLessons(tCount)
         setCompletedCount(cCount)
+
+        // Find active lesson (first unlocked & uncompleted)
+        let activeId: string | null = null
+        for (const mod of processedModules) {
+          const active = mod.lessons.find(l => !l.isLocked && !l.isCompleted)
+          if (active) {
+            activeId = active.id
+            break
+          }
+        }
+        setActiveLessonId(activeId)
+
+        // Determine default expanded modules (completed -> collapsed, in-progress/future -> expanded)
+        const initialExpanded: Record<string, boolean> = {}
+        let firstUncompletedFound = false
+        processedModules.forEach((mod) => {
+          const isCompleted = mod.lessons.length > 0 && mod.lessons.every(l => l.isCompleted)
+          if (!isCompleted) {
+            initialExpanded[mod.id] = true
+            firstUncompletedFound = true
+          } else {
+            initialExpanded[mod.id] = false
+          }
+        })
+        // If all are completed, expand the last one
+        if (!firstUncompletedFound && processedModules.length > 0) {
+          initialExpanded[processedModules[processedModules.length - 1].id] = true
+        }
+        setExpandedModules(initialExpanded)
       } catch (err) {
         console.error('Failed to parse syllabus tree:', err)
       } finally {
@@ -199,6 +231,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         <Link
           href={`/learn/${classCode}/dashboard`}
           className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 transition-all shadow-sm"
+          aria-label="Go back"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -251,104 +284,148 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           <div className="space-y-12">
             {modules.map((mod, modIdx) => (
               <div key={mod.id} className="space-y-6">
-                {/* Module Header Card */}
-                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
-                  <div className="h-8 w-8 rounded-lg bg-blue-600/10 border border-blue-500/25 flex items-center justify-center font-bold text-blue-600 text-sm">
-                    {modIdx + 1}
+                {/* Module Header Card - Toggle Expand/Collapse */}
+                <button
+                  onClick={() => {
+                    setExpandedModules(prev => ({
+                      ...prev,
+                      [mod.id]: !prev[mod.id]
+                    }))
+                  }}
+                  aria-expanded={expandedModules[mod.id] || false}
+                  aria-label={mod.title}
+                  className="w-full flex items-center justify-between gap-3 border-b border-slate-800 pb-3 text-left hover:border-slate-700 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-blue-600/10 border border-blue-500/25 flex items-center justify-center font-bold text-blue-600 text-sm transition-colors group-hover:bg-blue-600/20">
+                      {modIdx + 1}
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Module {modIdx + 1}</span>
+                      <h3 className="text-base font-bold text-slate-100 leading-snug group-hover:text-blue-500 transition-colors">{mod.title}</h3>
+                    </div>
                   </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Module {modIdx + 1}</span>
-                    <h3 className="text-base font-bold text-slate-100 leading-snug">{mod.title}</h3>
+                  <div className="flex items-center gap-2.5">
+                    {mod.lessons.length > 0 && mod.lessons.every(l => l.isCompleted) && (
+                      <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block">
+                        Completed
+                      </span>
+                    )}
+                    {expandedModules[mod.id] ? (
+                      <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                    )}
                   </div>
-                </div>
+                </button>
 
-                {/* Module Lessons list */}
-                <div className="relative pl-6 space-y-6">
-                  {/* Timeline vertical line */}
-                  <div className="absolute left-3.5 top-2 bottom-2 w-0.5 border-l-2 border-dashed border-slate-800 pointer-events-none" />
+                {/* Module Lessons list with smooth height transition */}
+                <AnimatePresence initial={false}>
+                  {expandedModules[mod.id] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <div className="relative pl-6 space-y-6 pt-3">
+                        {/* Timeline vertical line */}
+                        <div className="absolute left-3.5 top-2 bottom-2 w-0.5 border-l-2 border-dashed border-slate-800 pointer-events-none" />
 
-                  {mod.lessons.map((lesson, lessonIdx) => {
-                    const isLocked = lesson.isLocked
-                    const isCompleted = lesson.isCompleted
-                    
-                    return (
-                      <div key={lesson.id} className="relative group">
-                        {/* Timeline status dot */}
-                        <div className={`absolute -left-[19px] top-6 w-3 h-3 rounded-full border-2 transition-all duration-300 z-10 ${
-                          isLocked 
-                            ? 'bg-slate-900 border-slate-800' 
-                            : isCompleted 
-                            ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' 
-                            : 'bg-blue-600 border-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-                        }`} />
+                        {mod.lessons.map((lesson, lessonIdx) => {
+                          const isLocked = lesson.isLocked
+                          const isCompleted = lesson.isCompleted
+                          const isActiveNode = lesson.id === activeLessonId
 
-                        {/* Lesson Card */}
-                        <div className={`rounded-xl border p-5 transition-all duration-300 ${
-                          isLocked
-                            ? 'bg-slate-900/50 border-slate-800/60 text-slate-500 opacity-60'
-                            : isCompleted
-                            ? 'bg-slate-950 border-slate-800 hover:border-emerald-500/50 shadow-sm'
-                            : 'bg-slate-950 border-slate-800 hover:border-blue-500/50 shadow-sm ring-1 ring-blue-500/5'
-                        }`}>
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="space-y-1">
-                              <span className="block text-[9px] font-bold text-slate-500 font-mono uppercase tracking-widest">
-                                Lesson {mod.order_index}.{lesson.order_index}
-                              </span>
-                              <h4 className={`text-sm font-bold leading-relaxed ${isLocked ? 'text-slate-500' : 'text-slate-100 group-hover:text-blue-500 transition-colors'}`}>
-                                {lesson.title}
-                              </h4>
-                              {isLocked && lesson.visibleAfter && (
-                                <span className="inline-flex items-center gap-1 text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-100/50 px-2 py-0.5 rounded-full mt-1">
-                                  <Clock className="w-2.5 h-2.5" />
-                                  Unlocks: {new Date(lesson.visibleAfter).toLocaleDateString()}
-                                </span>
-                              )}
-                            </div>
+                          return (
+                            <div key={lesson.id} className="relative group">
+                              {/* Timeline status dot with active glowing pulse */}
+                              <div className="absolute -left-[19px] top-6 w-3 h-3 z-10">
+                                {isActiveNode && (
+                                  <div className="absolute -inset-1 rounded-full bg-blue-500/35 ring-4 ring-blue-500/20 animate-pulse" />
+                                )}
+                                <div className={`w-3 h-3 rounded-full border-2 transition-all duration-300 relative z-10 ${
+                                  isLocked 
+                                    ? 'bg-slate-900 border-slate-800' 
+                                    : isCompleted 
+                                    ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' 
+                                    : 'bg-blue-600 border-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                                }`} />
+                              </div>
 
-                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                              {/* Submit Assignment button */}
-                              {!isLocked && lesson.hasAssignment && (
-                                <button
-                                  onClick={() => {
-                                    if (lesson.assignmentId) {
-                                      router.push(`/learn/${classCode}/assignments/${lesson.assignmentId}`)
-                                    }
-                                  }}
-                                  className="inline-flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-slate-100 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer"
-                                >
-                                  <FileText className="w-3.5 h-3.5" />
-                                  Submit Task
-                                </button>
-                              )}
+                              {/* Lesson Card */}
+                              <div className={`rounded-xl border p-5 transition-all duration-300 ${
+                                isLocked
+                                  ? 'bg-slate-900/50 border-slate-800/60 text-slate-500 opacity-60'
+                                  : isCompleted
+                                  ? 'bg-slate-950 border-slate-800 hover:border-emerald-500/50 shadow-sm'
+                                  : isActiveNode
+                                  ? 'bg-slate-950 border-blue-500/40 hover:border-blue-500 shadow-md ring-1 ring-blue-500/10'
+                                  : 'bg-slate-950 border-slate-800 hover:border-blue-500/50 shadow-sm'
+                              }`}>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                  <div className="space-y-1">
+                                    <span className="block text-[9px] font-bold text-slate-500 font-mono uppercase tracking-widest">
+                                      Lesson {mod.order_index}.{lesson.order_index}
+                                    </span>
+                                    <h4 className={`text-sm font-bold leading-relaxed ${isLocked ? 'text-slate-500' : 'text-slate-100 group-hover:text-blue-500 transition-colors'}`}>
+                                      {lesson.title}
+                                    </h4>
+                                    {isLocked && lesson.visibleAfter && (
+                                      <span className="inline-flex items-center gap-1 text-[9px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full mt-1">
+                                        <Clock className="w-2.5 h-2.5" />
+                                        Unlocks: {new Date(lesson.visibleAfter).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
 
-                              {/* Action Link button */}
-                              {isLocked ? (
-                                <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-600 flex items-center justify-center">
-                                  <Lock className="w-4 h-4" />
+                                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                    {/* Submit Assignment button */}
+                                    {!isLocked && lesson.hasAssignment && (
+                                      <button
+                                        onClick={() => {
+                                          if (lesson.assignmentId) {
+                                            router.push(`/learn/${classCode}/assignments/${lesson.assignmentId}`)
+                                          }
+                                        }}
+                                        className="inline-flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-slate-100 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer"
+                                      >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        Submit Task
+                                      </button>
+                                    )}
+
+                                    {/* Action Link button */}
+                                    {isLocked ? (
+                                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-600 flex items-center justify-center">
+                                        <Lock className="w-4 h-4" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          router.push(`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`)
+                                        }}
+                                        className={`inline-flex items-center gap-1 text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                                          isCompleted 
+                                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
+                                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/10'
+                                        }`}
+                                      >
+                                        <span>{isCompleted ? 'Review' : 'Start'}</span>
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    router.push(`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`)
-                                  }}
-                                  className={`inline-flex items-center gap-1 text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                                    isCompleted 
-                                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
-                                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/10'
-                                  }`}
-                                >
-                                  <span>{isCompleted ? 'Review' : 'Start'}</span>
-                                  <ChevronRight className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ))}
           </div>

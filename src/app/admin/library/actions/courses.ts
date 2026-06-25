@@ -265,7 +265,9 @@ export async function deleteLessonAction(lessonId: string) {
       throw new Error(`Lesson not found: ${fetchErr?.message || 'Unknown'}`)
     }
 
-    const courseId = lesson.modules?.course_id
+    const courseId = Array.isArray(lesson.modules)
+      ? lesson.modules[0]?.course_id
+      : (lesson.modules as any)?.course_id
 
     // 2. Delete the lesson
     const { error: delErr } = await supabase

@@ -9,12 +9,14 @@ interface LessonCompletionButtonProps {
   classId: string
   lessonId: string
   studentEmail: string
+  onFirstComplete?: () => void
 }
 
 export default function LessonCompletionButton({
   classId,
   lessonId,
-  studentEmail
+  studentEmail,
+  onFirstComplete,
 }: LessonCompletionButtonProps) {
   const [loading, setLoading] = useState(true)
   const [isCompleted, setIsCompleted] = useState(false)
@@ -78,6 +80,7 @@ export default function LessonCompletionButton({
 
         if (error) throw error
         setIsCompleted(true)
+        onFirstComplete?.()
       }
     } catch (err: any) {
       alert(`Failed to update progress: ${err.message}`)

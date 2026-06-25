@@ -92,7 +92,7 @@ function LearnGatewayContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-3 px-4 text-center text-sm font-semibold text-white placeholder-slate-650 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-200 disabled:opacity-50"
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-3 px-4 text-left text-sm font-semibold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-200 disabled:opacity-50"
                   autoComplete="email"
                   required
                 />
@@ -135,7 +135,7 @@ function LearnGatewayContent() {
             <button
               type="submit"
               disabled={loading || !code.trim() || !email.trim()}
-              className="w-full relative group overflow-hidden bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-blue-600/10 hover:shadow-blue-500/20 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full relative group overflow-hidden bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-blue-600/10 hover:shadow-blue-500/20 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -146,6 +146,39 @@ function LearnGatewayContent() {
                 </>
               )}
             </button>
+
+            {/* Immersive Terminal Startup Sequence */}
+            {loading && (
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  visible: { transition: { staggerChildren: 0.8 } }
+                }}
+                className="space-y-1.5 p-4 rounded-xl bg-slate-950/90 border border-slate-800/40 font-mono text-[10px] text-slate-400 text-left"
+              >
+                {[
+                  { tag: 'CONNECT', text: 'Verifying whitelisted credentials...' },
+                  { tag: 'SYNC', text: 'Syncing cohort syllabus & schedules...' },
+                  { tag: 'INIT', text: 'Launching student workspace...' }
+                ].map((step, idx) => (
+                  <motion.div
+                    key={idx}
+                    variants={{
+                      hidden: { opacity: 0, x: -4 },
+                      visible: { opacity: 1, x: 0 }
+                    }}
+                    className="flex gap-2 items-center"
+                  >
+                    <span className="text-blue-500 font-bold">[{step.tag}]</span>
+                    <span>{step.text}</span>
+                    {idx === 2 && (
+                      <Loader2 className="w-3 h-3 animate-spin ml-auto text-blue-500" />
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
           </form>
         </div>
       </motion.div>

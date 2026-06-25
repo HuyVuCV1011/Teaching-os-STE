@@ -24,7 +24,29 @@ export function AITutorDrawer({ classCode, lessonId }: AITutorDrawerProps) {
     },
   ])
   const [loading, setLoading] = useState(false)
+  const [isZen, setIsZen] = useState(false)
+  const [pulsing, setPulsing] = useState(true)
   const chatEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('zen_mode') === 'true'
+    setIsZen(saved)
+
+    const handleToggle = (e: Event) => {
+      const customEvent = e as CustomEvent
+      setIsZen(customEvent.detail)
+      if (customEvent.detail) {
+        setIsOpen(false) // Auto-close drawer when Zen mode is activated
+      }
+    }
+    window.addEventListener('toggle-zen-mode', handleToggle)
+    return () => window.removeEventListener('toggle-zen-mode', handleToggle)
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPulsing(false), 3000)
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -73,13 +95,16 @@ export function AITutorDrawer({ classCode, lessonId }: AITutorDrawerProps) {
   return (
     <>
       {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 p-4 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center border border-blue-500/25 cursor-pointer"
-        title="Hỏi Trợ Lý AI"
-      >
-        <MessageSquare className="w-6 h-6 animate-pulse" />
-      </button>
+      {!isZen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-6 right-6 p-4 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all z-40 flex items-center justify-center border border-blue-500/25 cursor-pointer"
+          title="Ask AI Tutor"
+          aria-label="Open AI Tutor"
+        >
+          <MessageSquare className={`w-6 h-6 ${pulsing ? 'animate-pulse' : ''}`} />
+        </button>
+      )}
 
       {/* Slide-out Drawer */}
       {isOpen && (
