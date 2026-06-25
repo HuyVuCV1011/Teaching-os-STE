@@ -4,9 +4,11 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { CheckCircle, Circle, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { toggleLessonProgressAction } from '@/app/learn/[classCode]/assignments/[assignmentId]/actions'
 
 interface LessonCompletionButtonProps {
   classId: string
+  classCode: string
   lessonId: string
   studentEmail: string
   onFirstComplete?: () => void
@@ -14,6 +16,7 @@ interface LessonCompletionButtonProps {
 
 export default function LessonCompletionButton({
   classId,
+  classCode,
   lessonId,
   studentEmail,
   onFirstComplete,
@@ -55,31 +58,12 @@ export default function LessonCompletionButton({
     setToggling(true)
 
     try {
-      if (isCompleted) {
-        // Mark as incomplete
-        const { error } = await supabase
-          .from('student_lesson_progress')
-          .delete()
-          .eq('class_id', classId)
-          .eq('lesson_id', lessonId)
-          .eq('student_email', studentEmail)
-
-        if (error) throw error
-        setIsCompleted(false)
-      } else {
-        // Mark as complete
-        const { error } = await supabase
-          .from('student_lesson_progress')
-          .insert([
-            {
-              class_id: classId,
-              lesson_id: lessonId,
-              student_email: studentEmail
-            }
-          ])
-
-        if (error) throw error
-        setIsCompleted(true)
+      const res = await toggleLessonProgressAction(classCode, lessonId, !isCompleted)
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to update progress')
+      }
+      setIsCompleted(!isCompleted)
+      if (!isCompleted) {
         onFirstComplete?.()
       }
     } catch (err: any) {

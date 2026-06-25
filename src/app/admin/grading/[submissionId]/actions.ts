@@ -248,6 +248,13 @@ export async function saveGradingResultAction(input: GradingInput) {
       const embedding = await getEmbeddingText(textToEmbed, userId, subData.assignments?.organization_id || '00000000-0000-0000-0000-000000000000')
 
       if (embedding) {
+        // Pre-delete existing override embedding to prevent duplicates
+        await supabase
+          .from('grading_feedback_embeddings')
+          .delete()
+          .eq('submission_id', input.submissionId)
+          .eq('rubric_criterion_id', scoreRow.rubric_criterion_id)
+
         const suggestion = suggestions?.find(s => s.id === scoreRow.derived_from_suggestion_id)
         await supabase
           .from('grading_feedback_embeddings')

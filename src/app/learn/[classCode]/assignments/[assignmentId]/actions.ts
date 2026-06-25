@@ -700,4 +700,47 @@ async function getSubmissionEmbedding(text: string): Promise<number[] | null> {
   return null
 }
 
+export async function toggleLessonProgressAction(classCode: string, lessonId: string, completed: boolean) {
+  const session = await getVerifiedStudentSession(classCode)
+  if (!session.success || !session.email || !session.classId) {
+    return { success: false, error: session.error || 'Authentication failed' }
+  }
+
+  const supabase = getSupabaseServer(true)
+  try {
+    if (completed) {
+      // Mark as complete
+      const { error } = await supabase
+        .from('student_lesson_progress')
+        .upsert(
+          {
+            class_id: session.classId,
+            lesson_id: lessonId,
+            student_email: session.email,
+          },
+          {
+            onConflict: 'class_id,lesson_id,student_email',
+          }
+        )
+
+      if (error) throw error
+    } else {
+      // Mark as incomplete
+      const { error } = await supabase
+        .from('student_lesson_progress')
+        .delete()
+        .eq('class_id', session.classId)
+        .eq('lesson_id', lessonId)
+        .eq('student_email', session.email)
+
+      if (error) throw error
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Error updating student lesson progress:', err)
+    return { success: false, error: err.message }
+  }
+}
+
 

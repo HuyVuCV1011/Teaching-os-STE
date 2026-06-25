@@ -350,6 +350,48 @@ def process_grading_run(db, job: Dict[str, Any]) -> None:
             }
         ]
 
+        # Retrieve similarity matches from teacher overrides (pgvector loop)
+        few_shot_examples = {}
+        if settings.gemini_api_key and compiled_evidence_text.strip():
+            try:
+                from app.ai.gemini import GeminiProvider
+                logger.info("Generating query embedding for RAG Background Grading Loop...")
+                provider = GeminiProvider(api_key=settings.gemini_api_key)
+                query_vector = provider.embed(compiled_evidence_text)
+                query_vector_str = f"[{','.join(map(str, query_vector))}]"
+
+                for c in criteria:
+                    crit_id = str(c[0])
+                    matches = db.execute(
+                        text("""
+                            SELECT student_submission_text, override_score, override_feedback, override_reason, similarity
+                            FROM public.match_grading_feedback(:query_embedding, :match_criterion_id, :match_count)
+                        """),
+                        {
+                            "query_embedding": query_vector_str,
+                            "match_criterion_id": crit_id,
+                            "match_count": 2
+                        }
+                    ).fetchall()
+
+                    valid_matches = []
+                    for m in matches:
+                        if m[4] and float(m[4]) > 0.7:
+                            valid_matches.append({
+                                "student_submission_text": m[0],
+                                "override_score": float(m[1]) if m[1] is not None else 0.0,
+                                "override_feedback": m[2] or "",
+                                "override_reason": m[3] or ""
+                            })
+                    if valid_matches:
+                        few_shot_examples[crit_id] = valid_matches
+                        logger.info(f"RAG (Worker): Injected {len(valid_matches)} few-shot overrides for criterion {crit_id}")
+            except Exception as rag_err:
+                logger.error(f"Background worker AI Grading Memory Loop query failed: {rag_err}")
+
+        if few_shot_examples:
+            rubric_schema["few_shot_examples"] = few_shot_examples
+
         # 8. Query AI provider via Broker (Gemini if key is present, otherwise Ollama)
         request_payload = {
             "submission_id": submission_id,

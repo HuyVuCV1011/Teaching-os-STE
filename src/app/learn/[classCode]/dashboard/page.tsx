@@ -133,7 +133,10 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           // Compute course progress mapping
           const progressMap: Record<string, { completed: number; total: number }> = {}
           mappedCourses.forEach(course => {
-            const courseLessons = activeLessons.filter((l: any) => l.modules.course_id === course.id)
+            const courseLessons = activeLessons.filter((l: any) => {
+              const m = Array.isArray(l.modules) ? l.modules[0] : l.modules
+              return m?.course_id === course.id
+            })
             const completedCount = courseLessons.filter((l: any) => completedSet.has(l.id)).length
             progressMap[course.id] = {
               completed: completedCount,
@@ -227,11 +230,13 @@ export default function LearnerDashboard({ params }: DashboardProps) {
               }
             }
             if (!isLocked) {
+              const modObj = Array.isArray(l.modules) ? l.modules[0] : l.modules
+              const courseObj = Array.isArray(modObj?.courses) ? modObj.courses[0] : modObj?.courses
               foundSuggested = {
                 id: l.id,
                 title: l.title,
-                courseName: l.modules.courses.title,
-                courseSlug: l.modules.courses.slug,
+                courseName: courseObj?.title || 'Unknown Course',
+                courseSlug: courseObj?.slug || '',
               }
               break
             }

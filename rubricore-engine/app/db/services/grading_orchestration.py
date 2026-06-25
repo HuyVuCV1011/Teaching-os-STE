@@ -757,11 +757,86 @@ def _invoke_and_validate_ai(
     ai_provider: AIGradingProvider,
     policy: GradingPolicy,
 ) -> tuple[AIInteraction, dict[str, Any] | None, str | None]:
+    import logging
+    from sqlalchemy import text
+    from app.core.config import get_settings
+    from app.ai.gemini import GeminiProvider
+
+    logger = logging.getLogger("rubricore_worker")
+
+    # 1. Compile student submission text matching Next.js logic
+    submitted_text = ""
+    try:
+        sub_res = db.execute(
+            text("SELECT submitted_text FROM public.submissions WHERE id = :sub_id"),
+            {"sub_id": submission.id}
+        ).fetchone()
+        if sub_res and sub_res[0]:
+            submitted_text = sub_res[0]
+    except Exception as e:
+        logger.warning(f"Could not load submitted_text for submission {submission.id}: {e}")
+
+    evidence_texts = []
+    for ev in submission.evidence:
+        if ev.raw_text:
+            evidence_texts.append(ev.raw_text)
+
+    compiled_text = (
+        f"STUDENT NOTES / COMMENTARY:\n{submitted_text}\n\n"
+        f"EXTRACTED DELIVERABLES:\n" + "\n\n".join(evidence_texts)
+    )
+
+    # 2. Retrieve similarity matches from teacher overrides (pgvector loop)
+    few_shot_examples = {}
+    settings = get_settings()
+    if settings.gemini_api_key and compiled_text.strip():
+        try:
+            logger.info("Generating query embedding for RAG Grading Loop...")
+            provider = GeminiProvider(api_key=settings.gemini_api_key)
+            query_vector = provider.embed(compiled_text)
+            query_vector_str = f"[{','.join(map(str, query_vector))}]"
+
+            criteria = rubric_version.rubric_schema.get("criteria", [])
+            for c in criteria:
+                crit_id = c.get("key")
+                if crit_id:
+                    matches = db.execute(
+                        text("""
+                            SELECT student_submission_text, override_score, override_feedback, override_reason, similarity
+                            FROM public.match_grading_feedback(:query_embedding, :match_criterion_id, :match_count)
+                        """),
+                        {
+                            "query_embedding": query_vector_str,
+                            "match_criterion_id": crit_id,
+                            "match_count": 2
+                        }
+                    ).fetchall()
+
+                    valid_matches = []
+                    for m in matches:
+                        if m[4] and float(m[4]) > 0.7:
+                            valid_matches.append({
+                                "student_submission_text": m[0],
+                                "override_score": float(m[1]) if m[1] is not None else 0.0,
+                                "override_feedback": m[2] or "",
+                                "override_reason": m[3] or ""
+                            })
+                    if valid_matches:
+                        few_shot_examples[crit_id] = valid_matches
+                        logger.info(f"RAG: Injected {len(valid_matches)} few-shot overrides for criterion {crit_id}")
+        except Exception as rag_err:
+            logger.error(f"AI Grading Memory Loop query failed: {rag_err}")
+
+    # 3. Construct rubric schema with few-shot examples if present
+    rubric_schema = copy.deepcopy(rubric_version.rubric_schema)
+    if few_shot_examples:
+        rubric_schema["few_shot_examples"] = few_shot_examples
+
     request_payload = {
         "submission_id": str(submission.id),
         "rubric_version_id": str(rubric_version.id),
         "answer_key_version_id": str(answer_key_version.id) if answer_key_version is not None else None,
-        "rubric_schema": copy.deepcopy(rubric_version.rubric_schema),
+        "rubric_schema": rubric_schema,
         "evidence": _submission_evidence_payload(submission),
         "deterministic": _json_safe(deterministic_payload),
         "output_schema_version": policy.ai_output_schema_version,

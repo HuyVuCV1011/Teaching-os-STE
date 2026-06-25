@@ -5,6 +5,11 @@ import { verifyJWT } from '@/lib/jwt'
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_secret_key_1234567890'
 
 export async function middleware(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'fallback_development_secret_key_1234567890')) {
+    console.error('CRITICAL: JWT_SECRET is unset or using fallback key in production!')
+    return new NextResponse('Internal Server Configuration Error', { status: 500 })
+  }
+
   const { pathname } = request.nextUrl
 
   // 1. Gating for /learn/[classCode]/* (but NOT /learn itself)

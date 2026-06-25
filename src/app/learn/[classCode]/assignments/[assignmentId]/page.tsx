@@ -42,9 +42,38 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
 
   if (workspace.loading) {
     return (
-      <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="text-sm">Fetching assignment workspace...</span>
+      <div className="space-y-8 max-w-5xl mx-auto pb-16 animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-slate-950 border border-slate-800" />
+          <div className="space-y-2 flex-1">
+            <div className="h-3 w-40 bg-slate-800 rounded" />
+            <div className="h-7 w-80 bg-slate-800 rounded" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* Left Column Skeleton */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Instructions box */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 h-[400px] space-y-4">
+              <div className="h-5 w-40 bg-slate-800 rounded" />
+              <div className="h-3 w-full bg-slate-800 rounded" />
+              <div className="h-3 w-5/6 bg-slate-800 rounded" />
+              <div className="h-3 w-4/5 bg-slate-800 rounded" />
+            </div>
+          </div>
+
+          {/* Right Column Skeleton */}
+          <div className="space-y-6">
+            {/* Submission Terminal box */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 h-[320px] space-y-4">
+              <div className="h-5 w-32 bg-slate-800 rounded" />
+              <div className="h-32 bg-slate-900 rounded-xl border border-slate-800" />
+              <div className="h-10 bg-slate-800 rounded-xl" />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

@@ -76,7 +76,7 @@ export default function LearnerLayout({ children, params }: LayoutProps) {
     },
     {
       name: 'Assignments',
-      href: `/learn/${classCode}/grades`,
+      href: `/learn/${classCode}/assignments`,
       icon: FileText,
     },
     {
