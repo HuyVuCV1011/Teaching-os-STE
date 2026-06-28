@@ -1,17 +1,12 @@
 'use client'
 
 import React, { useEffect, useState, use } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Lock, Loader2, ArrowLeft, CheckCircle2, Clock, FileText, ChevronRight, ChevronDown } from 'lucide-react'
+import { Lock, Loader2, ArrowLeft, CheckCircle2, Clock, FileText, ChevronRight, ChevronDown, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
-
-function getCookie(name: string): string {
-  if (typeof document === 'undefined') return ''
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-  return match ? decodeURIComponent(match[2]) : ''
-}
+import { useLearner } from '../../../LearnerContext'
+import { formatDate } from '@/lib/date'
 
 interface LessonStatus {
   id: string
@@ -42,9 +37,11 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
   const resolvedParams = use(params)
   const classCode = resolvedParams.classCode
   const courseSlug = resolvedParams.courseSlug
-  const router = useRouter()
+  const { studentEmail, isAdminPreview, identityVerified } = useLearner()
 
   const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [courseTitle, setCourseTitle] = useState('')
   const [modules, setModules] = useState<ModuleWithLessons[]>([])
   const [totalLessons, setTotalLessons] = useState(0)
@@ -54,16 +51,21 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!identityVerified) return
+
     async function loadRoadmap() {
+      setLoading(true)
+      setErrorState(null)
+
       try {
         // 1. Fetch Class ID matching code
         const { data: classData, error: classError } = await supabase
           .from('classes')
-          .select('id')
+          .select('id, course_id')
           .eq('class_code', classCode.toUpperCase())
           .single()
 
-        if (classError || !classData) throw classError
+        if (classError || !classData) throw classError || new Error('Không tìm thấy lớp học.')
 
         // 2. Fetch Course matching slug
         const { data: courseData, error: courseError } = await supabase
@@ -72,15 +74,33 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
           .eq('slug', courseSlug.toLowerCase())
           .single()
 
-        if (courseError || !courseData) throw courseError
+        if (courseError || !courseData) throw courseError || new Error('Không tìm thấy khóa học.')
         setCourseTitle(courseData.title)
 
+        const { data: mappedCourses, error: mappedCoursesError } = await supabase
+          .from('class_courses')
+          .select('course_id')
+          .eq('class_id', classData.id)
+
+        if (mappedCoursesError) throw mappedCoursesError
+
+        const allowedCourseIds = new Set([
+          classData.course_id,
+          ...(mappedCourses || []).map((course) => course.course_id),
+        ].filter(Boolean))
+
+        if (!allowedCourseIds.has(courseData.id)) {
+          throw new Error('Khóa học này không thuộc lớp hiện tại.')
+        }
+
         // 3. Fetch Syllabus (Modules and Lessons) for this course
-        const { data: modulesData } = await supabase
+        const { data: modulesData, error: modulesError } = await supabase
           .from('modules')
           .select('*, lessons(*)')
           .eq('course_id', courseData.id)
           .order('order_index')
+
+        if (modulesError) throw modulesError
 
         // Filter out draft lessons
         modulesData?.forEach((mod: any) => {
@@ -88,10 +108,12 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         })
 
         // 4. Fetch Class Schedules release times
-        const { data: schedulesData } = await supabase
+        const { data: schedulesData, error: schedulesError } = await supabase
           .from('class_schedules')
           .select('*')
           .eq('class_id', classData.id)
+
+        if (schedulesError) throw schedulesError
 
         const scheduleMap = new Map<string, any>()
         schedulesData?.forEach((sched) => {
@@ -99,15 +121,15 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         })
 
         // Fetch lesson progress for checkmark nodes
-        const savedEmail = getCookie(`student_email_${classCode}`)
         const completedLessonIds = new Set<string>()
-        if (savedEmail) {
-          const { data: progressData } = await supabase
+        if (studentEmail && !isAdminPreview) {
+          const { data: progressData, error: progressError } = await supabase
             .from('student_lesson_progress')
             .select('lesson_id')
             .eq('class_id', classData.id)
-            .eq('student_email', savedEmail.trim().toLowerCase())
-          
+            .eq('student_email', studentEmail)
+
+          if (progressError) throw progressError
           progressData?.forEach(p => completedLessonIds.add(p.lesson_id))
         }
 
@@ -119,11 +141,12 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
 
         const lessonAssignmentMap = new Map<string, string>()
         if (allLessonIds.length > 0) {
-          const { data: assignmentsData } = await supabase
+          const { data: assignmentsData, error: assignmentsError } = await supabase
             .from('assignments')
             .select('id, lesson_id')
             .in('lesson_id', allLessonIds)
 
+          if (assignmentsError) throw assignmentsError
           assignmentsData?.forEach(a => lessonAssignmentMap.set(a.lesson_id, a.id))
         }
 
@@ -214,13 +237,14 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         setExpandedModules(initialExpanded)
       } catch (err) {
         console.error('Failed to parse syllabus tree:', err)
+        setErrorState(err instanceof Error ? err.message : 'Không thể tải lộ trình khóa học.')
       } finally {
         setLoading(false)
       }
     }
 
     loadRoadmap()
-  }, [classCode, courseSlug, router])
+  }, [classCode, courseSlug, identityVerified, isAdminPreview, reloadKey, studentEmail])
 
   const progressPercentage = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
 
@@ -241,7 +265,22 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         </div>
       </div>
 
-      {loading ? (
+      {errorState ? (
+        <div className="flex-1 flex flex-col justify-center items-center gap-4 py-24 text-center" role="alert">
+          <AlertCircle className="w-8 h-8 text-rose-500" />
+          <div className="space-y-1">
+            <h1 className="text-sm font-bold text-slate-100">Không thể tải lộ trình khóa học</h1>
+            <p className="text-xs text-slate-500">{errorState}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReloadKey((current) => current + 1)}
+            className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
+          >
+            Thử lại
+          </button>
+        </div>
+      ) : loading ? (
         <div className="flex-1 flex flex-col justify-center items-center gap-4 py-32 text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           <span className="text-sm">Synthesizing learning path...</span>
@@ -375,37 +414,39 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
                                     {isLocked && lesson.visibleAfter && (
                                       <span className="inline-flex items-center gap-1 text-[9px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full mt-1">
                                         <Clock className="w-2.5 h-2.5" />
-                                        Unlocks: {new Date(lesson.visibleAfter).toLocaleDateString()}
+                                        Mở từ: {formatDate(lesson.visibleAfter)}
+                                      </span>
+                                    )}
+                                    {isLocked && !lesson.visibleAfter && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold mt-1">
+                                        Giáo viên chưa thiết lập lịch mở bài.
                                       </span>
                                     )}
                                   </div>
 
                                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                                     {/* Submit Assignment button */}
-                                    {!isLocked && lesson.hasAssignment && (
-                                      <button
-                                        onClick={() => {
-                                          if (lesson.assignmentId) {
-                                            router.push(`/learn/${classCode}/assignments/${lesson.assignmentId}`)
-                                          }
-                                        }}
+                                    {!isLocked && lesson.hasAssignment && lesson.assignmentId && (
+                                      <Link
+                                        href={`/learn/${classCode}/assignments/${lesson.assignmentId}`}
                                         className="inline-flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-slate-100 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer"
                                       >
                                         <FileText className="w-3.5 h-3.5" />
                                         Submit Task
-                                      </button>
+                                      </Link>
                                     )}
 
                                     {/* Action Link button */}
                                     {isLocked ? (
-                                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-600 flex items-center justify-center">
+                                      <div
+                                        className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-600 flex items-center justify-center"
+                                        aria-label="Bài học đang bị khóa"
+                                      >
                                         <Lock className="w-4 h-4" />
                                       </div>
                                     ) : (
-                                      <button
-                                        onClick={() => {
-                                          router.push(`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`)
-                                        }}
+                                      <Link
+                                        href={`/learn/${classCode}/courses/${courseSlug}/lessons/${lesson.id}`}
                                         className={`inline-flex items-center gap-1 text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                                           isCompleted 
                                             ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
@@ -414,7 +455,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
                                       >
                                         <span>{isCompleted ? 'Review' : 'Start'}</span>
                                         <ChevronRight className="w-3.5 h-3.5" />
-                                      </button>
+                                      </Link>
                                     )}
                                   </div>
                                 </div>

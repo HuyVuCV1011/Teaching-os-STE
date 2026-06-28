@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { toast } from 'react-hot-toast'
 import { ClipboardList, CheckCircle, Sparkles, Loader2, Eye, FileCode, BookOpen, Brain, Paperclip, FileCheck, Trash2, FileUp } from 'lucide-react'
 import { getSignedUrlAction } from '@/app/admin/library/actions/materials'
 import { cleanOptionText } from '../hooks/useLessonEditorState'
@@ -475,7 +476,7 @@ export function ReviewAnswersStep({
                                   if (res.success && res.signedUrl) {
                                     window.open(res.signedUrl, '_blank')
                                   } else {
-                                    alert('Could not open file preview.')
+                                    toast.error('Không thể mở bản xem trước của tệp.')
                                   }
                                 }
                               }}
@@ -632,4 +633,3 @@ export function ReviewAnswersStep({
     </div>
   )
 }
-

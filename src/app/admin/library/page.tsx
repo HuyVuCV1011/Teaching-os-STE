@@ -4,7 +4,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { BookOpen, ClipboardList, Sparkles, FolderOpen } from 'lucide-react'
+import { AlertCircle, BookOpen, ClipboardList, Sparkles, FolderOpen } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 
 // Import extracted subcomponents
 import { CourseRegistrySidebar } from './components/CourseRegistrySidebar'
@@ -70,6 +71,7 @@ function AdminLibraryContent() {
 
   const [activeTab, setActiveTab] = useState(activeTabParam)
   const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState<string | null>(null)
 
   // Database lists
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -95,23 +97,30 @@ function AdminLibraryContent() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+    const action = searchParams.get('action')
+    if (action === 'new') {
+      setShowCourseForm(true)
+    }
+  }, [searchParams])
 
   async function fetchData() {
     setLoading(true)
+    setErrorState(null)
+
     try {
-      const [
-        { data: subjectsData },
-        { data: coursesData },
-      ] = await Promise.all([
+      const [subjectsResult, coursesResult] = await Promise.all([
         supabase.from('subjects').select('*').order('name'),
         supabase.from('courses').select('*, subjects(name)').neq('status', 'archived').order('created_at', { ascending: false }),
       ])
 
-      setSubjects((subjectsData || []) as Subject[])
-      setCourses((coursesData || []) as Course[])
+      if (subjectsResult.error) throw subjectsResult.error
+      if (coursesResult.error) throw coursesResult.error
+
+      setSubjects((subjectsResult.data || []) as Subject[])
+      setCourses((coursesResult.data || []) as Course[])
     } catch (error) {
       console.error('Error fetching CMS data:', error)
+      setErrorState(error instanceof Error ? error.message : 'Không thể tải dữ liệu thư viện.')
     } finally {
       setLoading(false)
     }
@@ -127,13 +136,13 @@ function AdminLibraryContent() {
     try {
       const res = await duplicateCourseAction(courseId)
       if (res.success) {
-        alert('Course duplicated successfully!')
+        toast.success('Course duplicated successfully!')
         await fetchData()
       } else {
-        alert(`Failed to duplicate course: ${res.error}`)
+        toast.error(`Failed to duplicate course: ${res.error}`)
       }
     } catch (err: any) {
-      alert(`An error occurred: ${err.message}`)
+      toast.error(`An error occurred: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -159,7 +168,7 @@ function AdminLibraryContent() {
       fetchData()
     } catch (err) {
       const error = err as Error
-      alert(`Failed to create subject: ${error.message}`)
+      toast.error(`Failed to create subject: ${error.message}`)
     }
   }
 
@@ -177,7 +186,7 @@ function AdminLibraryContent() {
       fetchData()
     } catch (err) {
       const error = err as Error
-      alert(`Failed to create course: ${error.message}`)
+      toast.error(`Failed to create course: ${error.message}`)
     }
   }
 
@@ -195,10 +204,10 @@ function AdminLibraryContent() {
         // reload details
         await handleSelectCourse(selectedCourse!)
       } else {
-        alert(`Failed to save syllabus structure: ${res.error}`)
+        toast.error(`Failed to save syllabus structure: ${res.error}`)
       }
     } catch (err: any) {
-      alert(`Error saving syllabus structure: ${err.message}`)
+      toast.error(`Error saving syllabus structure: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -243,7 +252,7 @@ function AdminLibraryContent() {
       handleSelectCourse(selectedCourse)
     } catch (err) {
       const error = err as Error
-      alert(`Failed to add module: ${error.message}`)
+      toast.error(`Failed to add module: ${error.message}`)
     }
   }
 
@@ -278,7 +287,7 @@ function AdminLibraryContent() {
       }
     } catch (err) {
       const error = err as Error
-      alert(`Failed to add lesson: ${error.message}`)
+      toast.error(`Failed to add lesson: ${error.message}`)
     }
   }
 
@@ -316,7 +325,7 @@ function AdminLibraryContent() {
       }
     } catch (err) {
       const error = err as Error
-      alert(`Failed to move module: ${error.message}`)
+      toast.error(`Failed to move module: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -366,7 +375,7 @@ function AdminLibraryContent() {
       }
     } catch (err) {
       const error = err as Error
-      alert(`Failed to move lesson: ${error.message}`)
+      toast.error(`Failed to move lesson: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -448,7 +457,22 @@ function AdminLibraryContent() {
 
       {/* Tab Content Workspace */}
       <div className="min-h-[400px]">
-        {loading && !selectedCourse ? (
+        {errorState ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center" role="alert">
+            <AlertCircle className="h-8 w-8 text-rose-500" />
+            <div>
+              <p className="text-sm font-semibold text-slate-100">Không thể tải thư viện nội dung</p>
+              <p className="mt-1 text-xs text-slate-500">{errorState}</p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchData}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : loading && !selectedCourse ? (
           <div className="flex justify-center items-center py-20 text-slate-500 text-sm font-semibold gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" /> Loading CMS taxonomy data...
           </div>

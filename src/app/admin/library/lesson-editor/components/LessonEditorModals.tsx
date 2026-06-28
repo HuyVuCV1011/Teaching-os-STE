@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { toast } from 'react-hot-toast'
 import {
   X,
   Loader2,
@@ -152,12 +153,129 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
     setRegeneratingIndex
   } = state
 
+  const dialogTriggerRef = React.useRef<HTMLElement | null>(null)
+  const isAnyDialogOpen = Boolean(
+    verifyMaterial ||
+    showMaterialsPreview ||
+    showAssignmentPreview ||
+    classifyModalOpen ||
+    showEssayFormatModal ||
+    showAiModal ||
+    showBatchSummaryModal ||
+    editingQuestion
+  )
+
+  const closeActiveDialog = React.useCallback(() => {
+    if (editingQuestion) {
+      setEditingQuestion(null)
+      setEditingBatchIndex(null)
+      setEditingQuestionIndex(null)
+    } else if (showBatchSummaryModal) {
+      setShowBatchSummaryModal(false)
+    } else if (showAiModal) {
+      if (modalStep === 3) {
+        toast('Hãy hoàn tất hoặc hủy bước tạo câu hỏi bằng nút trong hộp thoại.')
+        return
+      }
+      setShowAiModal(false)
+    } else if (showEssayFormatModal) {
+      setShowEssayFormatModal(false)
+      setParsedQuestionsTemp([])
+      setParsedFileNameTemp('')
+    } else if (classifyModalOpen) {
+      setClassifyModalOpen(false)
+      setClassifyFile(null)
+    } else if (showAssignmentPreview) {
+      setShowAssignmentPreview(false)
+    } else if (showMaterialsPreview) {
+      setShowMaterialsPreview(false)
+    } else if (verifyMaterial) {
+      setVerifyMaterial(null)
+    }
+  }, [
+    classifyModalOpen,
+    editingQuestion,
+    modalStep,
+    setClassifyFile,
+    setClassifyModalOpen,
+    setEditingBatchIndex,
+    setEditingQuestion,
+    setEditingQuestionIndex,
+    setParsedFileNameTemp,
+    setParsedQuestionsTemp,
+    setShowAiModal,
+    setShowAssignmentPreview,
+    setShowBatchSummaryModal,
+    setShowEssayFormatModal,
+    setShowMaterialsPreview,
+    setVerifyMaterial,
+    showAiModal,
+    showAssignmentPreview,
+    showBatchSummaryModal,
+    showEssayFormatModal,
+    showMaterialsPreview,
+    verifyMaterial,
+  ])
+
+  React.useEffect(() => {
+    if (!isAnyDialogOpen) return
+
+    dialogTriggerRef.current = document.activeElement as HTMLElement
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const dialogs = document.querySelectorAll<HTMLElement>('[data-lesson-editor-dialog="true"]')
+    const dialog = dialogs[dialogs.length - 1]
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const getFocusableElements = () =>
+      dialog ? Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)) : []
+
+    getFocusableElements()[0]?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeActiveDialog()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+      const focusableElements = getFocusableElements()
+      if (focusableElements.length === 0) return
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+      dialogTriggerRef.current?.focus()
+    }
+  }, [closeActiveDialog, isAnyDialogOpen])
+
   return (
     <>
       {/* Verify & Configure Modal */}
       {verifyMaterial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Xác minh tài liệu ${verifyMaterial.title}`}
+            className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
+          >
             {/* Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
               <div>
@@ -278,7 +396,13 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
       {/* Materials Preview Modal */}
       {showMaterialsPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Xem trước tài liệu bài học"
+            className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
+          >
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
               <div>
@@ -414,7 +538,13 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
       {/* Assignment Preview Simulator Modal */}
       {showAssignmentPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Xem trước bài tập"
+            className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
+          >
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-700 flex justify-between items-center shrink-0">
               <div>
@@ -530,7 +660,7 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
                                         if (res.success && res.signedUrl) {
                                           window.open(res.signedUrl, '_blank')
                                         } else {
-                                          alert('Could not open file preview.')
+                                          toast.error('Không thể mở bản xem trước của tệp.')
                                         }
                                       }
                                     }}
@@ -709,8 +839,14 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Classify File Modal */}
       {classifyModalOpen && classifyFile && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in motion-reduce:animate-none">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Phân loại tệp tải lên"
+            className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+          >
             {/* Header */}
             <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
@@ -900,8 +1036,14 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Smart Post-Parse Essay Format Modal */}
       {showEssayFormatModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in motion-reduce:animate-none">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Định dạng câu hỏi tự luận"
+            className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+          >
             {/* Header */}
             <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
@@ -1015,8 +1157,14 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* AI Generator Modal */}
       {showAiModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in motion-reduce:animate-none">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Tạo câu hỏi bằng AI"
+            className="bg-slate-900 border border-slate-700 w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]"
+          >
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -1905,8 +2053,14 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Batch Summary Modal */}
       {showBatchSummaryModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[70vh]">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in motion-reduce:animate-none">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Tóm tắt lô câu hỏi"
+            className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[70vh]"
+          >
             {/* Header */}
             <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -2058,8 +2212,14 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
 
       {/* Edit Question Modal */}
       {editingQuestion && editingBatchIndex !== null && editingQuestionIndex !== null && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in motion-reduce:animate-none">
+          <div
+            data-lesson-editor-dialog="true"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chỉnh sửa câu hỏi"
+            className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+          >
             {/* Header */}
             <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
@@ -2218,4 +2378,3 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
     </>
   )
 }
-

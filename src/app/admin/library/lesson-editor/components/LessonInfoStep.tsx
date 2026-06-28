@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { toast } from 'react-hot-toast'
 import { Upload, Eye, EyeOff, GripVertical, Trash2, Edit, Loader2, BookOpen, FileText, CheckCircle } from 'lucide-react'
 import NovelRichTextEditor from '@/components/NovelRichTextEditor'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
@@ -146,7 +147,7 @@ export function LessonInfoStep({
     const file = e.target.files?.[0]
     if (!file) return
     if (!file.name.endsWith('.md')) {
-      alert('Vui lòng chọn file định dạng .md')
+      toast.error('Vui lòng chọn tệp định dạng .md')
       return
     }
     const reader = new FileReader()

@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Megaphone, Send, Loader2, Trash2 } from 'lucide-react'
+import { formatDateTime } from '@/lib/date'
 
 interface NoticeBoardWorkspaceProps {
   noticeTitle: string
@@ -96,7 +97,7 @@ export function NoticeBoardWorkspace({
                   <h5 className="font-bold text-slate-100 text-sm">{ann.title}</h5>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-slate-500 font-medium">
-                      {new Date(ann.created_at).toLocaleString()}
+                      {formatDateTime(ann.created_at)}
                     </span>
                     <button
                       onClick={() => handleDeleteAnnouncement(ann.id)}

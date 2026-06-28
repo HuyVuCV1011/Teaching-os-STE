@@ -4,6 +4,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { MessageSquare, Send, Trash2, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { formatDate, formatDateTime } from '@/lib/date'
+import { toast } from 'react-hot-toast'
 
 interface LessonDiscussionProps {
   classId: string
@@ -43,7 +45,7 @@ function timeAgo(dateStr: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`
-  return new Date(dateStr).toLocaleDateString()
+  return formatDate(dateStr)
 }
 
 export default function LessonDiscussion({
@@ -109,7 +111,7 @@ export default function LessonDiscussion({
 
     const emailToUse = currentUserEmail || studentEmail
     if (!emailToUse) {
-      alert('Please verify your email or log in to post comments.')
+      toast.error('Vui lòng xác minh email trước khi đăng bình luận.')
       return
     }
 
@@ -129,7 +131,7 @@ export default function LessonDiscussion({
       setNewComment('')
       await fetchComments()
     } catch (err: any) {
-      alert(`Failed to submit comment: ${err.message}`)
+      toast.error(`Không thể gửi bình luận: ${err.message}`)
     } finally {
       setSubmitting(false)
     }
@@ -151,7 +153,7 @@ export default function LessonDiscussion({
           if (error) throw error
           setComments((prev) => prev.filter((c) => c.id !== commentId))
         } catch (err: any) {
-          alert(`Delete failed: ${err.message}`)
+          toast.error(`Không thể xóa bình luận: ${err.message}`)
         } finally {
           setDeletingId(null)
         }
@@ -242,7 +244,7 @@ export default function LessonDiscussion({
                           <div className="flex items-center gap-2 shrink-0">
                             <span
                               className="text-[10px] text-slate-500"
-                              title={new Date(comment.created_at).toLocaleString()}
+                              title={formatDateTime(comment.created_at)}
                             >
                               {timeAgo(comment.created_at)}
                             </span>

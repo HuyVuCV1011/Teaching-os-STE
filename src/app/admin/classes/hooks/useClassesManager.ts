@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -10,6 +11,7 @@ export function useClassesManager(initialAction: string | null) {
   const [classes, setClasses] = useState<any[]>([])
   const [courses, setCourses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState<string | null>(null)
 
   // Class Form State
   const [classForm, setClassForm] = useState({
@@ -95,6 +97,7 @@ export function useClassesManager(initialAction: string | null) {
       setAnnouncements(data || [])
     } catch (err) {
       console.error('Error fetching announcements:', err)
+      toast.error('Không thể tải bảng thông báo của lớp.')
     } finally {
       setNoticeLoading(false)
     }
@@ -125,6 +128,7 @@ export function useClassesManager(initialAction: string | null) {
       }
     } catch (err) {
       console.error('Error fetching analytics:', err)
+      toast.error('Không thể tải dữ liệu phân tích của lớp.')
     } finally {
       setAnalyticsLoading(false)
     }
@@ -150,7 +154,7 @@ export function useClassesManager(initialAction: string | null) {
       setNoticeContent('')
       fetchAnnouncements()
     } catch (err: any) {
-      alert(`Failed to create announcement: ${err.message}`)
+      toast.error(`Failed to create announcement: ${err.message}`)
     } finally {
       setNoticeSubmitting(false)
     }
@@ -167,25 +171,28 @@ export function useClassesManager(initialAction: string | null) {
       if (error) throw error
       setAnnouncements((prev) => prev.filter((a) => a.id !== id))
     } catch (err: any) {
-      alert(`Failed to delete announcement: ${err.message}`)
+      toast.error(`Failed to delete announcement: ${err.message}`)
     }
   }
 
   async function fetchData() {
     setLoading(true)
+    setErrorState(null)
+
     try {
-      const [
-        { data: classesData },
-        { data: coursesData },
-      ] = await Promise.all([
+      const [classesResult, coursesResult] = await Promise.all([
         supabase.from('classes').select('*, courses(id, title, subjects(id, name))').order('created_at', { ascending: false }),
         supabase.from('courses').select('*, subjects(id, name)').neq('status', 'archived').order('title'),
       ])
 
-      setClasses(classesData || [])
-      setCourses(coursesData || [])
+      if (classesResult.error) throw classesResult.error
+      if (coursesResult.error) throw coursesResult.error
+
+      setClasses(classesResult.data || [])
+      setCourses(coursesResult.data || [])
     } catch (error) {
       console.error('Error fetching classes metadata:', error)
+      setErrorState(error instanceof Error ? error.message : 'Không thể tải dữ liệu lớp học.')
     } finally {
       setLoading(false)
     }
@@ -272,7 +279,7 @@ export function useClassesManager(initialAction: string | null) {
 
       router.replace('/admin/classes')
     } catch (err: any) {
-      alert(`Failed to save class cohort: ${err.message}`)
+      toast.error(`Failed to save class cohort: ${err.message}`)
     }
   }
 
@@ -315,7 +322,7 @@ export function useClassesManager(initialAction: string | null) {
       }
       fetchData()
     } catch (err: any) {
-      alert(`Deletion failed: ${err.message}`)
+      toast.error(`Deletion failed: ${err.message}`)
     }
   }
 
@@ -377,7 +384,7 @@ export function useClassesManager(initialAction: string | null) {
       .filter((em) => em.includes('@'))
 
     if (emails.length === 0) {
-      alert('Please enter one or more valid email addresses.')
+      toast.error('Please enter one or more valid email addresses.')
       return
     }
 
@@ -396,7 +403,7 @@ export function useClassesManager(initialAction: string | null) {
       setNewEmail('')
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Enrollment failed: ${err.message}`)
+      toast.error(`Enrollment failed: ${err.message}`)
     }
   }
 
@@ -407,7 +414,7 @@ export function useClassesManager(initialAction: string | null) {
       if (error) throw error
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Failed to remove enrollment: ${err.message}`)
+      toast.error(`Failed to remove enrollment: ${err.message}`)
     }
   }
 
@@ -427,7 +434,7 @@ export function useClassesManager(initialAction: string | null) {
       setSelectedCourseId('')
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Failed to map course: ${err.message}`)
+      toast.error(`Failed to map course: ${err.message}`)
     }
   }
 
@@ -438,7 +445,7 @@ export function useClassesManager(initialAction: string | null) {
       if (error) throw error
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Unmapping failed: ${err.message}`)
+      toast.error(`Unmapping failed: ${err.message}`)
     }
   }
 
@@ -461,7 +468,7 @@ export function useClassesManager(initialAction: string | null) {
       setShowScheduleForm(false)
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Failed to set schedule: ${err.message}`)
+      toast.error(`Failed to set schedule: ${err.message}`)
     }
   }
 
@@ -472,7 +479,7 @@ export function useClassesManager(initialAction: string | null) {
       if (error) throw error
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Failed to delete schedule: ${err.message}`)
+      toast.error(`Failed to delete schedule: ${err.message}`)
     }
   }
 
@@ -526,11 +533,11 @@ export function useClassesManager(initialAction: string | null) {
 
       if (insertError) throw insertError
 
-      alert(`Successfully generated release schedule for ${sortedLessons.length} lessons!`)
+      toast.success(`Successfully generated release schedule for ${sortedLessons.length} lessons!`)
       setShowBulkForm(false)
       handleSelectClass(selectedClass)
     } catch (err: any) {
-      alert(`Bulk scheduling failed: ${err.message}`)
+      toast.error(`Bulk scheduling failed: ${err.message}`)
     }
   }
 
@@ -538,6 +545,8 @@ export function useClassesManager(initialAction: string | null) {
     classes,
     courses,
     loading,
+    errorState,
+    retryFetchData: fetchData,
     classForm,
     setClassForm,
     showClassForm,

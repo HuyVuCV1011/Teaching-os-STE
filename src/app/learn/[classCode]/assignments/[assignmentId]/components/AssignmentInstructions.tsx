@@ -9,6 +9,8 @@ import { getStudentMaterialSignedUrlAction } from '../actions'
 import { AssignmentQuestionsForm } from './AssignmentQuestionsForm'
 import { parseAssignmentInstructions } from '@/lib/assignment'
 import CodeFileViewer from '@/components/CodeFileViewer'
+import { toast } from 'react-hot-toast'
+import { formatDateTime } from '@/lib/date'
 
 interface AssignmentInstructionsProps {
   assignment: any
@@ -118,7 +120,7 @@ export function AssignmentInstructions({
                         if (res.success && res.signedUrl) {
                           window.open(res.signedUrl, '_blank')
                         } else {
-                          alert('Could not download file.')
+                          toast.error('Could not download file.')
                         }
                       }
                     }}
@@ -543,7 +545,7 @@ export function AssignmentInstructions({
           <span>
             Due Date:{' '}
             {schedule?.due_date
-              ? new Date(schedule.due_date).toLocaleString()
+              ? formatDateTime(schedule.due_date)
               : 'Not specified'}
           </span>
         </div>

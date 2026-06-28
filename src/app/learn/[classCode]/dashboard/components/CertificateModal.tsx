@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Printer, ExternalLink, Award, X } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 interface CertificateModalProps {
   showCertificateModal: boolean
@@ -24,11 +25,83 @@ export function CertificateModal({
   printRef,
   certificateId,
 }: CertificateModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+
+  // Escape key close support
+  useEffect(() => {
+    if (!showCertificateModal) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowCertificateModal(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showCertificateModal, setShowCertificateModal])
+
+  // Focus trap, restoration and body scroll lock
+  useEffect(() => {
+    if (!showCertificateModal) return
+
+    previousFocusRef.current = document.activeElement as HTMLElement
+    const previousOverflow = document.body.style.overflow
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'contain'
+
+    const focusTimer = window.setTimeout(() => {
+      const closeBtn = modalRef.current?.querySelector('button')
+      closeBtn?.focus()
+    }, 50)
+
+    return () => {
+      window.clearTimeout(focusTimer)
+      document.body.style.overflow = previousOverflow
+      document.body.style.overscrollBehavior = previousOverscrollBehavior
+      previousFocusRef.current?.focus()
+    }
+  }, [showCertificateModal])
+
+  // Focus trap handler
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return
+    const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    if (!focusable || focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        last.focus()
+        e.preventDefault()
+      }
+    } else {
+      if (document.activeElement === last) {
+        first.focus()
+        e.preventDefault()
+      }
+    }
+  }
+
   if (!showCertificateModal) return null
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700/60 max-w-2xl w-full rounded-3xl shadow-2xl overflow-hidden relative">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      onKeyDown={handleKeyDown}
+    >
+      <div
+        ref={modalRef}
+        id="certificate-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cert-dialog-title"
+        aria-describedby="cert-dialog-desc"
+        className="bg-slate-900 border border-slate-700/60 max-w-2xl w-full rounded-3xl shadow-2xl overflow-hidden relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:transition-none"
+      >
         {/* Close button */}
         <button
           onClick={() => setShowCertificateModal(false)}
@@ -44,8 +117,8 @@ export function CertificateModal({
             <Award className="w-6 h-6 text-blue-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Course Credential</h3>
-            <p className="text-xs text-slate-400">Generate and download your certificate of completion</p>
+            <h3 id="cert-dialog-title" className="text-lg font-bold text-white">Course Credential</h3>
+            <p id="cert-dialog-desc" className="text-xs text-slate-400">Generate and download your certificate of completion</p>
           </div>
         </div>
 
@@ -95,7 +168,7 @@ export function CertificateModal({
                     <span className="block text-slate-400">LMS Credential Engine</span>
                   </div>
                   <div className="text-right">
-                    <span className="block font-mono text-slate-600 text-[9px]">{new Date().toLocaleDateString()}</span>
+                    <span className="block font-mono text-slate-600 text-[9px]">{formatDate(new Date())}</span>
                     <span className="block text-slate-400">Issue Date</span>
                   </div>
                 </div>

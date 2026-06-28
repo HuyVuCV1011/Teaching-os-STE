@@ -87,15 +87,6 @@ const Hero = () => {
           >
             Cố vấn dữ liệu và tối ưu hệ thống
           </motion.p>
-          {/* <motion.div
-            variants={heroChildVariant}
-            className="flex gap-2 mt-6 md:mt-10"
-          >
-            <Button variant="outline" size="lg">
-              Register
-            </Button>
-            <Button size="lg">Free Trial</Button>
-          </motion.div> */}
         </div>
         <div className="max-w-screen-xl mx-auto">
           <motion.figure

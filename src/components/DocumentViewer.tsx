@@ -129,7 +129,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
       const activeThumb = document.getElementById(`pdf-page-thumb-${pageNumber}`)
       if (activeThumb) {
         activeThumb.scrollIntoView({
-          behavior: 'smooth',
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
           block: 'nearest'
         })
       }
@@ -138,6 +138,12 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
   }, [pageNumber, isSidebarOpen])
 
   useEffect(() => {
+    // Reset pages state and start loading when document URL changes
+    setNumPages(null)
+    setPageNumber(1)
+    setLoading(true)
+    setError(null)
+
     if (!url) {
       setError('No document source provided.')
       setLoading(false)
@@ -154,13 +160,12 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
       setLoading(false)
       return
     }
-    setError(null)
   }, [url])
 
   return (
     <div
       ref={containerRef}
-      className={`w-full flex flex-col border border-slate-800 bg-slate-950 overflow-hidden relative shadow-2xl transition-all duration-300 rounded-2xl ${
+      className={`w-full flex flex-col border border-slate-800 bg-slate-950 overflow-hidden relative shadow-2xl transition-[height,width,border-radius] duration-300 motion-reduce:transition-none rounded-2xl ${
         isFullscreen ? 'h-screen w-screen z-50 rounded-none' : className || 'h-[720px]'
       }`}
     >
@@ -181,11 +186,13 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
                 isSidebarOpen ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
               title={isSidebarOpen ? 'Ẩn thanh điều hướng (T)' : 'Hiện thanh điều hướng (T)'}
+              aria-label={isSidebarOpen ? 'Ẩn danh sách trang' : 'Hiện danh sách trang'}
+              aria-pressed={isSidebarOpen}
             >
               <PanelLeft className="w-4 h-4" />
             </button>
           )}
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse motion-reduce:animate-none" aria-hidden="true" />
           <h4 className="text-xs font-bold text-slate-350 uppercase tracking-widest truncate max-w-xs sm:max-w-md">
             {title || 'Course Material'}
           </h4>
@@ -203,6 +210,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
             disabled={loading || !!error}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
             title="Zoom Out"
+            aria-label="Thu nhỏ tài liệu"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
@@ -214,6 +222,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
             disabled={loading || !!error}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
             title="Zoom In"
+            aria-label="Phóng to tài liệu"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
@@ -222,6 +231,8 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
             onClick={toggleFullscreen}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen presentation'}
+            aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Xem tài liệu toàn màn hình'}
+            aria-pressed={isFullscreen}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -231,6 +242,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
       {/* Middle Layout Container */}
       {url && !error ? (
         <Document
+          key={url}
           file={url}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
@@ -248,6 +260,8 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
                     key={pNum}
                     id={`pdf-page-thumb-${pNum}`}
                     onClick={() => setPageNumber(pNum)}
+                    aria-label={`Đi tới trang ${pNum}`}
+                    aria-current={isActive ? 'page' : undefined}
                     className="flex items-start gap-2 group cursor-pointer text-left w-full focus:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 rounded"
                   >
                     <span className={`text-[10px] font-mono font-bold w-4 text-right pt-1.5 shrink-0 ${
@@ -288,7 +302,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
             {loading && (
               <div className="absolute inset-0 flex flex-col justify-center items-center gap-3 text-slate-400 bg-slate-950/80 z-20">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                <span className="text-xs font-semibold tracking-wider uppercase text-slate-500">Securing & rendering pages...</span>
+                <span className="text-xs font-semibold tracking-wider uppercase text-slate-500">Đang tải tài liệu…</span>
               </div>
             )}
 
@@ -299,7 +313,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
               </div>
             )}
 
-            {!error && (
+            {!error && numPages !== null && (
               <div className="shadow-2xl border border-slate-900 rounded bg-slate-900 overflow-hidden max-w-full">
                 <Page
                   pageNumber={pageNumber}
@@ -319,7 +333,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
           </div>
         </Document>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-slate-950 text-slate-550 text-xs italic">
+        <div className="flex-1 flex items-center justify-center bg-slate-950 text-slate-550 text-xs italic" role="alert">
           {error || 'No document source provided.'}
         </div>
       )}
@@ -330,19 +344,21 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
           <button
             onClick={() => changePage(-1)}
             disabled={pageNumber <= 1}
-            className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
+            className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center justify-center"
+            aria-label="Trang trước"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           
           <div className="text-xs font-mono font-bold text-slate-350 bg-slate-950/60 border border-slate-850 px-4 py-2 rounded-xl">
-            PAGE {pageNumber} OF {numPages}
+            TRANG {pageNumber} / {numPages}
           </div>
 
           <button
             onClick={() => changePage(1)}
             disabled={pageNumber >= numPages}
-            className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center"
+            className="p-2 rounded-xl bg-slate-950/60 border border-slate-500 text-slate-450 hover:text-white hover:border-slate-400 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center justify-center"
+            aria-label="Trang sau"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

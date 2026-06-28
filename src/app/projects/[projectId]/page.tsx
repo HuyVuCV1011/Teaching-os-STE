@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useNodesState, useEdgesState, MarkerType } from 'reactflow'
 import { FileSpreadsheet } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 
 // Import shared components and subcomponents
 import { nodeIconOptions } from '@/app/admin/projects/components/ProcessDiagramWorkspace'
@@ -106,7 +107,7 @@ export default function ProjectIdPage() {
         }
       } catch (error: any) {
         console.error('Fetch error:', error.message)
-        alert(`Lỗi: ${error.message}`)
+        toast.error(`Lỗi: ${error.message}`)
       }
     }
     fetchProject()

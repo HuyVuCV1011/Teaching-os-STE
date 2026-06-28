@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { CheckCircle, Circle, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { toast } from 'react-hot-toast'
 import { toggleLessonProgressAction } from '@/app/learn/[classCode]/assignments/[assignmentId]/actions'
 
 interface LessonCompletionButtonProps {
@@ -67,7 +68,7 @@ export default function LessonCompletionButton({
         onFirstComplete?.()
       }
     } catch (err: any) {
-      alert(`Failed to update progress: ${err.message}`)
+      toast.error(`Không thể cập nhật tiến độ: ${err.message}`)
     } finally {
       setToggling(false)
     }

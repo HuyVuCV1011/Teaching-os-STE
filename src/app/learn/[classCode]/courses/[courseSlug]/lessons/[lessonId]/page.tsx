@@ -67,7 +67,7 @@ export default async function LessonPage({ params }: PageProps) {
   // 4. Fetch Lesson details & materials
   const { data: lessonData } = await supabase
     .from('lessons')
-    .select('*, modules(title, courses(title))')
+    .select('*, modules(id, title, courses(title), lessons(id, title, order_index, metadata))')
     .eq('id', lessonId)
     .single()
 

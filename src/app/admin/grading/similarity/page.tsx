@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import LinkNext from 'next/link'
 import { supabase } from '@/lib/supabase'
 import {
@@ -9,14 +9,12 @@ import {
   AlertTriangle,
   Users,
   Copy,
-  BookOpen,
-  CheckCircle,
-  HelpCircle,
   FileCode,
   X,
   RefreshCw,
   Scale
 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 
 // Cosine similarity for vectors
 function cosineSimilarity(vecA: number[], vecB: number[]) {
@@ -69,6 +67,52 @@ export default function SimilarityChecker() {
     score: number
     type: 'semantic' | 'lexical'
   } | null>(null)
+  const comparisonDialogRef = useRef<HTMLDivElement>(null)
+  const comparisonTriggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (!selectedPair) return
+
+    comparisonTriggerRef.current = document.activeElement as HTMLElement
+    const dialog = comparisonDialogRef.current
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const focusableElements = dialog
+      ? Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+      : []
+    focusableElements[0]?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setSelectedPair(null)
+        return
+      }
+
+      if (event.key !== 'Tab' || focusableElements.length === 0) return
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+      comparisonTriggerRef.current?.focus()
+    }
+  }, [selectedPair])
 
   useEffect(() => {
     fetchAssignments()
@@ -113,7 +157,7 @@ export default function SimilarityChecker() {
       setSubmissions(data || [])
     } catch (err) {
       console.error('Failed to fetch submissions:', err)
-      alert('Error fetching submissions')
+      toast.error('Error fetching submissions')
     } finally {
       setLoadingSubmissions(false)
     }
@@ -388,17 +432,34 @@ export default function SimilarityChecker() {
 
       {/* Side-by-Side Comparison Dialog Modal */}
       {selectedPair && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-slate-955 border border-slate-750 w-full max-w-6xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in motion-reduce:animate-none"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedPair(null)
+          }}
+        >
+          <div
+            ref={comparisonDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="comparison-dialog-title"
+            aria-describedby="comparison-dialog-description"
+            className="bg-slate-955 border border-slate-750 w-full max-w-6xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+          >
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-750 bg-slate-955/90 flex justify-between items-center gap-4">
               <div className="flex items-center gap-3">
                 <FileCode className="w-5 h-5 text-blue-500 shrink-0" />
                 <div>
-                  <h3 className="font-bold text-white text-sm">Compare Deliverables</h3>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <h3 id="comparison-dialog-title" className="font-bold text-white text-sm">
+                    So sánh hai bài nộp
+                  </h3>
+                  <div
+                    id="comparison-dialog-description"
+                    className="flex items-center gap-2 mt-1 text-xs font-semibold text-slate-400"
+                  >
                     <span>{selectedPair.studentA.split('@')[0]}</span>
-                    <span className="text-slate-600 font-normal">vs</span>
+                    <span className="text-slate-600 font-normal">và</span>
                     <span>{selectedPair.studentB.split('@')[0]}</span>
                   </div>
                 </div>
@@ -425,6 +486,7 @@ export default function SimilarityChecker() {
                 <button
                   onClick={() => setSelectedPair(null)}
                   className="p-1.5 rounded hover:bg-slate-800 text-slate-450 hover:text-white transition-colors"
+                  aria-label="Đóng hộp so sánh"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -439,11 +501,14 @@ export default function SimilarityChecker() {
                   <span>Student A: {selectedPair.studentA}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(selectedPair.textA)
-                      alert('Copied student text!')
+                      navigator.clipboard
+                        .writeText(selectedPair.textA)
+                        .then(() => toast.success('Copied student text!'))
+                        .catch(() => toast.error('Could not copy student text.'))
                     }}
                     className="p-1 rounded hover:bg-slate-800 hover:text-white transition-colors"
                     title="Copy full text"
+                    aria-label={`Sao chép toàn bộ bài nộp của ${selectedPair.studentA}`}
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
@@ -461,11 +526,14 @@ export default function SimilarityChecker() {
                   <span>Student B: {selectedPair.studentB}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(selectedPair.textB)
-                      alert('Copied student text!')
+                      navigator.clipboard
+                        .writeText(selectedPair.textB)
+                        .then(() => toast.success('Copied student text!'))
+                        .catch(() => toast.error('Could not copy student text.'))
                     }}
                     className="p-1 rounded hover:bg-slate-800 hover:text-white transition-colors"
                     title="Copy full text"
+                    aria-label={`Sao chép toàn bộ bài nộp của ${selectedPair.studentB}`}
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
@@ -482,9 +550,9 @@ export default function SimilarityChecker() {
             <div className="p-3 bg-slate-955 border-t border-slate-750 text-right">
               <button
                 onClick={() => setSelectedPair(null)}
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 hover:text-white text-slate-300 border border-slate-700 font-bold transition-all text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 hover:text-white text-slate-300 border border-slate-700 font-bold transition-colors text-xs cursor-pointer"
               >
-                Close Comparison
+                Đóng so sánh
               </button>
             </div>
           </div>

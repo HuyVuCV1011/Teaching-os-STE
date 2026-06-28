@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'react-hot-toast'
 import { calculateFileHash } from '@/lib/hash'
 import { parseAssignmentInstructions } from '@/lib/assignment'
 import {
@@ -420,7 +421,7 @@ export function useLessonEditorState() {
 
     const res = await reorderMaterialsAction(updates)
     if (!res.success) {
-      alert(`Failed to save new order: ${res.error}`)
+      toast.error(`Không thể lưu thứ tự mới: ${res.error}`)
       await fetchLessonDetails()
     }
 
@@ -486,7 +487,7 @@ export function useLessonEditorState() {
 
       const res = await updateLessonLayoutAction(lessonId || '', gridLayout, updatedMapping)
       if (!res.success) {
-        alert(`Failed to save column layout: ${res.error}`)
+        toast.error(`Không thể lưu bố cục cột: ${res.error}`)
       }
     } catch (err) {
       console.error('Column drop error:', err)
@@ -503,7 +504,7 @@ export function useLessonEditorState() {
 
       const res = await updateLessonLayoutAction(lessonId || '', gridLayout, updatedMapping)
       if (!res.success) {
-        alert(`Failed to save column layout: ${res.error}`)
+        toast.error(`Không thể lưu bố cục cột: ${res.error}`)
       }
     }
   }
@@ -531,7 +532,7 @@ export function useLessonEditorState() {
 
     const res = await updateLessonLayoutAction(lessonId || '', gridLayout, updatedMapping)
     if (!res.success) {
-      alert(`Failed to save column layout: ${res.error}`)
+      toast.error(`Không thể lưu bố cục cột: ${res.error}`)
     }
   }
 
@@ -932,12 +933,12 @@ export function useLessonEditorState() {
         .eq('id', lessonId)
 
       if (error) throw error
-      alert('Lesson draft saved successfully!')
+      toast.success('Đã lưu bản nháp bài học.')
       setIsDirty(false)
       await fetchLessonDetails()
       setIsDirty(false)
     } catch (err: any) {
-      alert(`Save failed: ${err.message}`)
+      toast.error(`Lưu thất bại: ${err.message}`)
     } finally {
       setSaving(false)
     }
@@ -946,7 +947,7 @@ export function useLessonEditorState() {
   const handleCreateMaterial = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!materialForm.title || !lessonId) {
-      alert('Please specify a material heading / title')
+      toast.error('Vui lòng nhập tiêu đề tài liệu.')
       return
     }
 
@@ -962,7 +963,7 @@ export function useLessonEditorState() {
 
       if (materialForm.creationMethod === 'write') {
         if (!materialForm.manualContent.trim()) {
-          alert('Please enter some content in the rich text editor first')
+          toast.error('Vui lòng nhập nội dung vào trình soạn thảo trước.')
           setUploading(false)
           setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
           return
@@ -974,7 +975,7 @@ export function useLessonEditorState() {
       } else {
         if (materialForm.uploadOption === 'file') {
           if (!uploadFile) {
-            alert('Please select a file to upload')
+            toast.error('Vui lòng chọn tệp để tải lên.')
             setUploading(false)
             setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
             return
@@ -983,7 +984,7 @@ export function useLessonEditorState() {
           finalType = materialForm.type
         } else {
           if (!materialForm.linkUrl) {
-            alert('Please specify a URL link')
+            toast.error('Vui lòng nhập đường dẫn URL.')
             setUploading(false)
             setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
             return
@@ -1001,7 +1002,7 @@ export function useLessonEditorState() {
 
         const duplicate = await checkMaterialDeduplication(hash)
         if (duplicate) {
-          alert(`Deduplication: Duplicate asset "${duplicate.title}" detected. Reusing existing file storage url!`)
+          toast(`Đã phát hiện tài liệu trùng "${duplicate.title}" và sử dụng lại tệp hiện có.`)
           finalStorageUrl = duplicate.storage_url
         } else {
           setUploadStatus(prev => ({ ...prev, step: 'uploading' }))
@@ -1068,7 +1069,7 @@ export function useLessonEditorState() {
           console.error('File cleanup failed:', cleanupErr)
         }
       }
-      alert(`Asset mapping failed: ${err.message}`)
+      toast.error(`Không thể liên kết tài liệu: ${err.message}`)
     } finally {
       setUploading(false)
       setUploadStatus({ active: false, step: '', startedAt: 0, elapsed: '' })
@@ -1082,7 +1083,7 @@ export function useLessonEditorState() {
       if (error) throw error
       fetchLessonDetails()
     } catch (err: any) {
-      alert(`Deletion failed: ${err.message}`)
+      toast.error(`Xóa thất bại: ${err.message}`)
     }
   }
 
@@ -1099,16 +1100,16 @@ export function useLessonEditorState() {
           )
         )
       } else {
-        alert(`Failed to update display mode: ${res.error}`)
+        toast.error(`Không thể cập nhật chế độ hiển thị: ${res.error}`)
       }
     } catch (err: any) {
-      alert(`Error updating display mode: ${err.message}`)
+      toast.error(`Lỗi khi cập nhật chế độ hiển thị: ${err.message}`)
     }
   }
 
   const handleGenerateAISolution = async () => {
     if (!assignmentForm.instructions) {
-      alert('Please enter assignment guidelines/instructions first, so the AI knows what to solve!')
+      toast.error('Vui lòng nhập hướng dẫn bài tập trước khi tạo đáp án bằng AI.')
       return
     }
     setGeneratingSolution(true)
@@ -1121,9 +1122,9 @@ export function useLessonEditorState() {
       const res = await generateSolutionAction(instructionsWithRag, selectedModel)
       if (!res.success) throw new Error(res.error)
       setSolutionText(res.solutionKey || '')
-      alert('AI Solution Key Draft generated! Review it under Tab 3.')
+      toast.success('AI đã tạo bản nháp đáp án. Vui lòng kiểm tra ở bước 3.')
     } catch (err: any) {
-      alert(`AI solution generation failed: ${err.message}`)
+      toast.error(`AI không thể tạo đáp án: ${err.message}`)
     } finally {
       setGeneratingSolution(false)
     }
@@ -1216,12 +1217,12 @@ export function useLessonEditorState() {
           }
 
           setCriteriaList(mapCriteriaToQuestions(calibratedCriteria, batches))
-          alert('AI Rubric generated successfully from finalized questions and answers!')
+          toast.success('AI đã tạo rubric từ câu hỏi và đáp án đã duyệt.')
         } else {
-          alert(`AI Rubric generation failed: ${res.error || 'No criteria returned'}`)
+          toast.error(`AI không thể tạo rubric: ${res.error || 'Không có tiêu chí trả về'}`)
         }
       } catch (err: any) {
-        alert(`AI Rubric generation failed: ${err.message}`)
+        toast.error(`AI không thể tạo rubric: ${err.message}`)
       } finally {
         setGeneratingRubric(false)
       }
@@ -1229,12 +1230,12 @@ export function useLessonEditorState() {
     }
 
     if (!assignmentForm.instructions) {
-      alert('Please fill out assignment instructions first.')
+      toast.error('Vui lòng nhập hướng dẫn bài tập trước.')
       return
     }
     const finalSolText = solutionMode === 'ai' ? solutionText : (solutionFile ? solutionFile.name : '')
     if (!finalSolText) {
-      alert('Please provide or generate a solution key first, so the AI can evaluate correctly!')
+      toast.error('Vui lòng cung cấp hoặc tạo đáp án trước khi tạo rubric.')
       return
     }
 
@@ -1248,9 +1249,9 @@ export function useLessonEditorState() {
       const res = await generateRubricAction(instructionsWithRag, finalSolText, selectedModel)
       if (!res.success) throw new Error(res.error)
       setCriteriaList(res.criteria || [])
-      alert('AI Rubric generated! Review and tweak it below.')
+      toast.success('AI đã tạo rubric. Vui lòng kiểm tra và điều chỉnh.')
     } catch (err: any) {
-      alert(`AI Rubric generation failed: ${err.message}`)
+      toast.error(`AI không thể tạo rubric: ${err.message}`)
     } finally {
       setGeneratingRubric(false)
     }
@@ -1410,12 +1411,12 @@ export function useLessonEditorState() {
         setModalStep(3)
       } else {
         clearInterval(timer)
-        alert(`Generation failed: ${res.error}`)
+        toast.error(`Tạo nội dung thất bại: ${res.error}`)
         setModalStep(1)
       }
     } catch (err: any) {
       clearInterval(timer)
-      alert(`Generation failed: ${err.message}`)
+      toast.error(`Tạo nội dung thất bại: ${err.message}`)
       setModalStep(1)
     } finally {
       setIsGeneratingBatch(false)
@@ -1590,7 +1591,7 @@ export function useLessonEditorState() {
         return { ...b, questions: qs }
       }))
     } else {
-      alert(`Regeneration failed: ${res.error}`)
+      toast.error(`Tạo lại thất bại: ${res.error}`)
       setBatches(prev => prev.map((b, idx) => {
         if (idx !== bIdx) return b
         const qs = [...b.questions]
@@ -1606,7 +1607,7 @@ export function useLessonEditorState() {
       if (b.questions.some(q => q.status === 'rejected')) hasRejected = true
     })
     if (!hasRejected) {
-      alert('No rejected questions to regenerate.')
+      toast('Không có câu hỏi bị từ chối cần tạo lại.')
       return
     }
 
@@ -1685,7 +1686,7 @@ export function useLessonEditorState() {
           return { ...b, questions: qs }
         }))
       } else {
-        alert(`Regeneration failed for Batch ${bIdx + 1}: ${res.error}`)
+        toast.error(`Tạo lại lô ${bIdx + 1} thất bại: ${res.error}`)
         setBatches(prev => prev.map((b, idx) => {
           if (idx !== bIdx) return b
           const qs = b.questions.map((q, qIdx) => {
@@ -1882,10 +1883,10 @@ export function useLessonEditorState() {
           answerSource: 'ai_generated'
         }, activeQ.batchId)
       } else {
-        alert(`AI Suggest failed: ${res.error || 'No answer returned'}`)
+        toast.error(`AI không thể gợi ý: ${res.error || 'Không có đáp án trả về'}`)
       }
     } catch (err: any) {
-      alert(`AI Suggest failed: ${err.message}`)
+      toast.error(`AI không thể gợi ý: ${err.message}`)
     } finally {
       setSuggestingAnsIdx(null)
     }
@@ -1903,7 +1904,7 @@ export function useLessonEditorState() {
 
     const missingQs = approvedQs.filter(q => !q.answer || q.answer.trim() === '')
     if (missingQs.length === 0) {
-      alert('All approved questions already have answers!')
+      toast('Tất cả câu hỏi đã duyệt đều đã có đáp án.')
       return
     }
 
@@ -1963,15 +1964,15 @@ export function useLessonEditorState() {
               })
             }))
           })
-          alert(`Successfully generated answers for ${successfulCount} question(s)!`)
+          toast.success(`Đã tạo đáp án cho ${successfulCount} câu hỏi.`)
         } else {
-          alert('Could not suggest answers for any of the missing questions. Please verify your connection or model options.')
+          toast.error('Không thể gợi ý đáp án. Vui lòng kiểm tra kết nối hoặc mô hình AI.')
         }
       } else {
-        alert(`AI Suggest failed: ${res.error || 'No answers returned'}`)
+        toast.error(`AI không thể gợi ý: ${res.error || 'Không có đáp án trả về'}`)
       }
     } catch (err: any) {
-      alert(`Failed to suggest all answers: ${err.message}`)
+      toast.error(`Không thể gợi ý toàn bộ đáp án: ${err.message}`)
     } finally {
       setIsSuggestingAll(false)
     }
@@ -1993,7 +1994,7 @@ export function useLessonEditorState() {
     })
 
     if (approvedEssayQs.length === 0) {
-      alert('Please approve at least one essay question first before generating a rubric!')
+      toast.error('Vui lòng duyệt ít nhất một câu tự luận trước khi tạo rubric.')
       return
     }
 
@@ -2068,12 +2069,12 @@ export function useLessonEditorState() {
         }
 
         setCriteriaList(mapCriteriaToQuestions(calibratedCriteria, batches))
-        alert('Rubric successfully generated from questions & answers! Check Tab 4.')
+        toast.success('Đã tạo rubric từ câu hỏi và đáp án. Vui lòng kiểm tra ở bước 4.')
       } else {
-        alert(`Rubric generation failed: ${res.error || 'No criteria returned'}`)
+        toast.error(`Tạo rubric thất bại: ${res.error || 'Không có tiêu chí trả về'}`)
       }
     } catch (err: any) {
-      alert(`Rubric generation failed: ${err.message}`)
+      toast.error(`Tạo rubric thất bại: ${err.message}`)
     } finally {
       setIsGeneratingRubric(false)
     }
@@ -2092,7 +2093,7 @@ export function useLessonEditorState() {
         const res = await parseAssignmentFileAction(formData)
         if (res.success && res.questions) {
           if (res.questions.length === 0) {
-            alert("No questions were extracted from the uploaded file. Please make sure the document contains recognizable question patterns.");
+            toast.error('Không trích xuất được câu hỏi. Hãy kiểm tra định dạng nội dung trong tệp.')
             setClassifyModalOpen(false);
             setClassifyFile(null);
             return;
@@ -2172,10 +2173,10 @@ export function useLessonEditorState() {
             setShowAiModal(true);
           }
         } else {
-          alert(`Parsing failed: ${res.error}`)
+          toast.error(`Phân tích tệp thất bại: ${res.error}`)
         }
       } catch (err: any) {
-        alert(`Parsing failed: ${err.message}`)
+        toast.error(`Phân tích tệp thất bại: ${err.message}`)
       } finally {
         setIsParsingFile(false)
       }
@@ -2235,7 +2236,7 @@ export function useLessonEditorState() {
       }
 
       if (!fileToParse) {
-        alert("Vui lòng tải lên file đề bài trước khi thực hiện trích xuất câu hỏi!")
+        toast.error('Vui lòng tải lên tệp đề bài trước khi trích xuất câu hỏi.')
         return
       }
 
@@ -2251,7 +2252,7 @@ export function useLessonEditorState() {
       const res = await parseAssignmentFileAction(formData)
       if (res.success && res.questions) {
         if (res.questions.length === 0) {
-          alert("Không tìm thấy câu hỏi nào trong file đề bài. Vui lòng kiểm tra lại nội dung file.");
+          toast.error('Không tìm thấy câu hỏi trong tệp đề bài. Vui lòng kiểm tra lại nội dung.')
           return;
         }
 
@@ -2326,10 +2327,10 @@ export function useLessonEditorState() {
           setShowAiModal(true);
         }
       } else {
-        alert(`Trích xuất câu hỏi thất bại: ${res.error || 'Lỗi không xác định'}`)
+        toast.error(`Trích xuất câu hỏi thất bại: ${res.error || 'Lỗi không xác định'}`)
       }
     } catch (err: any) {
-      alert(`Trích xuất câu hỏi thất bại: ${err.message}`)
+      toast.error(`Trích xuất câu hỏi thất bại: ${err.message}`)
     } finally {
       setIsParsingFile(false)
     }
@@ -2636,7 +2637,7 @@ export function useLessonEditorState() {
         }
       }
 
-      alert('Composer updated successfully! Lesson details, assignment rules, and rubric criteria saved.')
+      toast.success('Đã lưu nội dung bài học, quy tắc bài tập và rubric.')
 
       // Trigger RAG Ingestion Flywheel
       try {
@@ -2704,7 +2705,7 @@ export function useLessonEditorState() {
           console.error('Assignment file cleanup failed:', cleanup)
         }
       }
-      alert(`Save failed: ${err.message}`)
+      toast.error(`Lưu thất bại: ${err.message}`)
     } finally {
       setSaving(false)
       setSaveStatus({ active: false, startedAt: 0, elapsed: '' })

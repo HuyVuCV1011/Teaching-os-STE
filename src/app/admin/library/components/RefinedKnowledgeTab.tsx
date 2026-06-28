@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { toast } from 'react-hot-toast'
 import {
   discoverKnowledgeSourcesAction,
   generateRefinedKnowledgeAction,
@@ -132,11 +133,11 @@ export function RefinedKnowledgeTab() {
       if (res.success) {
         setPreviewContent(res.content || '')
       } else {
-        alert(res.error || 'Failed to fetch document contents')
+        toast.error(res.error || 'Không thể tải nội dung tài liệu')
         setPreviewContent('')
       }
     } catch (err) {
-      alert('An error occurred loading document content')
+      toast.error('Đã xảy ra lỗi khi tải nội dung tài liệu')
       setPreviewContent('')
     } finally {
       setLoadingContent(false)
@@ -212,11 +213,11 @@ export function RefinedKnowledgeTab() {
         setAcceptedIndices(entriesWithActions.map((_, idx) => idx))
         setShowReviewModal(true)
       } else {
-        alert(`Extraction failed: ${res.error || 'Check server connection.'}`)
+        toast.error(`Trích xuất thất bại: ${res.error || 'Hãy kiểm tra kết nối máy chủ.'}`)
       }
     } catch (err) {
       const error = err as Error
-      alert(`Generation failed: ${error.message}`)
+      toast.error(`Tạo nội dung thất bại: ${error.message}`)
     } finally {
       setRefining(false)
     }
@@ -235,17 +236,17 @@ export function RefinedKnowledgeTab() {
       )
 
       if (res.success) {
-        alert('Refined concepts committed successfully!')
+        toast.success('Đã lưu các khái niệm được tinh chỉnh.')
         setShowReviewModal(false)
         setProposedEntries([])
         setSelectedSourceIds([])
         fetchData()
       } else {
-        alert(`Save failed: ${res.error}`)
+        toast.error(`Lưu thất bại: ${res.error}`)
       }
     } catch (err) {
       const error = err as Error
-      alert(`Save failed: ${error.message}`)
+      toast.error(`Lưu thất bại: ${error.message}`)
     } finally {
       setCommitting(false)
     }
@@ -278,11 +279,11 @@ export function RefinedKnowledgeTab() {
         }
         fetchData()
       } else {
-        alert(`Failed: ${res.error}`)
+        toast.error(`Thao tác thất bại: ${res.error}`)
       }
     } catch (err) {
       const error = err as Error
-      alert(`Failed to save: ${error.message}`)
+      toast.error(`Không thể lưu: ${error.message}`)
     }
   }
 
@@ -297,11 +298,11 @@ export function RefinedKnowledgeTab() {
         }
         fetchData()
       } else {
-        alert(`Failed: ${res.error}`)
+        toast.error(`Thao tác thất bại: ${res.error}`)
       }
     } catch (err) {
       const error = err as Error
-      alert(`Failed to archive: ${error.message}`)
+      toast.error(`Không thể lưu trữ: ${error.message}`)
     }
   }
 

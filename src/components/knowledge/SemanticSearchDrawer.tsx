@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Search, X, Pin, PinOff, Clipboard, Check, Sparkles, HelpCircle } from 'lucide-react'
+import { Search, X, Pin, PinOff, Clipboard, Check, Sparkles } from 'lucide-react'
 import { searchKnowledgeAction } from '@/app/admin/library/actions/knowledge'
+import { toast } from 'react-hot-toast'
 
 interface SemanticSearchDrawerProps {
   isOpen: boolean
@@ -39,7 +40,7 @@ export function SemanticSearchDrawer({
         throw new Error(res.error)
       }
     } catch (err: any) {
-      alert(`Search failed: ${err.message}`)
+      toast.error(`Tìm kiếm thất bại: ${err.message}`)
     } finally {
       setSearching(false)
     }

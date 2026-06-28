@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useEffect, useState, use } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useEffect, useState, use, useCallback } from 'react'
+import Link from 'next/link'
 import { fetchStudentGradesAction } from '../assignments/[assignmentId]/actions'
+import { formatDate } from '@/lib/date'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   GraduationCap,
@@ -17,11 +18,9 @@ import {
   Award
 } from 'lucide-react'
 
-function getCookie(name: string): string {
-  if (typeof document === 'undefined') return ''
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-  return match ? decodeURIComponent(match[2]) : ''
-}
+import { useLearner } from '../LearnerContext'
+import { checkCertificateEligibility } from '@/lib/certificate'
+import { supabase } from '@/lib/supabase'
 
 interface GradesPageProps {
   params: Promise<{
@@ -32,49 +31,180 @@ interface GradesPageProps {
 export default function StudentGradesPage({ params }: GradesPageProps) {
   const resolvedParams = use(params)
   const classCode = resolvedParams.classCode
-  const router = useRouter()
+
+  const { isAdminPreview, identityVerified } = useLearner()
 
   const [loading, setLoading] = useState(true)
-  const [studentEmail, setStudentEmail] = useState('')
+  const [errorState, setErrorState] = useState<string | null>(null)
   const [gradesData, setGradesData] = useState<any[]>([])
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    const email = getCookie(`student_email_${classCode}`)
-    if (email) {
-      setStudentEmail(email.trim().toLowerCase())
-    }
-  }, [classCode])
-
-  useEffect(() => {
-    if (studentEmail) {
-      loadGradesData()
-    } else {
-      setLoading(false)
-    }
-  }, [studentEmail, classCode])
+  const [totalLessons, setTotalLessons] = useState(0)
+  const [completedLessons, setCompletedLessons] = useState(0)
+  const [issuedCertificate, setIssuedCertificate] = useState<{ id: string; grade_average: number | string | null } | null>(null)
+  const [certificateEligibility, setCertificateEligibility] = useState<{ eligible: boolean; averageGrade: number; reason: string }>({
+    eligible: false,
+    averageGrade: 0,
+    reason: ''
+  })
 
   const toggleRow = (assignmentId: string) => {
     setExpandedRows(prev => ({ ...prev, [assignmentId]: !prev[assignmentId] }))
   }
 
-  async function loadGradesData() {
+  const loadGradesData = useCallback(async () => {
+    if (!identityVerified) return
     setLoading(true)
+    setErrorState(null)
     try {
+      if (isAdminPreview) {
+        // Teacher preview mode
+        const { data: classData, error: classErr } = await supabase
+          .from('classes')
+          .select('id, course_id')
+          .eq('class_code', classCode.toUpperCase())
+          .single()
+
+        if (classErr) throw classErr
+
+        const { data: junctionData, error: juncError } = await supabase
+          .from('class_courses')
+          .select('course_id')
+          .eq('class_id', classData.id)
+
+        if (juncError) throw juncError
+        const courseIds = Array.from(new Set([
+          classData.course_id,
+          ...(junctionData?.map((c: any) => c.course_id) || []),
+        ].filter(Boolean))) as string[]
+
+        if (courseIds.length > 0) {
+          const { data: lessonsData, error: lessonsErr } = await supabase
+            .from('lessons')
+            .select('id, title, order_index, metadata, modules(title, course_id)')
+            .in('modules.course_id', courseIds)
+
+          if (lessonsErr) throw lessonsErr
+
+          const activeLessons = (lessonsData || []).filter((l: any) => l.modules && l.metadata?.status !== 'draft')
+          const activeLessonIds = activeLessons.map(l => l.id)
+          setTotalLessons(activeLessons.length)
+          setCompletedLessons(0)
+
+          if (activeLessonIds.length > 0) {
+            const { data: assignmentsData, error: assignErr } = await supabase
+              .from('assignments')
+              .select('id, title, lesson_id, max_score')
+              .in('lesson_id', activeLessonIds)
+
+            if (assignErr) throw assignErr
+
+            const formattedGrades = (assignmentsData || []).map((assign: any) => {
+              const matchingLesson = activeLessons.find(l => l.id === assign.lesson_id)
+              const matchingModule = Array.isArray(matchingLesson?.modules)
+                ? matchingLesson.modules[0]
+                : matchingLesson?.modules
+
+              return {
+                id: assign.id,
+                title: assign.title,
+                lessonTitle: matchingLesson?.title || 'Unknown lesson',
+                moduleTitle: matchingModule?.title || 'Unknown module',
+                dueDate: null,
+                maxScore: assign.max_score,
+                submission: null,
+                grade: null
+              }
+            })
+            setGradesData(formattedGrades)
+          } else {
+            setGradesData([])
+          }
+        } else {
+          setGradesData([])
+          setTotalLessons(0)
+        }
+
+        setCertificateEligibility({
+          eligible: false,
+          averageGrade: 0,
+          reason: 'Chế độ xem trước của giáo viên — dữ liệu chứng chỉ không khả dụng.'
+        })
+        setIssuedCertificate(null)
+        setLoading(false)
+        return
+      }
+
+      // Student Mode
       const res = await fetchStudentGradesAction(classCode)
       if (res.success && res.grades) {
         setGradesData(res.grades)
-        if (res.email) {
-          setStudentEmail(res.email)
-        }
+        setTotalLessons(res.totalLessons || 0)
+        setCompletedLessons(res.completedLessons || 0)
+        setIssuedCertificate(res.issuedCertificate || null)
+
+        // Evaluate certificate eligibility
+        const submissions = res.grades.map((g: any) => {
+          let gradingResult = null
+          if (g.grade) {
+            gradingResult = {
+              id: g.grade.id,
+              status: g.grade.status,
+              client_total_score: parseFloat(g.grade.total_score || '0')
+            }
+          }
+          return {
+            id: g.submission?.id || '',
+            assignment_id: g.id,
+            status: g.submission?.status || '',
+            grading_results: gradingResult
+          }
+        })
+
+        const activeLessonIds = res.activeLessonIds || []
+        const completedLessonIds = res.completedLessonIds || []
+        const assignments = res.grades.map((g: any) => ({
+          id: g.id,
+          lesson_id: g.lessonId || '',
+          max_score: g.maxScore || 100
+        }))
+
+        const certResult = checkCertificateEligibility(
+          activeLessonIds,
+          completedLessonIds,
+          assignments,
+          submissions
+        )
+
+        setCertificateEligibility(certResult)
       } else {
-        console.error('Failed to load secure student grades:', res.error)
+        throw new Error(res.error || 'Failed to retrieve grades')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load student grade statistics:', err)
+      setErrorState(err.message || 'Unknown database retrieval error')
     } finally {
       setLoading(false)
     }
+  }, [classCode, identityVerified, isAdminPreview])
+
+  useEffect(() => {
+    loadGradesData()
+  }, [loadGradesData])
+
+  if (errorState) {
+    return (
+      <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400 max-w-7xl mx-auto">
+        <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+        <span className="text-sm font-semibold text-slate-200">Không thể tải học bạ học sinh</span>
+        <span className="text-xs text-slate-500">{errorState}</span>
+        <button
+          onClick={loadGradesData}
+          className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer border-0"
+        >
+          Thử lại
+        </button>
+      </div>
+    )
   }
 
   if (loading) {
@@ -86,25 +216,18 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
     )
   }
 
-  if (!studentEmail) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
-        <AlertCircle className="w-12 h-12 text-slate-500" />
-        <h2 className="text-xl font-bold text-white">Identity Missing</h2>
-        <p className="text-slate-400 text-sm">
-          Please log out and re-enter using your whitelisted class gateway to restore access.
-        </p>
-      </div>
-    )
-  }
-
   const totalAssignments = gradesData.length
   const completedAssignments = gradesData.filter(g => !!g.submission).length
   const gradedAssignments = gradesData.filter(g => !!g.grade)
   const averageGrade = gradedAssignments.length > 0
-    ? gradedAssignments.reduce((sum, g) => sum + parseFloat(g.grade.total_score), 0) / gradedAssignments.length
+    ? gradedAssignments.reduce((sum, gradeItem) => {
+        const score = Number.parseFloat(gradeItem.grade?.total_score || '0')
+        const maxScore = Number(gradeItem.maxScore) > 0 ? Number(gradeItem.maxScore) : 100
+        return sum + (score / maxScore) * 100
+      }, 0) / gradedAssignments.length
     : 0
-  const isEligibleForCertificate = totalAssignments > 0 && completedAssignments === totalAssignments && averageGrade >= 60
+  const isEligibleForCertificate = certificateEligibility.eligible
+  const hasCertificate = isEligibleForCertificate || !!issuedCertificate
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16">
@@ -154,7 +277,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
 
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex items-center gap-4 shadow-sm">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isEligibleForCertificate 
+              hasCertificate
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 shadow-sm' 
                 : 'bg-slate-900 border-slate-800 text-slate-400'
             }`}>
@@ -162,11 +285,23 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
             </div>
             <div>
               <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Certificate Eligibility</span>
-              <span className={`block text-xs font-bold mt-1 ${isEligibleForCertificate ? 'text-emerald-600' : 'text-slate-500'}`}>
-                {isEligibleForCertificate ? 'UNLOCKED (Passing)' : 'LOCKED (In Progress)'}
+              <span className={`block text-xs font-bold mt-1 ${hasCertificate ? 'text-emerald-600' : 'text-slate-500'}`}>
+                {isEligibleForCertificate
+                  ? 'Đủ điều kiện nhận chứng chỉ'
+                  : issuedCertificate
+                    ? 'Chứng chỉ đã được cấp'
+                    : 'Chưa đủ điều kiện'}
               </span>
               <span className="block text-[9px] text-slate-500 font-semibold mt-0.5">
-                Requires 100% complete & &gt;= 60% avg
+                {completedLessons} / {totalLessons} lessons complete
+              </span>
+              <span
+                className="block text-[9px] text-slate-500 font-semibold mt-0.5"
+                title={certificateEligibility.reason}
+              >
+                {issuedCertificate && !isEligibleForCertificate
+                  ? 'Chứng chỉ đã cấp vẫn được lưu; điều kiện hiện tại chưa đạt.'
+                  : certificateEligibility.reason || 'Cần hoàn thành 100% bài học và đạt trung bình từ 60%.'}
               </span>
             </div>
           </div>
@@ -179,7 +314,110 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
           <span>No assignments registered for this class course syllabus yet.</span>
         </div>
       ) : (
-        <div className="border border-slate-800 bg-slate-950 rounded-2xl overflow-hidden shadow-sm">
+        <div className="space-y-3">
+          <div className="space-y-3 md:hidden">
+            {gradesData.map((row) => {
+              const hasSubmission = !!row.submission
+              const isGraded = !!row.grade
+              const isExpanded = !!expandedRows[row.id]
+              const statusText = isGraded
+                ? 'Đã công bố điểm'
+                : hasSubmission
+                  ? 'Đang chờ chấm'
+                  : 'Chưa nộp'
+              const statusColor = isGraded
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
+                : hasSubmission
+                  ? 'border-amber-500/20 bg-amber-500/10 text-amber-600'
+                  : 'border-rose-500/20 bg-rose-500/10 text-rose-600'
+
+              return (
+                <article key={row.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-500">{row.moduleTitle}</p>
+                      <h2 className="mt-1 text-sm font-bold leading-snug text-slate-100">{row.title}</h2>
+                      <p className="mt-1 text-xs text-slate-500">Bài học: {row.lessonTitle}</p>
+                    </div>
+                    {isGraded && (
+                      <span className="shrink-0 text-sm font-extrabold tabular-nums text-blue-600">
+                        {row.grade.total_score}
+                        <span className="text-xs font-medium text-slate-500"> / {row.maxScore}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
+                    <div className="space-y-1.5">
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusColor}`}>
+                        {statusText}
+                      </span>
+                      <p className="text-xs text-slate-500">
+                        {row.dueDate ? formatDate(row.dueDate) : 'Không có hạn nộp'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleRow(row.id)}
+                      aria-expanded={isExpanded}
+                      aria-controls={`mobile-grade-details-${row.id}`}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-500/10"
+                    >
+                      {isExpanded ? 'Ẩn chi tiết' : isGraded ? 'Xem phản hồi' : 'Xem hướng dẫn'}
+                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div id={`mobile-grade-details-${row.id}`} className="mt-4 space-y-4 border-t border-slate-800 pt-4">
+                      {isGraded ? (
+                        <>
+                          <div>
+                            <h3 className="text-xs font-bold text-slate-300">Nhận xét tổng quan</h3>
+                            <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-500">
+                              {row.grade.overall_feedback || 'Giáo viên chưa để lại nhận xét tổng quan.'}
+                            </p>
+                          </div>
+                          {row.grade.rubric_scores?.length > 0 && (
+                            <div className="space-y-2">
+                              {row.grade.rubric_scores.map((score: any) => (
+                                <div key={score.id} className="rounded-xl bg-slate-900 p-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <span className="text-xs font-semibold text-slate-200">{score.rubric_criteria?.name}</span>
+                                    <span className="shrink-0 text-xs font-bold tabular-nums text-emerald-600">
+                                      {score.score} / {score.rubric_criteria?.max_points}
+                                    </span>
+                                  </div>
+                                  {score.feedback && (
+                                    <p className="mt-2 text-xs leading-relaxed text-slate-500">“{score.feedback}”</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-sm leading-relaxed text-slate-500">
+                            Mở khu vực nộp bài để xem đầy đủ yêu cầu và gửi bài làm.
+                          </p>
+                          <Link
+                            href={`/learn/${classCode}/assignments/${row.id}`}
+                            className="inline-flex rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
+                          >
+                            Mở khu vực nộp bài
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-sm md:block">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800/80">
               <thead className="bg-slate-900 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800">
@@ -231,7 +469,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                           {row.dueDate ? (
                             <span className="flex items-center gap-1 text-xs">
                               <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              {new Date(row.dueDate).toLocaleDateString()}
+                              {formatDate(row.dueDate)}
                             </span>
                           ) : (
                             <span className="text-xs italic text-slate-500">No deadline</span>
@@ -333,12 +571,12 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                                     <p className="whitespace-pre-line leading-relaxed text-xs">
                                       {row.title} requires you to upload files matching the guidelines on the classroom portal. Open the corresponding lesson page or click the link below to submit.
                                     </p>
-                                    <button
-                                      onClick={() => router.push(`/learn/${classCode}/assignments/${row.id}`)}
+                                    <Link
+                                      href={`/learn/${classCode}/assignments/${row.id}`}
                                       className="mt-3 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors cursor-pointer border-0 shadow-md"
                                     >
                                       Go to Submission Workspace
-                                    </button>
+                                    </Link>
                                   </div>
                                 )}
                               </motion.div>
@@ -351,6 +589,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                 })}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}

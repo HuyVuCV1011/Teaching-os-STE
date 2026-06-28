@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Input } from '@/components/ui/input'
+import { toast } from 'react-hot-toast'
 
 interface MediaAttachmentsProps {
   thumbnails: File[]
@@ -27,18 +28,18 @@ export function MediaAttachments({
   ) => {
     const selectedFiles = Array.from(e.target.files || [])
     if (selectedFiles.length > 2) {
-      alert('Bạn chỉ có thể tải lên tối đa 2 tệp.')
+      toast.error('Bạn chỉ có thể tải lên tối đa 2 tệp.')
       return
     }
     for (const file of selectedFiles) {
       const isImage = accept === 'image/*' && file.type.startsWith('image/')
       const isPdf = accept === 'application/pdf' && file.name.toLowerCase().endsWith('.pdf')
       if (!(isImage || isPdf)) {
-        alert(`Loại tệp không hợp lệ.`)
+        toast.error('Loại tệp không hợp lệ.')
         return
       }
       if (file.size > 100 * 1024 * 1024) {
-        alert('Kích thước tệp vượt quá giới hạn 100MB.')
+        toast.error('Kích thước tệp vượt quá giới hạn 100MB.')
         return
       }
     }

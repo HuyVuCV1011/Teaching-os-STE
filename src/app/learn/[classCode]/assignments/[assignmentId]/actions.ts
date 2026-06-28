@@ -47,8 +47,8 @@ export async function fetchStudentSubmissionAction(classCode: string, assignment
 
     if (error) throw error
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       submission: subData && subData.length > 0 ? subData[0] : null,
       email: session.email,
       classId: session.classId
@@ -159,7 +159,7 @@ export async function submitAssignmentAction(input: SubmitAssignmentInput) {
         const nameParts = pathName.split('/')
         const hashAndName = nameParts[nameParts.length - 1]
         const hash = hashAndName.split('_')[0] || 'hash'
-        
+
         return {
           submission_id: newSub.id,
           storage_bucket: 'student-submissions',
@@ -237,11 +237,22 @@ export async function fetchStudentGradesAction(classCode: string) {
       courseIds.push(classData.course_id)
     }
 
+    const { data: issuedCertificate, error: certificateError } = await supabase
+      .from('certificates')
+      .select('id, grade_average')
+      .eq('class_id', classId)
+      .eq('student_email', session.email)
+      .maybeSingle()
+
+    if (certificateError) throw certificateError
+
     // Get any other courses mapped via class_courses
-    const { data: mappedCourses } = await supabase
+    const { data: mappedCourses, error: mappedCoursesError } = await supabase
       .from('class_courses')
       .select('course_id')
       .eq('class_id', classId)
+
+    if (mappedCoursesError) throw mappedCoursesError
 
     if (mappedCourses) {
       mappedCourses.forEach((c: any) => {
@@ -252,22 +263,42 @@ export async function fetchStudentGradesAction(classCode: string) {
     }
 
     if (courseIds.length === 0) {
-      return { success: true, grades: [], email: session.email }
+      return {
+        success: true,
+        grades: [],
+        email: session.email,
+        issuedCertificate,
+        totalLessons: 0,
+        completedLessons: 0,
+        activeLessonIds: [],
+        completedLessonIds: [],
+      }
     }
 
     // 2. Fetch all modules and lessons
     const { data: lessonsData, error: lessonsErr } = await supabase
       .from('lessons')
-      .select('id, title, module_id, modules(title, course_id)')
+      .select('id, title, module_id, metadata, modules(title, course_id)')
       .in('modules.course_id', courseIds)
 
     if (lessonsErr) throw lessonsErr
 
-    const filteredLessons = (lessonsData || []).filter((l: any) => l.modules)
+    const filteredLessons = (lessonsData || []).filter(
+      (l: any) => l.modules && l.metadata?.status !== 'draft'
+    )
     const lessonIds = filteredLessons.map((l: any) => l.id)
 
     if (lessonIds.length === 0) {
-      return { success: true, grades: [], email: session.email }
+      return {
+        success: true,
+        grades: [],
+        email: session.email,
+        totalLessons: 0,
+        completedLessons: 0,
+        activeLessonIds: [],
+        completedLessonIds: [],
+        issuedCertificate,
+      }
     }
 
     // 3. Fetch schedules
@@ -280,6 +311,20 @@ export async function fetchStudentGradesAction(classCode: string) {
     const scheduleMap = new Map<string, any>()
     schedulesData?.forEach(s => scheduleMap.set(s.lesson_id, s))
 
+    // Progress is independent of whether the course currently has assignments.
+    const { data: progressList, error: progressError } = await supabase
+      .from('student_lesson_progress')
+      .select('lesson_id')
+      .eq('class_id', classId)
+      .eq('student_email', session.email)
+      .in('lesson_id', lessonIds)
+
+    if (progressError) throw progressError
+
+    const completedLessonIds = progressList?.map((p: any) => p.lesson_id) || []
+    const completedLessons = completedLessonIds.length
+    const totalLessons = filteredLessons.length
+
     // 4. Fetch assignments
     const { data: assignmentsData, error: assignErr } = await supabase
       .from('assignments')
@@ -288,7 +333,16 @@ export async function fetchStudentGradesAction(classCode: string) {
 
     if (assignErr) throw assignErr
     if (!assignmentsData || assignmentsData.length === 0) {
-      return { success: true, grades: [], email: session.email }
+      return {
+        success: true,
+        grades: [],
+        email: session.email,
+        totalLessons,
+        completedLessons,
+        activeLessonIds: lessonIds,
+        completedLessonIds,
+        issuedCertificate,
+      }
     }
 
     // 5. Fetch student submissions
@@ -310,7 +364,7 @@ export async function fetchStudentGradesAction(classCode: string) {
       const matchingLesson = filteredLessons.find(l => l.id === assign.lesson_id)
       const matchingSchedule = scheduleMap.get(assign.lesson_id)
       const matchingSub = submissionMap.get(assign.id)
-      
+
       let gradingResult = null
       if (matchingSub?.grading_results && matchingSub.grading_results.status === 'published') {
         gradingResult = matchingSub.grading_results
@@ -319,6 +373,7 @@ export async function fetchStudentGradesAction(classCode: string) {
       return {
         id: assign.id,
         title: assign.title,
+        lessonId: assign.lesson_id,
         lessonTitle: matchingLesson?.title || 'Unknown lesson',
         moduleTitle: (Array.isArray(matchingLesson?.modules)
           ? matchingLesson.modules[0]?.title
@@ -330,7 +385,16 @@ export async function fetchStudentGradesAction(classCode: string) {
       }
     })
 
-    return { success: true, grades, email: session.email }
+    return {
+      success: true,
+      grades,
+      email: session.email,
+      totalLessons,
+      completedLessons,
+      activeLessonIds: lessonIds,
+      completedLessonIds,
+      issuedCertificate,
+    }
 
   } catch (err: any) {
     console.error('Failed to load student grades:', err)
@@ -340,7 +404,7 @@ export async function fetchStudentGradesAction(classCode: string) {
 
 export async function triggerRubricoreGradingAction(submissionId: string) {
   const supabase = getSupabaseServer(true)
-  
+
   // 1. Fetch submission with assignment and rubric criteria details
   const { data: submission, error: subError } = await supabase
     .from('submissions')
@@ -523,9 +587,9 @@ export async function getStudentMaterialSignedUrlAction(classCode: string, stora
 
     if (signedError) throw signedError
 
-    return { 
-      success: true, 
-      signedUrl: signedData.signedUrl || (signedData as any).signedURL || (signedData as any).publicUrl || null 
+    return {
+      success: true,
+      signedUrl: signedData.signedUrl || (signedData as any).signedURL || (signedData as any).publicUrl || null
     }
   } catch (err: any) {
     return { success: false, error: err.message }
@@ -742,5 +806,3 @@ export async function toggleLessonProgressAction(classCode: string, lessonId: st
     return { success: false, error: err.message }
   }
 }
-
-

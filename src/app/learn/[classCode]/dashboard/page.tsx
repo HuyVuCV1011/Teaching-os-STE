@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useEffect, useState, use, useRef } from 'react'
+import React, { useEffect, useState, use, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
+import { formatDate } from '@/lib/date'
 import {
   BookOpen,
   ArrowRight,
@@ -16,11 +17,8 @@ import {
 // Import extracted components
 import { CertificateModal } from './components/CertificateModal'
 
-function getCookie(name: string): string {
-  if (typeof document === 'undefined') return ''
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
-  return match ? decodeURIComponent(match[2]) : ''
-}
+import { useLearner } from '../LearnerContext'
+import { checkCertificateEligibility } from '@/lib/certificate'
 
 interface DashboardProps {
   params: Promise<{ classCode: string }>
@@ -30,15 +28,18 @@ export default function LearnerDashboard({ params }: DashboardProps) {
   const resolvedParams = use(params)
   const classCode = resolvedParams.classCode
 
+  const { studentEmail, isAdminPreview, identityVerified } = useLearner()
+
   const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState<string | null>(null)
   const [courses, setCourses] = useState<any[]>([])
   const [classInfo, setClassInfo] = useState<any>(null)
   const [announcements, setAnnouncements] = useState<any[]>([])
-  const [studentEmail, setStudentEmail] = useState('')
-  
+
   // Progress & Grades State
   const [courseProgress, setCourseProgress] = useState<Record<string, { completed: number; total: number }>>({})
   const [isEligibleForCertificate, setIsEligibleForCertificate] = useState(false)
+  const [hasIssuedCertificate, setHasIssuedCertificate] = useState(false)
   const [certificateGrade, setCertificateGrade] = useState(0)
   const [certificateId, setCertificateId] = useState<string | null>(null)
   const [showCertificateModal, setShowCertificateModal] = useState(false)
@@ -46,240 +47,300 @@ export default function LearnerDashboard({ params }: DashboardProps) {
   const [suggestedLesson, setSuggestedLesson] = useState<any | null>(null)
   const [dueAssignments, setDueAssignments] = useState<any[]>([])
 
-  useEffect(() => {
-    const email = getCookie(`student_email_${classCode}`)
-    if (email) {
-      setStudentEmail(email.trim().toLowerCase())
-    }
-  }, [classCode])
+  const loadCohortDashboard = useCallback(async () => {
+    if (!identityVerified) return
+    setLoading(true)
+    setErrorState(null)
+    try {
+      // 1. Fetch Class Details
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('class_code', classCode.toUpperCase())
+        .single()
 
-  useEffect(() => {
-    async function loadCohortDashboard() {
-      const activeEmail = studentEmail || 'student@university.edu'
-      try {
-        // 1. Fetch Class Details
-        const { data: classData, error: classError } = await supabase
-          .from('classes')
+      if (classError || !classData) {
+        throw classError || new Error('Class not found')
+      }
+      setClassInfo(classData)
+
+      // 2. Fetch Announcements
+      const { data: announcementsData, error: announcementsError } = await supabase
+        .from('class_announcements')
+        .select('*')
+        .eq('class_id', classData.id)
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      if (announcementsError) throw announcementsError
+      setAnnouncements(announcementsData || [])
+
+      // 3. Fetch Assigned Courses
+      const { data: junctionData, error: juncError } = await supabase
+        .from('class_courses')
+        .select('*, courses(*)')
+        .eq('class_id', classData.id)
+
+      if (juncError) throw juncError
+
+      const mappedCourses = (junctionData || [])
+        .map((item: any) => item.courses)
+        .filter((course: any) => course && course.status !== 'archived')
+
+      if (classData.course_id && !mappedCourses.some((course: any) => course.id === classData.course_id)) {
+        const { data: primaryCourse, error: primaryCourseError } = await supabase
+          .from('courses')
           .select('*')
-          .eq('class_code', classCode.toUpperCase())
+          .eq('id', classData.course_id)
           .single()
 
-        if (classError || !classData) throw classError
-        setClassInfo(classData)
+        if (primaryCourseError) throw primaryCourseError
+        if (primaryCourse && primaryCourse.status !== 'archived') {
+          mappedCourses.unshift(primaryCourse)
+        }
+      }
 
-        // 2. Fetch Announcements
-        const { data: announcementsData } = await supabase
-          .from('class_announcements')
+      setCourses(mappedCourses)
+
+      if (mappedCourses.length > 0) {
+        const courseIds = mappedCourses.map(c => c.id)
+
+        // 4. Fetch All Lessons for assigned courses
+        const { data: lessonsList, error: lessonsError } = await supabase
+          .from('lessons')
+          .select('id, title, order_index, module_id, metadata, modules(id, title, order_index, course_id, courses(id, title, slug))')
+          .in('modules.course_id', courseIds)
+
+        if (lessonsError) throw lessonsError
+
+        const activeLessons = (lessonsList || []).filter((l: any) => l.modules && l.metadata?.status !== 'draft')
+        const activeLessonIds = activeLessons.map(l => l.id)
+
+        // Fetch all schedules for this class
+        const { data: schedulesList, error: schedulesError } = await supabase
+          .from('class_schedules')
           .select('*')
           .eq('class_id', classData.id)
-          .order('created_at', { ascending: false })
-          .limit(3)
 
-        setAnnouncements(announcementsData || [])
+        if (schedulesError) throw schedulesError
+        const scheduleMap = new Map(schedulesList?.map(s => [s.lesson_id, s]) || [])
 
-        // 3. Fetch Assigned Courses
-        const { data: junctionData, error: juncError } = await supabase
-          .from('class_courses')
-          .select('*, courses(*)')
-          .eq('class_id', classData.id)
+        // Fetch assignments for the active lessons
+        let assignmentsList: any[] = []
+        if (activeLessonIds.length > 0) {
+          const { data: assignData, error: assignError } = await supabase
+            .from('assignments')
+            .select('id, title, lesson_id, max_score')
+            .in('lesson_id', activeLessonIds)
+          if (assignError) throw assignError
+          assignmentsList = assignData || []
+        }
 
-        if (juncError) throw juncError
+        // If it is an Admin/Teacher Preview, we stop here and set default empty student data
+        if (isAdminPreview) {
+          setCourseProgress({})
+          setIsEligibleForCertificate(false)
+          setHasIssuedCertificate(false)
+          setCertificateGrade(0)
+          setCertificateId(null)
+          setSuggestedLesson(null)
+          setDueAssignments([])
+          setLoading(false)
+          return
+        }
 
-        const mappedCourses = (junctionData || [])
-          .map((item: any) => item.courses)
-          .filter((course: any) => course && course.status !== 'archived')
+        const activeEmail = studentEmail || ''
 
-        setCourses(mappedCourses)
-
-        if (mappedCourses.length > 0) {
-          const courseIds = mappedCourses.map(c => c.id)
-
-          // 4. Fetch All Lessons for assigned courses
-          const { data: lessonsList } = await supabase
-            .from('lessons')
-            .select('id, title, order_index, module_id, metadata, modules(id, title, order_index, course_id, courses(id, title, slug))')
-            .in('modules.course_id', courseIds)
-
-          const activeLessons = (lessonsList || []).filter((l: any) => l.modules && l.metadata?.status !== 'draft')
-
-          // Fetch all schedules for this class
-          const { data: schedulesList } = await supabase
-            .from('class_schedules')
-            .select('*')
-            .eq('class_id', classData.id)
-
-          const scheduleMap = new Map(schedulesList?.map(s => [s.lesson_id, s]) || [])
-
-          // Fetch assignments for the cohort
-          const lessonIds = (lessonsList || []).map(l => l.id)
-          let assignmentsList: any[] = []
-          if (lessonIds.length > 0) {
-            const { data: assignData } = await supabase
-              .from('assignments')
-              .select('id, title, lesson_id')
-              .in('lesson_id', lessonIds)
-            assignmentsList = assignData || []
-          }
-
-          // 5. Fetch Completed Lesson Progress
-          const { data: progressList } = await supabase
+        // 5. Fetch Completed Lesson Progress
+        let progressList: Array<{ lesson_id: string }> = []
+        if (activeLessonIds.length > 0) {
+          const { data, error: progressError } = await supabase
             .from('student_lesson_progress')
             .select('lesson_id')
             .eq('class_id', classData.id)
             .eq('student_email', activeEmail)
+            .in('lesson_id', activeLessonIds)
 
-          const completedSet = new Set(progressList?.map(p => p.lesson_id) || [])
+          if (progressError) throw progressError
+          progressList = data || []
+        }
 
-          // Compute course progress mapping
-          const progressMap: Record<string, { completed: number; total: number }> = {}
-          mappedCourses.forEach(course => {
-            const courseLessons = activeLessons.filter((l: any) => {
-              const m = Array.isArray(l.modules) ? l.modules[0] : l.modules
-              return m?.course_id === course.id
-            })
-            const completedCount = courseLessons.filter((l: any) => completedSet.has(l.id)).length
-            progressMap[course.id] = {
-              completed: completedCount,
-              total: courseLessons.length
-            }
+        const completedSet = new Set(progressList?.map(p => p.lesson_id) || [])
+
+        // Compute course progress mapping
+        const progressMap: Record<string, { completed: number; total: number }> = {}
+        mappedCourses.forEach(course => {
+          const courseLessons = activeLessons.filter((l: any) => {
+            const m = Array.isArray(l.modules) ? l.modules[0] : l.modules
+            return m?.course_id === course.id
           })
-          setCourseProgress(progressMap)
-
-          // 6. Query Submissions & Published Grades for Certificate Eligibility
-          const { data: subsData } = await supabase
-            .from('submissions')
-            .select('*, grading_results(*)')
-            .eq('class_id', classData.id)
-            .eq('student_identifier', activeEmail)
-
-          const publishedResults = subsData
-            ?.map(s => s.grading_results)
-            .filter(g => g && g.status === 'published') || []
-
-          // Compute global stats
-          const totalLessons = activeLessons.length
-          const completedLessons = progressList?.length || 0
-
-          if (totalLessons > 0 && completedLessons === totalLessons) {
-            const avgGrade = publishedResults.length > 0
-              ? publishedResults.reduce((sum, g) => sum + parseFloat(g.total_score), 0) / publishedResults.length
-              : 0
-
-             // Eligible if completed 100% and avg score >= 60%
-             if (avgGrade >= 60) {
-                setIsEligibleForCertificate(true)
-                setCertificateGrade(avgGrade)
-                
-                // Register certificate in database and retrieve unique UUID ID
-                supabase
-                  .from('certificates')
-                  .upsert(
-                    {
-                      class_id: classData.id,
-                      student_email: activeEmail,
-                      grade_average: avgGrade
-                    },
-                    {
-                      onConflict: 'class_id,student_email'
-                    }
-                  )
-                  .select('id')
-                  .single()
-                  .then(({ data: certData, error: certError }) => {
-                    if (certError) {
-                      console.error('Failed to persist certificate record:', certError)
-                    } else if (certData) {
-                      setCertificateId(certData.id)
-                    }
-                  })
-             }
+          const completedCount = courseLessons.filter((l: any) => completedSet.has(l.id)).length
+          progressMap[course.id] = {
+            completed: completedCount,
+            total: courseLessons.length
           }
+        })
+        setCourseProgress(progressMap)
 
-          // Fetch pre-existing certificate if any
-          const { data: existingCert } = await supabase
+        // 6. Query Submissions & Published Grades for Certificate Eligibility
+        const { data: subsData, error: subsError } = await supabase
+          .from('submissions')
+          .select('*, grading_results(*)')
+          .eq('class_id', classData.id)
+          .eq('student_identifier', activeEmail)
+
+        if (subsError) throw subsError
+
+        // Map submissions into correct format for helper
+        const formattedSubmissions = (subsData || []).map((sub: any) => {
+          let gradingResult = null
+          if (sub.grading_results && sub.grading_results.status === 'published') {
+            gradingResult = {
+              id: sub.grading_results.id,
+              status: sub.grading_results.status,
+              client_total_score: parseFloat(sub.grading_results.total_score || '0')
+            }
+          }
+          return {
+            id: sub.id,
+            assignment_id: sub.assignment_id,
+            status: sub.status,
+            grading_results: gradingResult
+          }
+        })
+
+        const completedLessonIds = Array.from(completedSet)
+        const certResult = checkCertificateEligibility(
+          activeLessonIds,
+          completedLessonIds,
+          assignmentsList,
+          formattedSubmissions
+        )
+
+        if (certResult.eligible) {
+          setIsEligibleForCertificate(true)
+          setHasIssuedCertificate(true)
+          setCertificateGrade(certResult.averageGrade)
+
+          // Register certificate in database and retrieve unique UUID ID
+          const { data: certData, error: certError } = await supabase
             .from('certificates')
-            .select('id')
+            .upsert(
+              {
+                class_id: classData.id,
+                student_email: activeEmail,
+                grade_average: certResult.averageGrade
+              },
+              {
+                onConflict: 'class_id,student_email'
+              }
+            )
+            .select('id, grade_average')
+            .single()
+
+          if (certError) {
+            console.error('Failed to persist certificate record:', certError)
+          } else if (certData) {
+            setCertificateId(certData.id)
+          }
+        } else {
+          setIsEligibleForCertificate(false)
+          setCertificateGrade(0)
+
+          // Fetch pre-existing certificate if any (already issued)
+          const { data: existingCert, error: existingCertificateError } = await supabase
+            .from('certificates')
+            .select('id, grade_average')
             .eq('class_id', classData.id)
             .eq('student_email', activeEmail)
             .maybeSingle()
 
+          if (existingCertificateError) throw existingCertificateError
+
           if (existingCert) {
             setCertificateId(existingCert.id)
+            setHasIssuedCertificate(true)
+            setCertificateGrade(Number(existingCert.grade_average) || 0)
+          } else {
+            setCertificateId(null)
+            setHasIssuedCertificate(false)
           }
-
-          // Calculate suggested lesson (first unlocked, uncompleted)
-          const sortedLessons = [...(lessonsList || [])]
-            .filter((l: any) => l.modules && l.metadata?.status !== 'draft')
-            .sort((a: any, b: any) => {
-              const modDiff = (a.modules.order_index || 0) - (b.modules.order_index || 0)
-              if (modDiff !== 0) return modDiff
-              return (a.order_index || 0) - (b.order_index || 0)
-            })
-
-          const now = new Date()
-          let foundSuggested: any = null
-          for (const l of sortedLessons) {
-            if (completedSet.has(l.id)) continue
-            const sched = scheduleMap.get(l.id)
-            const visibleAfterStr = sched?.visible_after
-            let isLocked = true
-            if (visibleAfterStr) {
-              const unlockTime = new Date(visibleAfterStr)
-              if (unlockTime <= now) {
-                isLocked = false
-              }
-            }
-            if (!isLocked) {
-              const modObj = Array.isArray(l.modules) ? l.modules[0] : l.modules
-              const courseObj = Array.isArray(modObj?.courses) ? modObj.courses[0] : modObj?.courses
-              foundSuggested = {
-                id: l.id,
-                title: l.title,
-                courseName: courseObj?.title || 'Unknown Course',
-                courseSlug: courseObj?.slug || '',
-              }
-              break
-            }
-          }
-          setSuggestedLesson(foundSuggested)
-
-          // Calculate due assignments
-          const submittedAssignmentIds = new Set(subsData?.map(s => s.assignment_id) || [])
-          const dueSoonList: any[] = []
-          const sevenDaysFromNow = new Date()
-          sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
-
-          schedulesList?.forEach(sched => {
-            if (sched.due_date) {
-              const dueDate = new Date(sched.due_date)
-              if (dueDate > now && dueDate <= sevenDaysFromNow) {
-                const assocAssignment = assignmentsList.find(a => a.lesson_id === sched.lesson_id)
-                if (assocAssignment && !submittedAssignmentIds.has(assocAssignment.id)) {
-                  const daysRemaining = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                  dueSoonList.push({
-                    id: assocAssignment.id,
-                    title: assocAssignment.title,
-                    dueDate,
-                    daysRemaining,
-                  })
-                }
-              }
-            }
-          })
-          dueSoonList.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
-          setDueAssignments(dueSoonList.slice(0, 3))
         }
-      } catch (err) {
-        console.error('Failed to load student courses:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
 
-    if (classCode) {
-      loadCohortDashboard()
+        // Calculate suggested lesson (first unlocked, uncompleted)
+        const sortedLessons = [...activeLessons]
+          .sort((a: any, b: any) => {
+            const aModule = Array.isArray(a.modules) ? a.modules[0] : a.modules
+            const bModule = Array.isArray(b.modules) ? b.modules[0] : b.modules
+            const modDiff = (aModule?.order_index || 0) - (bModule?.order_index || 0)
+            if (modDiff !== 0) return modDiff
+            return (a.order_index || 0) - (b.order_index || 0)
+          })
+
+        const now = new Date()
+        let foundSuggested: any = null
+        for (const l of sortedLessons) {
+          if (completedSet.has(l.id)) continue
+          const sched = scheduleMap.get(l.id)
+          const visibleAfterStr = sched?.visible_after
+          let isLocked = true
+          if (visibleAfterStr) {
+            const unlockTime = new Date(visibleAfterStr)
+            if (unlockTime <= now) {
+              isLocked = false
+            }
+          }
+          if (!isLocked) {
+            const modObj = Array.isArray(l.modules) ? l.modules[0] : l.modules
+            const courseObj = Array.isArray(modObj?.courses) ? modObj.courses[0] : modObj?.courses
+            foundSuggested = {
+              id: l.id,
+              title: l.title,
+              courseName: courseObj?.title || 'Unknown Course',
+              courseSlug: courseObj?.slug || '',
+            }
+            break
+          }
+        }
+        setSuggestedLesson(foundSuggested)
+
+        // Calculate due assignments
+        const submittedAssignmentIds = new Set(subsData?.map(s => s.assignment_id) || [])
+        const dueSoonList: any[] = []
+        const sevenDaysFromNow = new Date()
+        sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
+
+        schedulesList?.forEach(sched => {
+          if (sched.due_date) {
+            const dueDate = new Date(sched.due_date)
+            if (dueDate > now && dueDate <= sevenDaysFromNow) {
+              const assocAssignment = assignmentsList.find(a => a.lesson_id === sched.lesson_id)
+              if (assocAssignment && !submittedAssignmentIds.has(assocAssignment.id)) {
+                const daysRemaining = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                dueSoonList.push({
+                  id: assocAssignment.id,
+                  title: assocAssignment.title,
+                  dueDate,
+                  daysRemaining,
+                })
+              }
+            }
+          }
+        })
+        dueSoonList.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+        setDueAssignments(dueSoonList.slice(0, 3))
+      }
+    } catch (err: any) {
+      console.error('Failed to load student courses:', err)
+      setErrorState(err.message || 'Unknown database retrieval error')
+    } finally {
+      setLoading(false)
     }
-  }, [classCode, studentEmail])
+  }, [classCode, studentEmail, identityVerified, isAdminPreview])
+
+  useEffect(() => {
+    loadCohortDashboard()
+  }, [loadCohortDashboard])
 
   const handlePrintCertificate = () => {
     const printContent = printRef.current?.innerHTML
@@ -311,6 +372,22 @@ export default function LearnerDashboard({ params }: DashboardProps) {
         win.document.close()
       }
     }
+  }
+
+  if (errorState) {
+    return (
+      <div className="flex flex-col justify-center items-center py-40 gap-4 text-slate-400 max-w-7xl mx-auto">
+        <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+        <span className="text-sm font-semibold text-slate-200">Không thể tải thông tin lớp học</span>
+        <span className="text-xs text-slate-500">{errorState}</span>
+        <button
+          onClick={loadCohortDashboard}
+          className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer border-0"
+        >
+          Thử lại
+        </button>
+      </div>
+    )
   }
 
   if (loading) {
@@ -353,8 +430,8 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
   const itemVariants = {
     hidden: { opacity: 0, y: 16 },
-    show: { 
-      opacity: 1, 
+    show: {
+      opacity: 1,
       y: 0,
       transition: { type: 'spring', stiffness: 300, damping: 25 }
     }
@@ -362,7 +439,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16">
-      
+
       {/* Welcome Hero Banner: Editorial layout with clean visual accents */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -409,7 +486,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
       {/* Main Workspace Layout (2-Column Asymmetric Grid) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        
+
         {/* Left Column (2/3 width): Assigned Programs */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center gap-2">
@@ -497,9 +574,9 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
         {/* Right Column (1/3 width): Certificate & Announcements Notice Board */}
         <div className="space-y-6">
-          
+
           {/* Certificate Panel (Unlock when eligible) */}
-          {isEligibleForCertificate && (
+          {(isEligibleForCertificate || hasIssuedCertificate) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -511,9 +588,14 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                   <Award className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">Certificate Unlocked!</h3>
+                  <h3 className="text-sm font-bold text-slate-100">
+                    {isEligibleForCertificate ? 'Đủ điều kiện nhận chứng chỉ' : 'Chứng chỉ đã được cấp'}
+                  </h3>
                   <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    You completed all lessons with a passing score average of <span className="font-bold text-emerald-600">{certificateGrade.toFixed(1)}%</span>.
+                    {isEligibleForCertificate
+                      ? 'Bạn đã hoàn thành các điều kiện hiện tại của khóa học'
+                      : 'Chứng chỉ đã cấp vẫn được lưu, dù điều kiện hiện tại của khóa học đã thay đổi'}
+                    {' '}với điểm trung bình <span className="font-bold text-emerald-600">{certificateGrade.toFixed(1)}%</span>.
                   </p>
                 </div>
               </div>
@@ -521,10 +603,13 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowCertificateModal(true)}
+                aria-haspopup="dialog"
+                aria-expanded={showCertificateModal}
+                aria-controls="certificate-dialog"
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-colors cursor-pointer border-0"
               >
                 <Printer className="w-4 h-4" />
-                <span>Generate Certificate</span>
+                <span>{certificateId ? 'Xem chứng chỉ' : 'Tạo chứng chỉ'}</span>
               </motion.button>
             </motion.div>
           )}
@@ -558,7 +643,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                           {due.title}
                         </Link>
                         <span className="text-[10px] text-slate-500 mt-1 block">
-                          Due: {new Date(due.dueDate).toLocaleDateString()}
+                          Hạn nộp: {formatDate(due.dueDate)}
                         </span>
                       </div>
                       <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${badgeColor} shrink-0`}>
@@ -589,7 +674,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
                     <div className="flex justify-between items-baseline gap-2">
                       <h4 className="text-xs font-bold text-slate-100">{ann.title}</h4>
                       <span className="text-[9px] text-slate-500 font-semibold shrink-0">
-                        {new Date(ann.created_at).toLocaleDateString()}
+                        {formatDate(ann.created_at)}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -606,7 +691,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
       <CertificateModal
         showCertificateModal={showCertificateModal}
         setShowCertificateModal={setShowCertificateModal}
-        studentEmail={studentEmail}
+        studentEmail={studentEmail || ''}
         classInfo={classInfo}
         certificateGrade={certificateGrade}
         handlePrintCertificate={handlePrintCertificate}

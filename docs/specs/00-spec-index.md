@@ -47,7 +47,8 @@ All surfaces across the Teaching OS must render using the **Light theme** (defau
 15. **[15-implementation-rules.md](15-implementation-rules.md)**: Coding guidelines.
 16. **[16-open-decisions.md](16-open-decisions.md)**: Pending CMS updates.
 17. **[17-rag-knowledge-hub.md](17-rag-knowledge-hub.md)**: RAG & Knowledge Library specifications.
-18. **[AGENTS.md](../../AGENTS.md)**: Command guidelines.
+18. **[18-rag-knowledge-engine.md](18-rag-knowledge-engine.md)**: Self-Evolving Knowledge Engine — Full Vision.
+19. **[AGENTS.md](../../AGENTS.md)**: Command guidelines.
 
 ---
 

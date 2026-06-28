@@ -2,7 +2,7 @@
 
 import React, { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Users, Loader2, HelpCircle } from 'lucide-react'
+import { Users, Loader2, HelpCircle, AlertCircle } from 'lucide-react'
 
 // Import state manager hook & subcomponents
 import { useClassesManager } from './hooks/useClassesManager'
@@ -24,12 +24,31 @@ function AdminClassesContent() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
-            <Users className="w-8 h-8 text-blue-600 animate-pulse" />
-            Class Cohort Manager
+            <Users className="w-8 h-8 text-blue-600" />
+            Quản lý lớp học
           </h1>
-          <p className="text-slate-400 text-sm mt-1">Configure class access codes, active courses, and release dates.</p>
+          <p className="text-slate-400 text-sm mt-1">Quản lý mã truy cập, khóa học, học viên và lịch phát hành.</p>
         </div>
       </div>
+
+      {manager.errorState && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 sm:flex-row sm:items-center sm:justify-between" role="alert">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+            <div>
+              <p className="text-sm font-semibold text-slate-100">Không thể tải dữ liệu lớp học</p>
+              <p className="mt-1 text-xs text-slate-500">{manager.errorState}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={manager.retryFetchData}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cohorts Left Sidebar */}
@@ -57,13 +76,13 @@ function AdminClassesContent() {
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b border-slate-700">
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                    Cohort Workspace
+                    Không gian lớp học
                   </span>
                   <h3 className="text-xl font-bold text-white mt-1">{manager.selectedClass.name}</h3>
                 </div>
                 <div className="text-xs text-slate-400 sm:text-right">
-                  <span className="block font-semibold font-mono text-slate-205">Code: {manager.selectedClass.class_code}</span>
-                  <span className="block text-xs text-slate-500 mt-0.5">LMS Command Center</span>
+                  <span className="block font-semibold font-mono text-slate-205">Mã lớp: {manager.selectedClass.class_code}</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">Vận hành lớp</span>
                 </div>
               </div>
 
@@ -79,7 +98,7 @@ function AdminClassesContent() {
                         : 'border-transparent text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {tab === 'syllabus' ? 'Syllabus & Students' : tab === 'notices' ? 'Notice Board' : 'Cohort Analytics'}
+                    {tab === 'syllabus' ? 'Nội dung & học viên' : tab === 'notices' ? 'Thông báo' : 'Phân tích lớp'}
                   </button>
                 ))}
               </div>

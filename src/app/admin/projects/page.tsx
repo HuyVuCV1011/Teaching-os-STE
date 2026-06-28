@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { Trash2, Edit, Plus, Briefcase, HelpCircle, Loader2 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 
 interface FlowNode {
   id: string
@@ -91,9 +92,9 @@ export default function AdminProjectsPage() {
       if (error) throw error
 
       setProjects(projects.filter((p) => p.id !== projectId))
-      alert('Project deleted successfully')
+      toast.success('Đã xóa dự án.')
     } catch (err: any) {
-      alert(`Deletion failed: ${err.message}`)
+      toast.error(`Không thể xóa dự án: ${err.message}`)
     }
   }
 

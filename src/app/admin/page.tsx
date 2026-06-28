@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import {
@@ -11,6 +11,7 @@ import {
   ArrowRight,
   TrendingUp,
   Plus,
+  AlertCircle,
 } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -21,85 +22,110 @@ export default function AdminDashboard() {
     subjectsCount: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState<string | null>(null)
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true)
+    setErrorState(null)
+
+    try {
+      const [coursesResult, classesResult, submissionsResult, subjectsResult] = await Promise.all([
+        supabase.from('courses').select('*', { count: 'exact', head: true }),
+        supabase.from('classes').select('*', { count: 'exact', head: true }),
+        supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
+        supabase.from('subjects').select('*', { count: 'exact', head: true }),
+      ])
+
+      const firstError = [
+        coursesResult.error,
+        classesResult.error,
+        submissionsResult.error,
+        subjectsResult.error,
+      ].find(Boolean)
+
+      if (firstError) throw firstError
+
+      setStats({
+        coursesCount: coursesResult.count || 0,
+        classesCount: classesResult.count || 0,
+        submissionsPending: submissionsResult.count || 0,
+        subjectsCount: subjectsResult.count || 0,
+      })
+    } catch (err) {
+      console.error('Failed to fetch dashboard statistics:', err)
+      setErrorState(err instanceof Error ? err.message : 'Không thể tải số liệu vận hành.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        // Query database stats (handle errors gracefully since Supabase is resetting)
-        const [
-          { count: coursesCount },
-          { count: classesCount },
-          { count: submissionsCount },
-          { count: subjectsCount },
-        ] = await Promise.all([
-          supabase.from('courses').select('*', { count: 'exact', head: true }),
-          supabase.from('classes').select('*', { count: 'exact', head: true }),
-          supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
-          supabase.from('subjects').select('*', { count: 'exact', head: true }),
-        ])
-
-        setStats({
-          coursesCount: coursesCount || 0,
-          classesCount: classesCount || 0,
-          submissionsPending: submissionsCount || 0,
-          subjectsCount: subjectsCount || 0,
-        })
-      } catch (err) {
-        console.error('Failed to fetch dashboard statistics:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchStats()
-  }, [])
+  }, [fetchStats])
 
   const cards = [
     {
-      title: 'Subjects Taxonomy',
-      description: 'Define key learning paths and disciplines.',
+      title: 'Nhóm môn học',
+      description: 'Tổ chức các lĩnh vực và lộ trình học.',
       count: stats.subjectsCount,
       href: '/admin/library?tab=subjects',
       icon: FolderOpen,
-      color: 'from-cyan-500/10 to-blue-500/10 border-cyan-500/20 text-cyan-700',
+      color: 'border-slate-700 text-blue-600',
     },
     {
-      title: 'Course Catalog',
-      description: 'Manage syllabi, modules, and reusable lessons.',
+      title: 'Danh mục khóa học',
+      description: 'Quản lý đề cương, học phần và bài học.',
       count: stats.coursesCount,
       href: '/admin/library?tab=courses',
       icon: BookOpen,
-      color: 'from-blue-500/10 to-indigo-500/10 border-blue-500/20 text-blue-700',
+      color: 'border-slate-700 text-blue-600',
     },
     {
-      title: 'Active Class Cohorts',
-      description: 'Set code locks, calendars, and schedules.',
+      title: 'Lớp đang vận hành',
+      description: 'Quản lý học viên, mã lớp và lịch phát hành.',
       count: stats.classesCount,
       href: '/admin/classes',
       icon: Users,
-      color: 'from-violet-500/10 to-purple-500/10 border-violet-500/20 text-violet-700',
+      color: 'border-slate-700 text-blue-600',
     },
     {
-      title: 'Ungraded Submissions',
-      description: 'Evaluate student tasks against rubrics.',
+      title: 'Bài đang chờ chấm',
+      description: 'Đánh giá bài nộp theo rubric của môn học.',
       count: stats.submissionsPending,
       href: '/admin/grading',
       icon: GraduationCap,
-      color: 'from-amber-500/10 to-orange-500/10 border-amber-500/20 text-amber-700',
+      color: 'border-slate-700 text-blue-600',
     },
   ]
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      {errorState && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 sm:flex-row sm:items-center sm:justify-between" role="alert">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+            <div>
+              <p className="text-sm font-semibold text-slate-100">Không thể tải số liệu dashboard</p>
+              <p className="mt-1 text-xs text-slate-500">{errorState}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchStats}
+            className="rounded-lg border border-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-500/10"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 p-8 shadow-xl">
-        <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
+      <div className="relative overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 p-6 shadow-sm sm:p-8">
         <div className="relative z-10 space-y-2">
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            Welcome Back, Operator
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">
+            Tổng quan giảng dạy
           </h1>
           <p className="text-slate-400 max-w-xl text-sm">
-            Configure subjects, course syllabi, release schedules, and grade student submissions from your central terminal.
+            Theo dõi lớp học, nội dung và các bài nộp cần xử lý trong một không gian thống nhất.
           </p>
         </div>
       </div>
@@ -109,13 +135,13 @@ export default function AdminDashboard() {
         {cards.map((card, idx) => (
           <div
             key={idx}
-            className={`border rounded-2xl bg-gradient-to-br ${card.color} p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-200 group relative`}
+            className={`border rounded-2xl bg-slate-950 ${card.color} p-6 flex flex-col justify-between hover:border-slate-500 hover:shadow-sm transition-colors duration-200 group relative`}
           >
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <card.icon className="w-5 h-5" />
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Total
+                  Tổng
                 </span>
               </div>
               <div>
@@ -133,8 +159,8 @@ export default function AdminDashboard() {
                 href={card.href}
                 className="text-xs font-semibold flex items-center gap-1 hover:text-slate-100 transition-colors"
               >
-                <span>Manage</span>
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <span>Mở quản lý</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 motion-reduce:transform-none transition-transform" />
               </Link>
             </div>
           </div>
@@ -147,57 +173,53 @@ export default function AdminDashboard() {
         <div className="lg:col-span-2 border border-slate-700 bg-slate-900/20 rounded-2xl p-6 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-blue-600" />
-            Quick Setup Workflows
+            Thao tác nhanh
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Link
               href="/admin/library?tab=courses&action=new"
-              className="p-4 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-800/10 transition-all flex items-start gap-3 group"
+              className="p-4 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-800/10 transition-colors flex items-start gap-3 group"
             >
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-slate-100">Create New Course</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Author a course syllabus and add modules.</p>
+                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-slate-100">Tạo khóa học mới</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Soạn đề cương và thêm các học phần.</p>
               </div>
             </Link>
 
             <Link
               href="/admin/classes?action=new"
-              className="p-4 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-800/10 transition-all flex items-start gap-3 group"
+              className="p-4 rounded-xl border border-slate-500 hover:border-slate-400 bg-slate-950/40 hover:bg-slate-800/10 transition-colors flex items-start gap-3 group"
             >
-              <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-slate-100">Setup Cohort Access</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Generate class access codes & set dates.</p>
+                <h4 className="font-semibold text-sm text-slate-200 group-hover:text-slate-100">Thiết lập lớp học</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Cấp mã lớp, thêm học viên và đặt lịch.</p>
               </div>
             </Link>
           </div>
         </div>
 
-        {/* System Logs / Info */}
+        {/* Operational priorities */}
         <div className="border border-slate-700 bg-slate-900/20 rounded-2xl p-6 space-y-4">
-          <h2 className="text-lg font-bold text-white">System Status</h2>
+          <h2 className="text-lg font-bold text-white">Việc cần xử lý</h2>
           <div className="space-y-3.5">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400">Database Engine</span>
-              <span className="font-semibold text-slate-200">Supabase PG</span>
-            </div>
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400">Next.js Framework</span>
-              <span className="font-semibold text-slate-200">v15 App Router</span>
-            </div>
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400">File Storage Bucket</span>
-              <span className="font-semibold text-slate-200">teaching-materials</span>
-            </div>
-            <div className="pt-2 border-t border-slate-800/80 flex justify-between items-center text-[10px]">
-              <span className="text-slate-500">Security Standard</span>
-              <span className="font-bold text-emerald-400 uppercase tracking-widest">RLS Activated</span>
-            </div>
+            <Link href="/admin/grading" className="flex items-center justify-between rounded-lg p-2 text-xs transition-colors hover:bg-slate-900">
+              <span className="text-slate-400">Bài chờ chấm</span>
+              <span className="font-semibold text-slate-200">{loading ? '…' : stats.submissionsPending}</span>
+            </Link>
+            <Link href="/admin/classes" className="flex items-center justify-between rounded-lg p-2 text-xs transition-colors hover:bg-slate-900">
+              <span className="text-slate-400">Lớp đang quản lý</span>
+              <span className="font-semibold text-slate-200">{loading ? '…' : stats.classesCount}</span>
+            </Link>
+            <Link href="/admin/library?tab=courses" className="flex items-center justify-between rounded-lg p-2 text-xs transition-colors hover:bg-slate-900">
+              <span className="text-slate-400">Khóa học trong thư viện</span>
+              <span className="font-semibold text-slate-200">{loading ? '…' : stats.coursesCount}</span>
+            </Link>
           </div>
         </div>
       </div>

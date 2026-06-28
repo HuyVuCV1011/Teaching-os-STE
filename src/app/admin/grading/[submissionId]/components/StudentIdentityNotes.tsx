@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { User, AlertCircle } from 'lucide-react'
+import { formatDateTime } from '@/lib/date'
 
 interface StudentIdentityNotesProps {
   submission: any
@@ -32,14 +33,14 @@ export function StudentIdentityNotes({
         <div className="flex justify-between text-xs">
           <span className="text-slate-500">Submitted at</span>
           <span className="font-semibold text-slate-200">
-            {submission?.submitted_at ? new Date(submission.submitted_at).toLocaleString() : ''}
+            {submission?.submitted_at ? formatDateTime(submission.submitted_at) : ''}
           </span>
         </div>
         {dueDate && (
           <div className="flex justify-between text-xs">
             <span className="text-slate-500">Cohort Due Date</span>
             <span className="font-semibold text-slate-200">
-              {new Date(dueDate).toLocaleString()}
+              {formatDateTime(dueDate)}
             </span>
           </div>
         )}

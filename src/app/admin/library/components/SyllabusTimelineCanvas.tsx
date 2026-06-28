@@ -5,6 +5,7 @@ import { Plus, HelpCircle, BookOpenText, Layers, ChevronUp, ChevronDown, Edit, E
 import { SyllabusRoadmapVisualizer } from './SyllabusRoadmapVisualizer'
 import { toggleLessonPublishStatusAction } from '../actions/refined_knowledge'
 import { deleteLessonAction, deleteModuleAction } from '../actions/courses'
+import { toast } from 'react-hot-toast'
 
 interface SyllabusTimelineCanvasProps {
   selectedCourse: any | null
@@ -59,10 +60,10 @@ export function SyllabusTimelineCanvas({
         if (res.success) {
           if (onRefreshCourse) onRefreshCourse()
         } else {
-          alert(`Failed to delete lesson: ${res.error}`)
+          toast.error(`Không thể xóa bài học: ${res.error}`)
         }
       } catch (err: any) {
-        alert(`Error deleting lesson: ${err.message}`)
+        toast.error(`Lỗi khi xóa bài học: ${err.message}`)
       }
     }
   }
@@ -74,10 +75,10 @@ export function SyllabusTimelineCanvas({
         if (res.success) {
           if (onRefreshCourse) onRefreshCourse()
         } else {
-          alert(`Failed to delete module: ${res.error}`)
+          toast.error(`Không thể xóa học phần: ${res.error}`)
         }
       } catch (err: any) {
-        alert(`Error deleting module: ${err.message}`)
+        toast.error(`Lỗi khi xóa học phần: ${err.message}`)
       }
     }
   }
@@ -245,10 +246,10 @@ export function SyllabusTimelineCanvas({
       if (res.success && onRefreshCourse) {
         onRefreshCourse()
       } else if (!res.success) {
-        alert(`Failed to change lesson status: ${res.error}`)
+        toast.error(`Không thể đổi trạng thái bài học: ${res.error}`)
       }
     } catch (err: any) {
-      alert(`Error toggling lesson status: ${err.message}`)
+      toast.error(`Lỗi khi đổi trạng thái bài học: ${err.message}`)
     } finally {
       setStatusTogglingLessonId(null)
     }

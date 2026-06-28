@@ -83,8 +83,9 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
-          href={`/learn/${classCode}/dashboard`}
+          href={`/learn/${classCode}/assignments`}
           className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-500 hover:text-slate-100 hover:border-slate-600 transition-all shadow-sm cursor-pointer"
+          aria-label="Quay lại danh sách bài tập"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -157,6 +158,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             assignment={workspace.assignment}
             showcaseRequested={workspace.showcaseRequested}
             setShowcaseRequested={workspace.setShowcaseRequested}
+            schedule={workspace.schedule}
           />
         </div>
       </div>

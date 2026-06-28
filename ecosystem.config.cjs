@@ -7,6 +7,7 @@ module.exports = {
       args: "dev -H 0.0.0.0 -p 3000",
       env: {
         NODE_ENV: "development",
+        NEXT_DIST_DIR: ".next-dev",
       },
     },
   ],

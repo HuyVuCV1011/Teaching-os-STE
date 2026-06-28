@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { BarChart3, Loader2, AlertTriangle, ExternalLink, BookOpen, AlertCircle, Clock, UserX } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 interface AnalyticsWorkspaceProps {
   selectedClass: any
@@ -352,7 +353,7 @@ export function AnalyticsWorkspace({
                         </td>
                         <td className="p-3 text-slate-355 font-semibold">{sub.assignments?.title}</td>
                         <td className="p-3 text-slate-505">
-                          {new Date(sub.created_at).toLocaleDateString()}
+                          {formatDate(sub.created_at)}
                         </td>
                         <td className="p-3 text-center font-bold text-slate-200">
                           {grade ? `${parseFloat(grade.total_score).toFixed(0)}%` : '—'}

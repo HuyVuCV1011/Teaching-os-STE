@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ReactFlowProvider, useNodesState, useEdgesState, MarkerType } from 'reactflow'
 import { Save, ArrowLeft, Loader2 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 
 // Import shared helpers and components
 import { hasCycle, getLayoutedElements } from '../../utils/projectUtils'
@@ -62,7 +63,7 @@ function EditProjectPageContent() {
           .single()
 
         if (error) {
-          alert('Không thể tải dự án')
+          toast.error('Không thể tải dự án')
           router.push('/admin/projects')
           return
         }
@@ -104,7 +105,7 @@ function EditProjectPageContent() {
         }
       } catch (error) {
         console.error('Fetch error:', error)
-        alert('Lỗi khi tải dự án')
+        toast.error('Lỗi khi tải dự án')
         router.push('/admin/projects')
       } finally {
         setLoading(false)
@@ -204,10 +205,10 @@ function EditProjectPageContent() {
 
       if (error) throw error
 
-      alert('Showcase project updated successfully!')
+      toast.success('Đã cập nhật dự án Showcase.')
       router.push('/admin/projects')
     } catch (err: any) {
-      alert(`Update failed: ${err.message}`)
+      toast.error(`Cập nhật thất bại: ${err.message}`)
     } finally {
       setIsSubmitting(false)
     }

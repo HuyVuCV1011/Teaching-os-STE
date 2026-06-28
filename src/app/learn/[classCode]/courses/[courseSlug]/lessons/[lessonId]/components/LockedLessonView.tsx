@@ -3,6 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { Lock, Calendar, ArrowLeft } from 'lucide-react'
+import { formatDate } from '@/lib/date'
 
 interface LockedLessonViewProps {
   classCode: string
@@ -29,7 +30,7 @@ export function LockedLessonView({
       {visibleAfter ? (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300">
           <Calendar className="w-3.5 h-3.5 text-blue-600" />
-          <span>Unlocks on {new Date(visibleAfter).toLocaleDateString()}</span>
+          <span>Mở từ ngày {formatDate(visibleAfter)}</span>
         </div>
       ) : (
         <span className="text-xs text-slate-500 italic">Unlock schedule not configured.</span>

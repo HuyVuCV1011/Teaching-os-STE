@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'react-hot-toast'
 import {
   ClipboardList,
   ArrowLeft,
@@ -93,7 +94,7 @@ export default function ManageAssignmentsPage() {
     if (res.success) {
       setAssignments(prev => prev.filter(a => a.id !== id))
     } else {
-      alert(`Failed to delete: ${res.error}`)
+      toast.error(`Không thể xóa bài tập: ${res.error}`)
     }
   }
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow'
 import { Plus, ArrowLeft } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 
 // Import shared helpers and components
 import { hasCycle } from '../utils/projectUtils'
@@ -97,10 +98,10 @@ function CreateProjectPageContent() {
 
       if (error) throw error
 
-      alert('Showcase project published successfully!')
+      toast.success('Đã đăng dự án lên Showcase.')
       router.push('/admin/projects')
     } catch (err: any) {
-      alert(`Submission failed: ${err.message}`)
+      toast.error(`Không thể đăng dự án: ${err.message}`)
     } finally {
       setIsSubmitting(false)
     }

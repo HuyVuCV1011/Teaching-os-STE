@@ -273,9 +273,7 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
     setFiles(files.filter((_, i) => i !== idx))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const handleSubmit = async () => {
     // Parse questions list from instructions
     let questionsList: any[] = []
     const instructionsStr = assignment?.instructions || ''

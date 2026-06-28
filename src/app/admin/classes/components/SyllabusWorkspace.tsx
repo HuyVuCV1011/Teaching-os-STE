@@ -3,6 +3,7 @@
 import React from 'react'
 import { BookOpen, Plus, Trash2, Calendar, Clock, HelpCircle, AlertTriangle, Save, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'react-hot-toast'
 
 interface SyllabusWorkspaceProps {
   selectedClass: any
@@ -410,10 +411,10 @@ function TimelineEditor({ schedules, handleDeleteSchedule }: TimelineEditorProps
       const firstError = results.find((r) => r.error)
       if (firstError) throw firstError.error
 
-      alert('Course timeline successfully updated!')
+      toast.success('Course timeline successfully updated!')
       window.location.reload()
     } catch (err: any) {
-      alert(`Failed to save timeline: ${err.message}`)
+      toast.error(`Failed to save timeline: ${err.message}`)
     } finally {
       setSaving(false)
     }

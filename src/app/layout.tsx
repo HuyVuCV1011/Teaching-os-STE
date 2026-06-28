@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
-import ScrollToTopButton from '@/components/ui/ScrollToTopButton'
 import { ConditionalFloatingNav } from '@/components/ConditionalFloatingNav'
-import Footer from '@/components/Footer'
+import { ConditionalPublicChrome } from '@/components/ConditionalPublicChrome'
+import { Toaster } from 'react-hot-toast'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -28,12 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="light">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased relative`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased relative`}
       >
+        <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
         <ConditionalFloatingNav />
         {children}
-        <Footer />
-        <ScrollToTopButton />
+        <ConditionalPublicChrome />
       </body>
     </html>
   )

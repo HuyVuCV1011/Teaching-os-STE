@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { verifyJWT } from '@/lib/jwt'
+import { getSupabaseServer } from '@/lib/supabase'
 
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
@@ -9,6 +10,20 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 interface Message {
   role: 'user' | 'model'
   content: string
+}
+
+function extractLessonText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content.map(extractLessonText).filter(Boolean).join('\n')
+  }
+  if (content && typeof content === 'object') {
+    const node = content as Record<string, unknown>
+    const ownText = typeof node.text === 'string' ? node.text : ''
+    const childText = extractLessonText(node.content)
+    return [ownText, childText].filter(Boolean).join(' ')
+  }
+  return ''
 }
 
 async function verifyStudentSession(classCode: string) {
@@ -22,7 +37,11 @@ async function verifyStudentSession(classCode: string) {
   const secret = process.env.JWT_SECRET || 'fallback_development_secret_key_1234567890'
   const payload = await verifyJWT(token, secret)
 
-  if (!payload || payload.role !== 'student') {
+  if (
+    !payload ||
+    payload.role !== 'student' ||
+    payload.class_code?.toUpperCase() !== classCode.toUpperCase()
+  ) {
     throw new Error('Unauthorized: Invalid student credentials')
   }
 
@@ -37,36 +56,98 @@ export async function askAITutorAction(
 ) {
   try {
     // 1. Verify student auth
-    await verifyStudentSession(classCode)
+    const session = await verifyStudentSession(classCode)
 
     if (!GEMINI_API_KEY) {
       throw new Error('AI service credentials not configured on the server.')
     }
 
+    const supabase = getSupabaseServer(true)
+    const { data: classData, error: classError } = await supabase
+      .from('classes')
+      .select('course_id')
+      .eq('id', session.class_id)
+      .single()
+
+    if (classError || !classData) {
+      throw classError || new Error('Class not found.')
+    }
+
+    const { data: mappedCourses, error: mappedCoursesError } = await supabase
+      .from('class_courses')
+      .select('course_id')
+      .eq('class_id', session.class_id)
+
+    if (mappedCoursesError) throw mappedCoursesError
+
+    const allowedCourseIds = new Set<string>(
+      [classData.course_id, ...(mappedCourses || []).map((course) => course.course_id)]
+        .filter(Boolean)
+    )
+
+    const { data: lesson, error: lessonError } = await supabase
+      .from('lessons')
+      .select('id, title, content, metadata, modules(course_id)')
+      .eq('id', lessonId)
+      .single()
+
+    const lessonModule = Array.isArray(lesson?.modules) ? lesson.modules[0] : lesson?.modules
+    if (
+      lessonError ||
+      !lesson ||
+      lesson.metadata?.status === 'draft' ||
+      !lessonModule?.course_id ||
+      !allowedCourseIds.has(lessonModule.course_id)
+    ) {
+      throw new Error('Unauthorized: Lesson is not available in this class.')
+    }
+
+    const officialLessonText = extractLessonText(lesson.content).trim().slice(0, 8000)
+
     // 2. Query RAG chunks from FastAPI rubricore-engine
-    let ragContext = ''
+    let ragContext = officialLessonText
+      ? `[Official Lesson - ${lesson.title}]:\n${officialLessonText}`
+      : ''
+    const citations: string[] = officialLessonText ? [lesson.title] : []
     try {
+      const { data: organization, error: organizationError } = await supabase
+        .from('organizations')
+        .select('id')
+        .limit(1)
+        .single()
+
+      if (organizationError || !organization) {
+        throw organizationError || new Error('Knowledge organization boundary is unavailable.')
+      }
+
       const ragRes = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-pilot-actor-user-id': '00000000-0000-0000-0000-000000000000',
-          'x-pilot-organization-id': '00000000-0000-0000-0000-000000000000',
+          'x-pilot-actor-user-id': session.class_id,
+          'x-pilot-organization-id': organization.id,
           'x-pilot-roles': 'system',
         },
         body: JSON.stringify({
           query: message,
           limit: 3,
-          allowed_access_scopes: ['organization', 'public'],
+          allowed_access_scopes: ['organization', 'public_safe'],
         }),
       })
 
       if (ragRes.ok) {
         const ragData = await ragRes.json()
         if (ragData.results && ragData.results.length > 0) {
-          ragContext = ragData.results
-            .map((r: any, idx: number) => `[Context Document ${idx + 1} - ${r.citation?.knowledge_source_title || 'Material'}]:\n${r.content}`)
+          const retrievedContext = ragData.results
+            .map((r: any, idx: number) => {
+              const sourceTitle = r.citation?.knowledge_source_title || r.metadata?.title || 'Tài liệu lớp học'
+              if (!citations.includes(sourceTitle)) {
+                citations.push(sourceTitle)
+              }
+              return `[Context Document ${idx + 1} - ${sourceTitle}]:\n${r.content}`
+            })
             .join('\n\n')
+          ragContext = [ragContext, retrievedContext].filter(Boolean).join('\n\n')
         }
       }
     } catch (ragErr) {
@@ -118,7 +199,8 @@ STRICT CONSTRAINTS & RULES:
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text()
-      throw new Error(`Gemini API returned error code ${geminiRes.status}: ${errText}`)
+      console.error(`Gemini API returned ${geminiRes.status}:`, errText)
+      throw new Error(`Gemini API returned error code ${geminiRes.status}.`)
     }
 
     const geminiData = await geminiRes.json()
@@ -128,9 +210,12 @@ STRICT CONSTRAINTS & RULES:
       throw new Error('Gemini API returned empty text.')
     }
 
-    return { success: true, text: responseText }
+    return { success: true, text: responseText, citations }
   } catch (error: any) {
     console.error('Error in askAITutorAction:', error)
-    return { success: false, error: error.message || 'An unknown error occurred' }
+    return {
+      success: false,
+      error: 'AI Tutor hiện chưa thể phản hồi. Vui lòng thử lại sau.',
+    }
   }
 }
