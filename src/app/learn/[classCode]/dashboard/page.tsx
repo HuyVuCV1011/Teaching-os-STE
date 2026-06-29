@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, use, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/date'
 import {

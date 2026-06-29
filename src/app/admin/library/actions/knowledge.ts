@@ -65,6 +65,52 @@ async function resolveOrganizationId() {
   return org.id
 }
 
+async function getKnowledgeSourcesFromSupabase(organizationId: string) {
+  const supabase = getSupabaseServer(true)
+  const { data: sources, error } = await supabase
+    .from('knowledge_sources')
+    .select('id, title, version_number, access_scope, conversion_status, status, summary, metadata_payload, created_at')
+    .eq('organization_id', organizationId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  const sourceIds = (sources || []).map((source) => source.id)
+  if (sourceIds.length === 0) {
+    return []
+  }
+
+  const { data: chunks, error: chunksError } = await supabase
+    .from('knowledge_chunks')
+    .select('knowledge_source_id')
+    .in('knowledge_source_id', sourceIds)
+    .eq('status', 'active')
+
+  if (chunksError) {
+    throw chunksError
+  }
+
+  const chunkCounts = new Map<string, number>()
+  ;(chunks || []).forEach((chunk) => {
+    chunkCounts.set(
+      chunk.knowledge_source_id,
+      (chunkCounts.get(chunk.knowledge_source_id) || 0) + 1
+    )
+  })
+
+  return (sources || []).map((source) => ({
+    ...source,
+    original_filename:
+      typeof source.metadata_payload?.original_filename === 'string'
+        ? source.metadata_payload.original_filename
+        : '',
+    chunks_count: chunkCounts.get(source.id) || 0,
+  }))
+}
+
 /**
  * Uploads a document (PDF, Word, Excel, CSV, Text, Markdown) to the FastAPI RAG engine.
  */
@@ -103,22 +149,34 @@ export async function getKnowledgeSourcesAction() {
     const { userId } = await checkAdminAuth()
     const orgId = await resolveOrganizationId()
 
-    const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/sources`, {
-      method: 'GET',
-      headers: {
-        'x-pilot-actor-user-id': userId,
-        'x-pilot-organization-id': orgId,
-        'x-pilot-roles': 'teacher,admin',
-      }
-    })
+    try {
+      const res = await fetch(`${RUBICORE_API_URL}/pilot/knowledge/sources`, {
+        method: 'GET',
+        headers: {
+          'x-pilot-actor-user-id': userId,
+          'x-pilot-organization-id': orgId,
+          'x-pilot-roles': 'teacher,admin',
+        }
+      })
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
-      throw new Error(errData.detail || 'Failed to list knowledge sources')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Failed to list knowledge sources')
+      }
+
+      const data = await res.json()
+      const sources = data.sources || []
+      if (sources.length > 0) {
+        return { success: true, sources }
+      }
+    } catch (engineError) {
+      console.warn('RAG engine source listing unavailable, falling back to Supabase:', engineError)
     }
 
-    const data = await res.json()
-    return { success: true, sources: data.sources || [] }
+    return {
+      success: true,
+      sources: await getKnowledgeSourcesFromSupabase(orgId),
+    }
   } catch (error: any) {
     console.error('Failed to get knowledge sources:', error)
     return { success: false, error: error.message, sources: [] }
@@ -216,4 +274,3 @@ export async function getKnowledgeSourceChunksAction(sourceId: string) {
     return { success: false, error: error.message, chunks: [] }
   }
 }
-

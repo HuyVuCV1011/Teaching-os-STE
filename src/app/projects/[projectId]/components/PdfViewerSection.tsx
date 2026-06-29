@@ -59,6 +59,14 @@ interface PdfViewerSectionProps {
   setNumPages: React.Dispatch<React.SetStateAction<number[]>>
 }
 
+function resolveProjectFileUrl(file: string) {
+  if (file.startsWith('http') || file.startsWith('/')) {
+    return file
+  }
+
+  return `/files/${file}`
+}
+
 export function PdfViewerSection({
   files,
   containerWidth,
@@ -139,7 +147,7 @@ export function PdfViewerSection({
       {files.slice(0, 2).map((file: string, fileIndex: number) => (
         <div key={file} style={{ display: 'none' }}>
           <Document
-            file={file.startsWith('http') ? file : `/files/${file}`}
+            file={resolveProjectFileUrl(file)}
             onLoadSuccess={onDocumentLoadSuccess(fileIndex)}
           >
             {numPages[fileIndex] &&

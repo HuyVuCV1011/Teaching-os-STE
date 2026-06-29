@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion' // Dùng motion để tạo hiệu ứng
+import { motion } from 'motion/react' // Dùng motion để tạo hiệu ứng
 import { ArrowUp } from 'lucide-react'
 
 const ScrollToTopButton = () => {

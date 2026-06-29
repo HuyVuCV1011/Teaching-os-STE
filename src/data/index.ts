@@ -91,16 +91,19 @@ export const socialMedia = [
   {
     id: 1,
     link: '',
+    label: 'GitHub',
     icon: Github,
   },
   {
     id: 2,
     link: '',
+    label: 'Twitter',
     icon: Twitter,
   },
   {
     id: 3,
     link: '',
+    label: 'LinkedIn',
     icon: Linkedin,
   },
 ]

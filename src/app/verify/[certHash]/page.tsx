@@ -28,10 +28,20 @@ export default function VerifyPage({ params }: VerifyPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [cert, setCert] = useState<any>(null)
 
+  const credentialNotFoundMessage =
+    'Credential record not found. This credential hash may be invalid or has been revoked.'
+
   useEffect(() => {
     async function verifyCredential() {
       setLoading(true)
       try {
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        if (!uuidPattern.test(certHash)) {
+          setCert(null)
+          setError(credentialNotFoundMessage)
+          return
+        }
+
         // Query certificate with class info
         const { data, error: queryError } = await supabase
           .from('certificates')
@@ -42,13 +52,13 @@ export default function VerifyPage({ params }: VerifyPageProps) {
         if (queryError) throw queryError
 
         if (!data) {
-          setError('Credential record not found. This credential hash may be invalid or has been revoked.')
+          setError(credentialNotFoundMessage)
         } else {
           setCert(data)
         }
       } catch (err: any) {
         console.error('Verification query failed:', err)
-        setError(err.message || 'An error occurred during credential verification.')
+        setError('An error occurred during credential verification. Please try again later.')
       } finally {
         setLoading(false)
       }

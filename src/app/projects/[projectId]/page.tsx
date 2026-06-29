@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useNodesState, useEdgesState, MarkerType } from 'reactflow'
 import { FileSpreadsheet } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { projects as localProjects } from '@/data'
 
 // Import shared components and subcomponents
 import { nodeIconOptions } from '@/app/admin/projects/components/ProcessDiagramWorkspace'
@@ -44,9 +45,27 @@ interface Project {
   youtube_link: string | null
 }
 
+function getLocalProject(id: string): Project | null {
+  const localProject = localProjects.find((item) => item.id === id)
+  if (!localProject) return null
+
+  return {
+    id: localProject.id,
+    title: localProject.title,
+    description: localProject.desc,
+    thumbnails: localProject.thumbnails || [],
+    files: localProject.files || [],
+    icons: localProject.icons || [],
+    flow_diagram: null,
+    iframe_link: null,
+    youtube_link: null,
+  }
+}
+
 export default function ProjectIdPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const [project, setProject] = useState<Project | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   
   // PDF state for Table of Contents height detection
   const [numPages, setNumPages] = useState<number[]>([])
@@ -63,15 +82,38 @@ export default function ProjectIdPage() {
   // Fetch project data from Supabase
   useEffect(() => {
     const fetchProject = async () => {
+      setErrorMessage(null)
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
       try {
+        if (!uuidPattern.test(projectId)) {
+          const localProject = getLocalProject(projectId)
+          if (localProject) {
+            setProject(localProject)
+            setNodes([])
+            setEdges([])
+            return
+          }
+
+          setProject(null)
+          setErrorMessage('Không tìm thấy dự án phù hợp.')
+          return
+        }
+
         const { data, error } = await supabase
           .from('projects')
           .select('*')
           .eq('id', projectId)
           .single()
         if (error) {
-          console.error('Error fetching project:', error)
-          throw new Error(`Không thể tải dự án: ${error.message}`)
+          const localProject = getLocalProject(projectId)
+          if (localProject) {
+            setProject(localProject)
+            setNodes([])
+            setEdges([])
+            return
+          }
+          throw error
         }
         setProject(data)
         if (
@@ -106,8 +148,10 @@ export default function ProjectIdPage() {
           setEdges(loadedEdges)
         }
       } catch (error: any) {
-        console.error('Fetch error:', error.message)
-        toast.error(`Lỗi: ${error.message}`)
+        console.error('Fetch project error:', error)
+        setProject(null)
+        setErrorMessage('Không thể tải dự án lúc này. Vui lòng thử lại sau.')
+        toast.error('Không thể tải dự án.')
       }
     }
     fetchProject()
@@ -154,7 +198,21 @@ export default function ProjectIdPage() {
   }
 
   if (!project) {
-    return <div className="text-center py-20 text-slate-500 font-semibold">Đang tải...</div>
+    return (
+      <div className="container mt-28 py-20 text-center">
+        <h1 className="text-2xl font-extrabold text-slate-100">
+          {errorMessage || 'Đang tải...'}
+        </h1>
+        {errorMessage && (
+          <a
+            href="/#projects"
+            className="mt-5 inline-flex rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-100 transition-colors hover:bg-slate-850"
+          >
+            Quay lại danh sách dự án
+          </a>
+        )}
+      </div>
+    )
   }
 
   const maxPages = Math.max(...numPages.filter(Boolean))

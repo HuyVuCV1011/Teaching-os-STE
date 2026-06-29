@@ -15,6 +15,7 @@ function LessonEditorInner() {
   const state = useLessonEditorState()
 
   const {
+    lessonId,
     loading,
     saving,
     currentStep,
@@ -122,6 +123,58 @@ function LessonEditorInner() {
       <div className="flex flex-col justify-center items-center py-40 text-slate-400 text-xs gap-3">
         <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
         <span>Loading Session Composer Workspace...</span>
+      </div>
+    )
+  }
+
+  if (!lessonId) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 px-6 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-blue-600">
+          <BookOpen className="h-7 w-7" />
+        </div>
+        <div className="max-w-xl space-y-2">
+          <h1 className="text-2xl font-extrabold text-slate-100">
+            Select a lesson to open the composer
+          </h1>
+          <p className="text-sm leading-6 text-slate-400">
+            The session composer needs a lesson context before it can load content, materials, assignments, and rubric snapshots.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push('/admin/library?tab=courses')}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-100 shadow-sm transition-colors hover:bg-slate-850 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Curriculum Library
+        </button>
+      </div>
+    )
+  }
+
+  if (!lesson) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 px-6 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600">
+          <BookOpen className="h-7 w-7" />
+        </div>
+        <div className="max-w-xl space-y-2">
+          <h1 className="text-2xl font-extrabold text-slate-100">
+            Lesson not found
+          </h1>
+          <p className="text-sm leading-6 text-slate-400">
+            The requested lesson could not be loaded. Return to the curriculum library and select another lesson.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push('/admin/library?tab=courses')}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-100 shadow-sm transition-colors hover:bg-slate-850 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/20"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Curriculum Library
+        </button>
       </div>
     )
   }
