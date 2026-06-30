@@ -2,7 +2,7 @@
 
 import { useState, Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion } from 'motion/react'
 import { KeyRound, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
 
 function LearnGatewayContent() {

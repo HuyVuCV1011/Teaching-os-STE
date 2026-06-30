@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { FileText, Link2, ExternalLink } from 'lucide-react'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { parseAssignmentInstructions } from '@/lib/assignment'
 
 interface LessonSidebarProps {

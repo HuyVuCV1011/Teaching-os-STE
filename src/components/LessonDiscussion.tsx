@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { MessageSquare, Send, Trash2, Loader2 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import { formatDate, formatDateTime } from '@/lib/date'
 import { toast } from 'react-hot-toast'
 

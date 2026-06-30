@@ -1,65 +1,51 @@
-# QA Workflow — Teaching-os-STE
+# QA Workflow - Teaching-os-STE
 
-## Mô tả
+## Scope
 
-Luồng QA 3 lớp dành cho dự án Teaching-os-STE. Tích hợp Playwright (test chính), DeepSeek/OpenHands (exploratory agent), và Antigravity (code agent).
+This workflow keeps Codex/Antigravity focused on implementation, fast verification, and manual browser smoke checks. Playwright E2E creation/execution is reserved for a dedicated testing agent or CI workflow.
 
----
+## Flow
 
-## Kiến trúc
+```text
+Phase 1 - Implement
+  Codex/Antigravity inspects code, makes scoped edits, and preserves user work.
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    PHASE 1: DEV                      │
-│  Antigravity (code agent) ──── feature code          │
-└──────────────────────┬──────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│              PHASE 2: E2E TEST (Playwright)           │
-│  headed: mở Chrome thật, chạy test, click thật        │
-│  assertions, trace, screenshot khi fail                │
-│  Lệnh: npm run test:e2e:headed                        │
-└──────────────────────┬──────────────────────────────┘
-                       ↓ (pass)
-┌─────────────────────────────────────────────────────┐
-│          PHASE 3: EXPLORATORY (DeepSeek/OpenHands)    │
-│  Agent đọc spec, mở browser, click, điền form,        │
-│  tìm edge case, đề xuất test mới                      │
-└──────────────────────┬──────────────────────────────┘
-                       ↓ (bug found)
-┌─────────────────────────────────────────────────────┐
-│          PHASE 4: CONSOLIDATION                       │
-│  Fix bug → viết Playwright test cho case mới          │
-│  Chạy full regression                                 │
-│  Lệnh: npm run test:e2e                               │
-└─────────────────────────────────────────────────────┘
+Phase 2 - Fast Verification
+  Run TypeScript, unit tests, and production build when feasible.
+
+Phase 3 - Manual Chrome Smoke
+  Open the local app, exercise key public/learner/admin routes, inspect console/runtime issues, and capture local screenshots when needed.
+
+Phase 4 - Dedicated E2E
+  A testing agent or CI writes/runs Playwright coverage outside the Codex implementation pass.
+
+Phase 5 - Consolidate
+  Fix confirmed issues, rerun relevant checks, then commit/push only when the user requests it.
 ```
 
----
-
-## Vai trò và nhiệm vụ
-
-### 1. Antigravity — Code Agent
+## Codex / Antigravity Duties
 
 **Khi phát triển tính năng mới:**
 - Triển khai tính năng theo spec/yêu cầu.
 - Chạy local dev server `npm run dev` để kiểm tra trực quan UI cơ bản.
 - Chạy kiểm tra tĩnh và build ứng dụng qua `npm run build` để xác nhận không lỗi biên dịch/type.
-- **Bypass E2E/Playwright (Theo quy định của AGENTS.md)**: Antigravity không viết mã kiểm thử Playwright hoặc chạy kiểm thử E2E trực tiếp. Việc thiết lập, bảo trì, và thực thi các Playwright tests sẽ do một agent hoặc công cụ chuyên trách khác thực hiện.
+- **Bypass E2E/Playwright (theo AGENTS.md)**: Antigravity/Codex không viết hoặc chạy Playwright E2E trực tiếp. Việc thiết lập, bảo trì, và thực thi Playwright tests do agent/công cụ chuyên trách thực hiện.
 
 **Kiểm thử đơn giản & nhanh chóng:**
-1. Chạy các unit test gọn nhẹ nếu có (ví dụ: `pytest` cho Python backend).
-2. Thực hiện biên dịch kiểm tra kiểu dữ liệu (`npm run build`).
-3. Xác minh thủ công bằng cách truy cập local dev server.
+1. Chạy `npx tsc --noEmit`.
+2. Chạy `npm run test`.
+3. Chạy `npm run build` khi khả thi.
+4. Mở local dev server trong Chrome và kiểm tra thủ công các route liên quan.
 
 **Khi nhận bug từ exploratory agent:**
 - Sửa lỗi trong code logic.
-- Xác nhận lỗi đã được khắc phục thông qua unit tests hoặc kiểm tra build thành công.
+- Xác nhận lỗi đã được khắc phục thông qua type check, unit tests, build, hoặc manual browser check phù hợp.
 - Chuyển giao phần E2E test bổ sung cho agent chuyên trách.
 
-### 2. Playwright — E2E Testing Framework
+## Dedicated Playwright / E2E Agent
 
-**Cấu trúc:**
+Khi có agent kiểm thử chuyên trách, agent đó có thể dùng các script Playwright sẵn có:
+
 - Config: `playwright.config.ts` (baseURL, reporters, retries)
 - Test: `tests/e2e/*.spec.ts`
 - Page Objects: `tests/e2e/pages/*.page.ts`
@@ -74,108 +60,23 @@ Luồng QA 3 lớp dành cho dự án Teaching-os-STE. Tích hợp Playwright (t
 | `npm run test:e2e:ui` | Playwright UI Mode (debug) |
 | `npm run test:e2e:report` | Mở HTML report |
 
-**Chrome thật (headed):**
-- `npm run test:e2e:headed` → mở Chromium, click, điền form, chụp ảnh
-- Nếu test fail: tự động chụp screenshot + trace (xem lại từng step)
-- `--debug` flag: step-by-step, pause ở mỗi action
+## Manual Chrome Smoke Checklist
 
-**CI (GitHub Actions):**
-- File: `.github/workflows/e2e.yml`
-- Chạy trên push/PR vào `main`
-- Upload report artifact
+1. Start `npm run dev`.
+2. Open `http://localhost:3000`.
+3. Check public home, project detail, learner login, learner dashboard, roadmap, lesson, assignment workspace, grades, admin dashboard, classes, library, knowledge hub, projects CMS, grading queue, and similarity audit.
+4. Use a whitelisted learner test identity from Supabase for learner login. Do not commit private emails or credentials.
+5. Use `BYPASS_ADMIN_AUTH=true` only in local development when testing admin routes.
+6. Capture screenshots locally when needed, but do not commit screenshots or browser issue reports unless explicitly requested.
+7. Review console errors and obvious network failures.
 
-### 3. DeepSeek/OpenHands — Exploratory Testing Agent
+## Before Release / Deploy
 
-**Mục tiêu:** Khám phá bug mà Playwright test script không lường trước.
-
-**Khi chạy:**
-1. Chạy app ở local: `npm run dev` (hoặc dùng bản deploy preview)
-2. Dùng browser tool (headed mode) để:
-   - Click mọi link, button, tab
-   - Điền form với dữ liệu lạ (empty, XSS, special chars, siêu dài)
-   - Thử refresh giữa chừng, back/forward, double-click
-   - Test responsive: 375px mobile và 1280px desktop
-   - Test permission popup (nếu có)
-3. Đọc console log, network request, error boundary
-
-**Prompt mẫu (copy từ `tests/exploratory/prompts/exploratory-test.md`):**
-- Đưa prompt này cho agent
-- Kèm link/port app đang chạy
-- Yêu cầu output: danh sách bug + đề xuất test + Playwright script
-
-**Output mong đợi:**
-```
-## Bug Report
-1. [severity: major] Mô tả bug
-   - Steps: 1. ... 2. ... 3. ...
-   - Expected: ...
-   - Actual: ...
-   - Screenshot: ...
-
-## Test Ideas
-- Test case A: ...
-- Test case B: ...
-
-## Suggested Playwright Tests
-- File: tests/e2e/example.spec.ts (code)
-```
-
----
-
-## Luồng thực hiện chi tiết
-
-### Mỗi khi làm feature mới (daily dev cycle)
-
-```
-Step 1 ─ Antigravity code feature
-Step 2 ─ Antigravity tự chạy verification đơn giản: pytest (backend), npm run build (frontend)
-Step 3 ─ Nếu có lỗi biên dịch hoặc unit test fail → Antigravity tự sửa code → quay lại Step 2
-Step 4 ─ Sửa/Verify hoàn tất → Commit cục bộ (Lưu ý: Không tự ý push lên remote trừ khi được User yêu cầu)
-Step 5 ─ [On-demand / Trước Release] Chạy QA/Testing Agent chuyên trách để viết và thực thi Playwright tests cho feature mới
-Step 6 ─ Exploratory agent dò thêm bug trên Chrome thật
-Step 7 ─ Consolidate bug fixes + regression test
-```
-
-> [!TIP]
-> **Cơ chế vượt qua Gatekeeper/Auth khi chạy test:**
-> - **Đối với Admin Route (`/admin/*`):** Chạy test với môi trường có `BYPASS_ADMIN_AUTH=true` để tự động bypass middleware.
-> - **Đối với Learner Route (`/learn/[classCode]/*`):** Sử dụng fixture `authenticatedStudentPage(classCode)` trong file test để tự động tạo và inject JWT session cookie hợp lệ, bỏ qua bước nhập mã lớp thủ công.
-
-### Khi exploratory agent phát hiện bug
-
-```
-Step 1 ─ Ghi nhận bug report vào issue / note
-Step 2 ─ Antigravity sửa lỗi trong code logic
-Step 3 ─ Antigravity verify đơn giản (pytest + build check)
-Step 4 ─ QA/Testing Agent chuyên trách viết/cập nhật Playwright test tái hiện bug và chạy regression
-Step 5 ─ Chạy full regression kiểm thử tự động E2E qua CI/CD hoặc chạy local bởi testing agent
-Step 6 ─ Commit fix + test mới (tuân thủ quy tắc an toàn về commit/push)
-```
-
-### Trước mỗi release / deploy
-
-```
-Step 1 ─ Chạy full Playwright suite bởi Testing Agent / CI: npm run test:e2e
-Step 2 ─ Chạy exploratory agent trên staging/preview (cung cấp sẵn mã lớp học hoặc tài khoản test)
-Step 3 ─ Consolidate tất cả bug và phân công sửa/kiểm thử lại
-Step 4 ─ Chạy regression lần cuối
-Step 5 ─ Deploy (chỉ khi được User đồng ý)
-```
-
----
-
-## Prompt for Antigravity (để yêu cầu agent này làm việc theo flow)
-
-```markdown
-Chạy QA workflow cho [feature name]:
-
-1. Code xong feature [mô tả ngắn]
-2. Viết Playwright E2E test trong tests/e2e/ (Page Object + spec)
-3. Chạy npm run test:e2e:headed để verify
-4. Nếu có bug / test fail → fix
-5. Dùng prompt exploratory-test.md cho DeepSeek/OpenHands nếu cần
-6. Consolidate: chốt test vào regression suite
-```
+1. Run dedicated E2E suite through testing agent or CI.
+2. Run manual exploratory checks on staging or preview.
+3. Consolidate confirmed bugs.
+4. Run regression checks.
+5. Deploy only when the user explicitly approves deployment.
 
 ## Prompt cho Antigravity — Review QA_WORKFLOW.md
 
@@ -192,8 +93,6 @@ Hãy review và cho tôi biết:
 
 Sau đó đề xuất chỉnh sửa cụ thể nếu cần.
 ```
-
----
 
 ## Khi mở conversation mới
 

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { fetchStudentGradesAction } from './[assignmentId]/actions'
 import { formatDate } from '@/lib/date'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   FileText,
   Calendar,

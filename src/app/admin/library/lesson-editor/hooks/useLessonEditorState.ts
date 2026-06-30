@@ -629,14 +629,20 @@ export function useLessonEditorState() {
   }
 
   useEffect(() => {
-    if (lessonId) {
-      const isDifferent = lessonId !== currentLessonId
-      if (isDifferent) {
-        setCurrentLessonId(lessonId)
-        setInitialLoaded(false)
-      }
-      fetchLessonDetails(undefined, isDifferent)
+    if (!lessonId) {
+      setCurrentLessonId(null)
+      setLesson(null)
+      setLoading(false)
+      setInitialLoaded(false)
+      return
     }
+
+    const isDifferent = lessonId !== currentLessonId
+    if (isDifferent) {
+      setCurrentLessonId(lessonId)
+      setInitialLoaded(false)
+    }
+    fetchLessonDetails(undefined, isDifferent)
   }, [lessonId, currentLessonId])
 
   async function fetchLessonDetails(preferredAssignmentId?: string, forceShowLoader?: boolean) {

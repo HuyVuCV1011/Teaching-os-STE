@@ -74,10 +74,9 @@ const Hero = () => {
             className="text-4xl font-semibold !leading-tight mb-4 md:mb-5 lg:text-5xl xl:text-7xl"
           >
             Xin chào, <br />
-            Tôi là
-            <span className="relative isolate ms-4">
+            Tôi là{' '}
+            <span className="rounded-[0.18em] bg-foreground/5 px-2 shadow-[inset_0px_0px_30px_0px] shadow-foreground/10">
               Trần Huy Vũ
-              <span className="absolute -z-10 top-2 -left-6 -right-4 bottom-0.5 bg-foreground/5 rounded-full px-8 ms-3 border-t border-foreground/20 shadow-[inset_0px_0px_30px_0px] shadow-foreground/20 md:top-3 md:bottom-1 lg:top-4 lg:bottom-2"></span>
             </span>
             .
           </motion.h2>
