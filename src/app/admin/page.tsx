@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
+import { getAdminDashboardStatsAction } from './actions'
 import {
   BookOpen,
   Users,
@@ -29,31 +30,13 @@ export default function AdminDashboard() {
     setErrorState(null)
 
     try {
-      const [coursesResult, classesResult, submissionsResult, subjectsResult] = await Promise.all([
-        supabase.from('courses').select('*', { count: 'exact', head: true }),
-        supabase.from('classes').select('*', { count: 'exact', head: true }),
-        supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
-        supabase.from('subjects').select('*', { count: 'exact', head: true }),
-      ])
-
-      const firstError = [
-        coursesResult.error,
-        classesResult.error,
-        submissionsResult.error,
-        subjectsResult.error,
-      ].find(Boolean)
-
-      if (firstError) throw firstError
-
-      setStats({
-        coursesCount: coursesResult.count || 0,
-        classesCount: classesResult.count || 0,
-        submissionsPending: submissionsResult.count || 0,
-        subjectsCount: subjectsResult.count || 0,
-      })
+      const result = await getAdminDashboardStatsAction()
+      if (!result.success) throw new Error(result.error)
+      setStats(result.data)
     } catch (err) {
-      console.error('Failed to fetch dashboard statistics:', err)
-      setErrorState(err instanceof Error ? err.message : 'Không thể tải số liệu vận hành.')
+      const message = getSupabaseFetchErrorMessage(err, 'Không thể tải số liệu vận hành.')
+      console.warn('Unable to fetch dashboard statistics:', message)
+      setErrorState(message)
     } finally {
       setLoading(false)
     }

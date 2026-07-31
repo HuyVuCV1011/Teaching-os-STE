@@ -2,10 +2,11 @@
 
 import React from 'react'
 import { toast } from 'react-hot-toast'
-import { Upload, Eye, EyeOff, GripVertical, Trash2, Edit, Loader2, BookOpen, FileText, CheckCircle } from 'lucide-react'
+import { Upload, Eye, EyeOff, GripVertical, Trash2, Edit, Loader2, BookOpen, CheckCircle } from 'lucide-react'
 import NovelRichTextEditor from '@/components/NovelRichTextEditor'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import { renderSimpleMarkdown } from '@/lib/markdown'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 const GRID_LAYOUTS = [
   { id: '1-col', name: '1 Column', cols: 'grid-cols-1', cells: 1, icon: (
@@ -82,17 +83,17 @@ interface LessonInfoStepProps {
   setTitle: (val: string) => void
   downloadAllowed: boolean
   setDownloadAllowed: (val: boolean) => void
-  materialForm: any
-  setMaterialForm: (val: any) => void
+  materialForm: MaterialForm
+  setMaterialForm: React.Dispatch<React.SetStateAction<MaterialForm>>
   uploadFile: File | null
   setUploadFile: (val: File | null) => void
   uploading: boolean
-  uploadStatus: any
+  uploadStatus: UploadStatus
   dragActive: boolean
   setDragActive: (val: boolean) => void
-  materials: any[]
+  materials: MaterialItem[]
   gridLayout: string
-  cellMaterials: Record<number, any>
+  cellMaterials: Record<number, MaterialItem[]>
   handleDrag: (e: React.DragEvent) => void
   handleDrop: (e: React.DragEvent) => void
   handleFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -104,10 +105,38 @@ interface LessonInfoStepProps {
   handleDragStartCell: (e: React.DragEvent, mId: string, sourceColIdx: number, sourceItemIdx: number) => void
   handleDropToColumn: (e: React.DragEvent, targetColIdx: number, targetItemIdx?: number) => Promise<void>
   handleRemoveFromColumn: (colIdx: number, itemIdx: number) => Promise<void>
-  setVerifyMaterial: (m: any) => void
+  setVerifyMaterial: (m: MaterialItem) => void
   content: string
   setContent: (val: string) => void
   setIsDirty: (val: boolean) => void
+}
+
+interface MaterialForm {
+  creationMethod: 'upload' | 'write'
+  uploadOption: 'file' | 'link'
+  title: string
+  type: MaterialType
+  linkUrl: string
+  note: string
+  manualContent: string
+  displayMode: 'both' | 'web' | 'original'
+}
+
+type MaterialType = 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link' | 'markdown' | 'json'
+
+interface UploadStatus {
+  loading?: boolean
+  elapsed?: string | number
+  step?: string
+}
+
+interface MaterialItem {
+  id: string
+  title: string
+  type: MaterialType
+  metadata?: {
+    display_mode?: 'both' | 'web' | 'original'
+  } | null
 }
 
 export function LessonInfoStep({
@@ -118,7 +147,6 @@ export function LessonInfoStep({
   materialForm,
   setMaterialForm,
   uploadFile,
-  setUploadFile,
   uploading,
   uploadStatus,
   dragActive,
@@ -307,7 +335,7 @@ export function LessonInfoStep({
                       </label>
                       <select
                         value={materialForm.displayMode}
-                        onChange={(e) => setMaterialForm({ ...materialForm, displayMode: e.target.value })}
+                  onChange={(e) => setMaterialForm({ ...materialForm, displayMode: e.target.value as MaterialForm['displayMode'] })}
                         className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100 cursor-pointer focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20"
                       >
                         <option value="both">Both (Inline Preview & Download)</option>
@@ -545,7 +573,7 @@ export function LessonInfoStep({
               {content ? 'Tài liệu giáo trình hiện tại đã được cấu hình thành công.' : 'Tải lên file giáo trình lý thuyết dạng .md cho bài học này.'}
             </span>
             <p className="text-[10px] text-slate-500 leading-relaxed">
-              Nếu bài học không có giáo trình lý thuyết, tab "Giáo Trình Lý Thuyết" sẽ tự động ẩn trên giao diện học viên và presenter mode.
+              Nếu bài học không có giáo trình lý thuyết, tab &ldquo;Giáo Trình Lý Thuyết&rdquo; sẽ tự động ẩn trên giao diện học viên và presenter mode.
             </p>
           </div>
           
@@ -605,7 +633,7 @@ export function LessonInfoStep({
             </h4>
             <article
               className="prose max-w-none text-slate-350 leading-relaxed text-xs space-y-4 prose-headings:text-slate-100 prose-headings:font-bold prose-p:text-slate-350 prose-a:text-blue-500 prose-a:underline"
-              dangerouslySetInnerHTML={{ __html: content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
             />
           </div>
         )}
@@ -674,7 +702,7 @@ export function LessonInfoStep({
                     const styles = getMaterialTypeStyles(m.type)
                     const Icon = getMaterialIcon(m.type)
                     const isPlaced = Object.values(cellMaterials).some(
-                      colList => Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
+                      colList => Array.isArray(colList) && colList.some((item) => item?.id === m.id)
                     )
                     return (
                       <div
@@ -760,7 +788,7 @@ export function LessonInfoStep({
 
                         <div className="flex-1 flex flex-col gap-2">
                           {colMaterialsList.length > 0 ? (
-                            colMaterialsList.map((material: any, itemIdx: number) => {
+                            colMaterialsList.map((material, itemIdx: number) => {
                               const styles = getMaterialTypeStyles(material.type)
                               const Icon = getMaterialIcon(material.type)
                               

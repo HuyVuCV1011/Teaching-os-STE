@@ -14,14 +14,33 @@ interface SubmissionPanelProps {
   handleSubmit: () => void | Promise<void>
   submitting: boolean
   error: string | null
-  existingSubmission: any
+  existingSubmission: ExistingSubmission | null
   polling: boolean
   pollingMessage: string
-  gradingRun: any
-  assignment: any
+  gradingRun: GradingRun | null
+  assignment: AssignmentSummary | null
   showcaseRequested: boolean
   setShowcaseRequested: (val: boolean) => void
-  schedule?: any
+  schedule?: AssignmentSchedule | null
+}
+
+interface ExistingSubmission {
+  submitted_at: string
+  submitted_files?: string[] | null
+}
+
+interface GradingRun {
+  status?: string | null
+  error_message?: string | null
+}
+
+interface AssignmentSummary {
+  max_files?: number | null
+  max_total_size_mb?: number | null
+}
+
+interface AssignmentSchedule {
+  due_date?: string | null
 }
 
 export function SubmissionPanel({
@@ -48,6 +67,7 @@ export function SubmissionPanel({
   const confirmTriggerRef = React.useRef<HTMLButtonElement>(null)
   const confirmDialogRef = React.useRef<HTMLDivElement>(null)
   const finalCheckboxRef = React.useRef<HTMLInputElement>(null)
+  const submittedFiles = existingSubmission?.submitted_files || []
 
   React.useEffect(() => {
     if (!showConfirm) {
@@ -56,6 +76,7 @@ export function SubmissionPanel({
     }
 
     const previousOverflow = document.body.style.overflow
+    const triggerElement = confirmTriggerRef.current
     document.body.style.overflow = 'hidden'
     finalCheckboxRef.current?.focus()
 
@@ -92,7 +113,7 @@ export function SubmissionPanel({
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
-      confirmTriggerRef.current?.focus()
+      triggerElement?.focus()
     }
   }, [showConfirm])
 
@@ -120,7 +141,7 @@ export function SubmissionPanel({
     const diffD = Math.floor(diffH / 24)
     const remH = diffH % 24
     return diffD > 0 ? `${diffD} ngày ${remH} giờ còn lại` : `${diffH} giờ còn lại`
-  }, [schedule, showConfirm])
+  }, [schedule])
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -198,12 +219,12 @@ export function SubmissionPanel({
                     </p>
                   </div>
                 </div>
-                {existingSubmission.submitted_files?.length > 0 && (
+                {submittedFiles.length > 0 && (
                   <div className="space-y-1.5 pt-3 border-t border-emerald-500/15">
                     <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">
                       Uploaded Files
                     </span>
-                    {existingSubmission.submitted_files.map((file: string, i: number) => (
+                    {submittedFiles.map((file, i) => (
                       <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                         <span className="text-[11px] text-slate-300 truncate">{file.split('/').pop()}</span>

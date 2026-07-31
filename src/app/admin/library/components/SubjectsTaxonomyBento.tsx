@@ -4,13 +4,24 @@ import React from 'react'
 import { FolderOpen, Plus } from 'lucide-react'
 
 interface SubjectsTaxonomyBentoProps {
-  subjects: any[]
-  courses: any[]
+  subjects: SubjectRow[]
+  courses: CourseRow[]
   showSubjectForm: boolean
   setShowSubjectForm: (val: boolean) => void
   subjectForm: { name: string; slug: string; description: string }
-  setSubjectForm: React.Dispatch<React.SetStateAction<any>>
+  setSubjectForm: React.Dispatch<React.SetStateAction<{ name: string; slug: string; description: string }>>
   handleCreateSubject: (e: React.FormEvent) => void
+}
+
+interface SubjectRow {
+  id: string
+  name: string
+  slug: string
+  description?: string | null
+}
+
+interface CourseRow {
+  subject_id?: string | null
 }
 
 export function SubjectsTaxonomyBento({

@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import { logoutAdminAction } from './actions'
 import {
   LayoutDashboard,
   BookOpen,
@@ -14,6 +15,7 @@ import {
   ShieldCheck,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react'
 
 const navigationSections = [
@@ -41,6 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     async function loadAdminUser() {
       try {
+        const supabase = createSupabaseBrowserClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           setAdminUser({
@@ -111,6 +114,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       menuButton?.focus()
     }
   }, [isMobileMenuOpen])
+
+  if (pathname === '/admin/login') {
+    return <>{children}</>
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans relative overflow-hidden">
@@ -225,6 +232,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {adminUser?.email || 'admin@ste-education.org'}
               </span>
             </div>
+            <form action={logoutAdminAction} className="ml-auto">
+              <button
+                type="submit"
+                aria-label="Đăng xuất quản trị"
+                title="Đăng xuất"
+                className="rounded-lg border-0 bg-transparent p-2 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-200"
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </form>
           </div>
         </div>
       </aside>

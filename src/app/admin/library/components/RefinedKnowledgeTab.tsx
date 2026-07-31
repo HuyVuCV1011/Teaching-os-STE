@@ -119,11 +119,11 @@ export function RefinedKnowledgeTab() {
 
   // Source Preview States
   const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [previewingSource, setPreviewingSource] = useState<any | null>(null)
+  const [previewingSource, setPreviewingSource] = useState<DiscoveredSource | null>(null)
   const [previewContent, setPreviewContent] = useState<string>('')
   const [loadingContent, setLoadingContent] = useState(false)
 
-  const handleOpenPreview = async (e: React.MouseEvent, source: any) => {
+  const handleOpenPreview = async (e: React.MouseEvent, source: DiscoveredSource) => {
     e.stopPropagation() // Prevent selecting the card for batch refine
     setPreviewingSource(source)
     setShowPreviewModal(true)
@@ -136,7 +136,7 @@ export function RefinedKnowledgeTab() {
         toast.error(res.error || 'Không thể tải nội dung tài liệu')
         setPreviewContent('')
       }
-    } catch (err) {
+    } catch {
       toast.error('Đã xảy ra lỗi khi tải nội dung tài liệu')
       setPreviewContent('')
     } finally {

@@ -1,10 +1,10 @@
 'use client'
 
 import React, { use, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
+import { verifyCertificateAction } from './actions'
 import {
   Award,
-  CheckCircle,
   AlertTriangle,
   Loader2,
   Calendar,
@@ -20,13 +20,24 @@ interface VerifyPageProps {
   }>
 }
 
+interface VerifiedCertificate {
+  id: string
+  student_email: string
+  grade_average: string | number
+  issued_at: string
+  classes?: {
+    name?: string | null
+    class_code?: string | null
+  } | null
+}
+
 export default function VerifyPage({ params }: VerifyPageProps) {
   const resolvedParams = use(params)
   const certHash = resolvedParams.certHash
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [cert, setCert] = useState<any>(null)
+  const [cert, setCert] = useState<VerifiedCertificate | null>(null)
 
   const credentialNotFoundMessage =
     'Credential record not found. This credential hash may be invalid or has been revoked.'
@@ -35,28 +46,14 @@ export default function VerifyPage({ params }: VerifyPageProps) {
     async function verifyCredential() {
       setLoading(true)
       try {
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-        if (!uuidPattern.test(certHash)) {
-          setCert(null)
-          setError(credentialNotFoundMessage)
-          return
-        }
-
-        // Query certificate with class info
-        const { data, error: queryError } = await supabase
-          .from('certificates')
-          .select('*, classes(name, class_code)')
-          .eq('id', certHash)
-          .maybeSingle()
-
-        if (queryError) throw queryError
-
-        if (!data) {
+        const result = await verifyCertificateAction(certHash)
+        if (!result.success) throw new Error(result.error)
+        if (!result.certificate) {
           setError(credentialNotFoundMessage)
         } else {
-          setCert(data)
+          setCert(result.certificate as VerifiedCertificate)
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Verification query failed:', err)
         setError('An error occurred during credential verification. Please try again later.')
       } finally {
@@ -115,15 +112,15 @@ export default function VerifyPage({ params }: VerifyPageProps) {
               {error}
             </p>
             <div className="pt-4">
-              <a
+              <Link
                 href="/"
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-200 rounded-xl font-bold transition-all text-xs"
               >
                 Return to Homepage
-              </a>
+              </Link>
             </div>
           </div>
-        ) : (
+        ) : cert ? (
           <div className="space-y-6">
             {/* Verification Status Badge */}
             <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start gap-3">
@@ -169,7 +166,7 @@ export default function VerifyPage({ params }: VerifyPageProps) {
                     Evaluation Grade
                   </span>
                   <span className="font-bold text-emerald-600 text-right">
-                    {parseFloat(cert.grade_average).toFixed(1)}% Avg
+                    {parseFloat(String(cert.grade_average)).toFixed(1)}% Avg
                   </span>
                 </div>
 
@@ -199,16 +196,16 @@ export default function VerifyPage({ params }: VerifyPageProps) {
               <span className="text-slate-505 font-bold uppercase tracking-wider">
                 Teaching OS (STE)
               </span>
-              <a
+              <Link
                 href="/"
                 className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-500 hover:underline font-bold transition-all text-xs"
               >
                 <span>Go to Home</span>
                 <ExternalLink className="w-3 h-3" />
-              </a>
+              </Link>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

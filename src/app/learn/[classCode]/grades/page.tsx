@@ -28,6 +28,62 @@ interface GradesPageProps {
   }>
 }
 
+interface GradeRow {
+  id: string
+  title: string
+  lessonId?: string | null
+  lessonTitle?: string | null
+  moduleTitle?: string | null
+  dueDate?: string | null
+  maxScore?: number | null
+  submission?: {
+    id?: string | null
+    status?: string | null
+  } | null
+  grade?: {
+    id: string
+    status?: string | null
+    total_score?: string | number | null
+    overall_feedback?: string | null
+    rubric_scores?: RubricScore[]
+  } | null
+}
+
+interface RubricScore {
+  id: string
+  score?: number | null
+  feedback?: string | null
+  rubric_criteria?: {
+    name?: string | null
+    max_points?: number | null
+  } | null
+}
+
+interface ClassCourseRow {
+  course_id?: string | null
+}
+
+interface LessonRow {
+  id: string
+  title?: string | null
+  metadata?: {
+    status?: string | null
+  } | null
+  modules?: LessonModule | LessonModule[] | null
+}
+
+interface LessonModule {
+  title?: string | null
+  course_id?: string | null
+}
+
+interface AssignmentRow {
+  id: string
+  title: string
+  lesson_id: string
+  max_score?: number | null
+}
+
 export default function StudentGradesPage({ params }: GradesPageProps) {
   const resolvedParams = use(params)
   const classCode = resolvedParams.classCode
@@ -36,7 +92,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
 
   const [loading, setLoading] = useState(true)
   const [errorState, setErrorState] = useState<string | null>(null)
-  const [gradesData, setGradesData] = useState<any[]>([])
+  const [gradesData, setGradesData] = useState<GradeRow[]>([])
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
   const [totalLessons, setTotalLessons] = useState(0)
   const [completedLessons, setCompletedLessons] = useState(0)
@@ -74,7 +130,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
         if (juncError) throw juncError
         const courseIds = Array.from(new Set([
           classData.course_id,
-          ...(junctionData?.map((c: any) => c.course_id) || []),
+          ...(((junctionData || []) as ClassCourseRow[]).map((c) => c.course_id) || []),
         ].filter(Boolean))) as string[]
 
         if (courseIds.length > 0) {
@@ -85,7 +141,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
 
           if (lessonsErr) throw lessonsErr
 
-          const activeLessons = (lessonsData || []).filter((l: any) => l.modules && l.metadata?.status !== 'draft')
+          const activeLessons = ((lessonsData || []) as LessonRow[]).filter((l) => l.modules && l.metadata?.status !== 'draft')
           const activeLessonIds = activeLessons.map(l => l.id)
           setTotalLessons(activeLessons.length)
           setCompletedLessons(0)
@@ -98,7 +154,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
 
             if (assignErr) throw assignErr
 
-            const formattedGrades = (assignmentsData || []).map((assign: any) => {
+            const formattedGrades = ((assignmentsData || []) as AssignmentRow[]).map((assign) => {
               const matchingLesson = activeLessons.find(l => l.id === assign.lesson_id)
               const matchingModule = Array.isArray(matchingLesson?.modules)
                 ? matchingLesson.modules[0]
@@ -143,13 +199,13 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
         setIssuedCertificate(res.issuedCertificate || null)
 
         // Evaluate certificate eligibility
-        const submissions = res.grades.map((g: any) => {
+        const submissions = (res.grades as GradeRow[]).map((g) => {
           let gradingResult = null
           if (g.grade) {
             gradingResult = {
               id: g.grade.id,
-              status: g.grade.status,
-              client_total_score: parseFloat(g.grade.total_score || '0')
+              status: g.grade.status || 'published',
+              client_total_score: parseFloat(String(g.grade.total_score || '0'))
             }
           }
           return {
@@ -162,7 +218,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
 
         const activeLessonIds = res.activeLessonIds || []
         const completedLessonIds = res.completedLessonIds || []
-        const assignments = res.grades.map((g: any) => ({
+        const assignments = (res.grades as GradeRow[]).map((g) => ({
           id: g.id,
           lesson_id: g.lessonId || '',
           max_score: g.maxScore || 100
@@ -179,9 +235,10 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
       } else {
         throw new Error(res.error || 'Failed to retrieve grades')
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load student grade statistics:', err)
-      setErrorState(err.message || 'Unknown database retrieval error')
+      const message = err instanceof Error ? err.message : 'Unknown database retrieval error'
+      setErrorState(message)
     } finally {
       setLoading(false)
     }
@@ -221,7 +278,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
   const gradedAssignments = gradesData.filter(g => !!g.grade)
   const averageGrade = gradedAssignments.length > 0
     ? gradedAssignments.reduce((sum, gradeItem) => {
-        const score = Number.parseFloat(gradeItem.grade?.total_score || '0')
+        const score = Number.parseFloat(String(gradeItem.grade?.total_score || '0'))
         const maxScore = Number(gradeItem.maxScore) > 0 ? Number(gradeItem.maxScore) : 100
         return sum + (score / maxScore) * 100
       }, 0) / gradedAssignments.length
@@ -318,7 +375,8 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
           <div className="space-y-3 md:hidden">
             {gradesData.map((row) => {
               const hasSubmission = !!row.submission
-              const isGraded = !!row.grade
+              const grade = row.grade
+              const isGraded = !!grade
               const isExpanded = !!expandedRows[row.id]
               const statusText = isGraded
                 ? 'Đã công bố điểm'
@@ -339,9 +397,9 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                       <h2 className="mt-1 text-sm font-bold leading-snug text-slate-100">{row.title}</h2>
                       <p className="mt-1 text-xs text-slate-500">Bài học: {row.lessonTitle}</p>
                     </div>
-                    {isGraded && (
+                    {grade && (
                       <span className="shrink-0 text-sm font-extrabold tabular-nums text-blue-600">
-                        {row.grade.total_score}
+                        {grade.total_score}
                         <span className="text-xs font-medium text-slate-500"> / {row.maxScore}</span>
                       </span>
                     )}
@@ -371,17 +429,17 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
 
                   {isExpanded && (
                     <div id={`mobile-grade-details-${row.id}`} className="mt-4 space-y-4 border-t border-slate-800 pt-4">
-                      {isGraded ? (
+                      {grade ? (
                         <>
                           <div>
                             <h3 className="text-xs font-bold text-slate-300">Nhận xét tổng quan</h3>
                             <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-500">
-                              {row.grade.overall_feedback || 'Giáo viên chưa để lại nhận xét tổng quan.'}
+                              {grade.overall_feedback || 'Giáo viên chưa để lại nhận xét tổng quan.'}
                             </p>
                           </div>
-                          {row.grade.rubric_scores?.length > 0 && (
+                          {(grade.rubric_scores?.length || 0) > 0 && (
                             <div className="space-y-2">
-                              {row.grade.rubric_scores.map((score: any) => (
+                              {grade.rubric_scores?.map((score) => (
                                 <div key={score.id} className="rounded-xl bg-slate-900 p-3">
                                   <div className="flex items-start justify-between gap-3">
                                     <span className="text-xs font-semibold text-slate-200">{score.rubric_criteria?.name}</span>
@@ -432,7 +490,8 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
               <tbody className="divide-y divide-slate-800 bg-slate-950 text-sm">
                 {gradesData.map((row) => {
                   const hasSub = !!row.submission
-                  const isGraded = !!row.grade
+                  const grade = row.grade
+                  const isGraded = !!grade
                   const isExpanded = !!expandedRows[row.id]
 
                   let statusText = 'Not Submitted'
@@ -482,9 +541,9 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                           </span>
                         </td>
                         <td className="py-4 px-6 text-center">
-                          {isGraded ? (
+                          {grade ? (
                             <span className="text-sm font-extrabold text-blue-600">
-                              {row.grade.total_score} <span className="text-slate-500 font-medium text-xs">/ {row.maxScore}</span>
+                              {grade.total_score} <span className="text-slate-500 font-medium text-xs">/ {row.maxScore}</span>
                             </span>
                           ) : (
                             <span className="text-slate-500 text-xs">—</span>
@@ -525,24 +584,24 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                                 className="overflow-hidden px-8 py-6"
                               >
-                                {isGraded ? (
+                                {grade ? (
                                   <div className="space-y-4 max-w-4xl text-left">
                                     <div>
                                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                         Overall Evaluator Feedback
                                       </h4>
                                       <p className="text-xs text-slate-400 mt-1 whitespace-pre-line leading-relaxed">
-                                        {row.grade.overall_feedback || 'No written summary comments registered.'}
+                                        {grade.overall_feedback || 'No written summary comments registered.'}
                                       </p>
                                     </div>
 
-                                    {row.grade.rubric_scores && row.grade.rubric_scores.length > 0 && (
+                                    {grade.rubric_scores && grade.rubric_scores.length > 0 && (
                                       <div className="space-y-2 pt-4 border-t border-slate-800/80">
                                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">
                                           Rubric Criteria Breakdown
                                         </h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          {row.grade.rubric_scores.map((rs: any) => (
+                                          {grade.rubric_scores.map((rs) => (
                                             <div key={rs.id} className="p-4 bg-slate-900 rounded-xl border border-slate-800">
                                               <div className="flex justify-between items-start gap-2">
                                                 <span className="text-xs font-bold text-slate-100 truncate">
@@ -554,7 +613,7 @@ export default function StudentGradesPage({ params }: GradesPageProps) {
                                               </div>
                                               {rs.feedback && (
                                                 <p className="text-[10px] text-slate-500 mt-1.5 italic leading-relaxed">
-                                                  "{rs.feedback}"
+                                                  &ldquo;{rs.feedback}&rdquo;
                                                 </p>
                                               )}
                                             </div>

@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React from 'react'
 import { toast } from 'react-hot-toast'
 import {
@@ -15,21 +17,16 @@ import {
   FileText,
   Sparkles,
   CheckCircle,
-  XCircle,
-  Upload,
   FileCheck,
   Check,
   Minus,
   Lightbulb,
   Heart,
-  Network,
   Paperclip,
   Link as LinkIcon,
-  Code as CodeIcon,
   FileCode,
   RefreshCw
 } from 'lucide-react'
-import DocumentViewer from '@/components/DocumentViewer'
 import { AdminMaterialPreviewCard } from './AdminMaterialPreviewCard'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import { renderSimpleMarkdown } from '@/lib/markdown'
@@ -53,19 +50,11 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
   const {
     verifyMaterial,
     setVerifyMaterial,
-    verifyDisplayMode,
-    setVerifyDisplayMode,
-    savingVerify,
-    setSavingVerify,
     showMaterialsPreview,
     setShowMaterialsPreview,
     showAssignmentPreview,
     setShowAssignmentPreview,
     previewSignedUrls,
-    previewErrors,
-    previewUrlStatus,
-    markdownTemplates,
-    setMarkdownTemplates,
     downloadAllowed,
     materials,
     gridLayout,
@@ -77,7 +66,6 @@ export function LessonEditorModals({ state }: LessonEditorModalsProps) {
     setBatches,
     activeBatchIndex,
     setActiveBatchIndex,
-    activeQuestionIndex,
     setActiveQuestionIndex,
     modalStep,
     setModalStep,

@@ -1,18 +1,23 @@
 'use client'
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { calculateFileHash } from '@/lib/hash'
 import { parseAssignmentInstructions } from '@/lib/assignment'
 import {
   checkMaterialDeduplication,
+  deleteCanonicalMaterialAction,
   registerCanonicalMaterial,
   uploadFileToStorageAction,
   deleteFileFromStorageAction,
+  downloadAssignmentSolutionTextAction,
+  getLessonEditorDataAction,
   getSignedUrlAction,
   reorderMaterialsAction,
+  updateLessonContentAction,
   updateLessonLayoutAction,
   updateMaterialDisplayModeAction
 } from '@/app/admin/library/actions/materials'
@@ -168,7 +173,6 @@ export interface AssignmentFileItem {
 }
 
 export function useLessonEditorState() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const lessonId = searchParams.get('lessonId')
 
@@ -309,7 +313,7 @@ export function useLessonEditorState() {
   const [classifyType, setClassifyType] = useState<'data' | 'reference' | 'question'>('data')
   const [classifyDownloadable, setClassifyDownloadable] = useState(true)
   const [classifyPreviewable, setClassifyPreviewable] = useState(true)
-  const [parseDefaultAnswerFormat, setParseDefaultAnswerFormat] = useState<'text' | 'file' | 'both'>('text')
+  const [parseDefaultAnswerFormat] = useState<'text' | 'file' | 'both'>('text')
   const [showEssayFormatModal, setShowEssayFormatModal] = useState(false)
   const [parsedQuestionsTemp, setParsedQuestionsTemp] = useState<any[]>([])
   const [parsedFileNameTemp, setParsedFileNameTemp] = useState<string>('')
@@ -317,7 +321,7 @@ export function useLessonEditorState() {
 
   // Step 1: Material Selection states
   const [aiSelectedMaterials, setAiSelectedMaterials] = useState<string[]>([])
-  const [isReadingMaterials, setIsReadingMaterials] = useState(false)
+  const [isReadingMaterials] = useState(false)
   const [genStage, setGenStage] = useState<'reading' | 'generating' | 'sample_data'>('reading')
 
   // Modal control states
@@ -334,7 +338,7 @@ export function useLessonEditorState() {
   const [isGeneratingBatch, setIsGeneratingBatch] = useState<boolean>(false)
   const [asgDragActive, setAsgDragActive] = useState(false)
   const [saveStage, setSaveStage] = useState<string>('')
-  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
+  const [regeneratingIndex] = useState<number | null>(null)
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -363,7 +367,7 @@ export function useLessonEditorState() {
       setUploadStatus(prev => ({ ...prev, elapsed: (diff / 1000).toFixed(1) + 's' }))
     }, 200)
     return () => clearInterval(interval)
-  }, [uploadStatus.active])
+  }, [uploadStatus.active, uploadStatus.startedAt])
 
   useEffect(() => {
     if (!saveStatus.active) return
@@ -372,7 +376,7 @@ export function useLessonEditorState() {
       setSaveStatus(prev => ({ ...prev, elapsed: (diff / 1000).toFixed(1) + 's' }))
     }, 200)
     return () => clearInterval(interval)
-  }, [saveStatus.active])
+  }, [saveStatus.active, saveStatus.startedAt])
 
   useEffect(() => {
     if (!previewUrlStatus.loading) return
@@ -381,7 +385,7 @@ export function useLessonEditorState() {
       setPreviewUrlStatus(prev => ({ ...prev, elapsed: (diff / 1000).toFixed(1) + 's' }))
     }, 200)
     return () => clearInterval(interval)
-  }, [previewUrlStatus.loading])
+  }, [previewUrlStatus.loading, previewUrlStatus.startedAt])
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     e.dataTransfer.effectAllowed = 'move'
@@ -643,35 +647,22 @@ export function useLessonEditorState() {
       setInitialLoaded(false)
     }
     fetchLessonDetails(undefined, isDifferent)
+    // fetchLessonDetails is a legacy async loader declared in this hook; its internal dependencies are intentionally gated by lessonId/currentLessonId here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId, currentLessonId])
 
   async function fetchLessonDetails(preferredAssignmentId?: string, forceShowLoader?: boolean) {
+    if (!lessonId) return
     if (forceShowLoader || !initialLoaded) {
       setLoading(true)
     }
     let loadedBatches: BatchItem[] = []
     try {
-      const [
-        { data: lessonData },
-        { data: materialsData },
-        { data: assignmentsData },
-      ] = await Promise.all([
-        supabase
-          .from('lessons')
-          .select('*, modules(*, courses(*, subjects(*)))')
-          .eq('id', lessonId)
-          .single(),
-        supabase
-          .from('canonical_materials')
-          .select('*')
-          .eq('lesson_id', lessonId)
-          .order('display_order', { ascending: true }),
-        supabase
-          .from('assignments')
-          .select('*, rubric_snapshots(snapshot)')
-          .eq('lesson_id', lessonId)
-          .order('created_at'),
-      ])
+      const result = await getLessonEditorDataAction(lessonId)
+      if (!result.success) throw new Error(result.error)
+      const lessonData = result.data.lesson
+      const materialsData = result.data.materials
+      const assignmentsData = result.data.assignments
 
       if (lessonData) {
         setLesson(lessonData)
@@ -719,13 +710,8 @@ export function useLessonEditorState() {
           if (storagePath.includes('_ai_draft.md') || storagePath.includes('_ai_solution.md')) {
             setSolutionMode('ai')
             try {
-              const { data: fileData, error: fileErr } = await supabase.storage
-                .from('assignment-solutions')
-                .download(storagePath)
-              if (!fileErr && fileData) {
-                const text = await fileData.text()
-                setSolutionText(text)
-              }
+              const solutionResult = await downloadAssignmentSolutionTextAction(storagePath)
+              if (solutionResult.success) setSolutionText(solutionResult.data)
             } catch (err) {
               console.error('Failed to download solution draft from storage:', err)
             }
@@ -799,7 +785,7 @@ export function useLessonEditorState() {
                   const qType = q.type || (q.options && q.options.length > 0 ? 'multiple_choice' : 'essay')
                   const qCategory = q.category || 'theory'
                   
-                  let match = groupedBatches.find(b => {
+                  const match = groupedBatches.find(b => {
                     if (qItem.source === 'file_import') {
                       return b.questions.some(bq => bq.source === 'file_import' && bq.source_file === qItem.source_file)
                     } else {
@@ -863,7 +849,7 @@ export function useLessonEditorState() {
     if (initialLoaded) {
       setIsDirty(true)
     }
-  }, [title, content, materials, hasAssignment, assignmentForm, solutionMode, solutionText, criteriaList, downloadAllowed])
+  }, [initialLoaded, title, content, materials, hasAssignment, assignmentForm, solutionMode, solutionText, criteriaList, downloadAllowed])
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -891,7 +877,7 @@ export function useLessonEditorState() {
     if (showAiModal && aiSelectedMaterials.length === 0 && materials.length > 0) {
       setAiSelectedMaterials(materials.map(m => m.id))
     }
-  }, [showAiModal, materials])
+  }, [showAiModal, aiSelectedMaterials.length, materials])
 
   const handleNextStep = () => {
 
@@ -928,17 +914,14 @@ export function useLessonEditorState() {
     if (!title || !lessonId) return
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('lessons')
-        .update({
-          title,
-          content,
-          download_allowed: downloadAllowed,
-          version: (lesson.version || 1) + 1,
-        })
-        .eq('id', lessonId)
-
-      if (error) throw error
+      const result = await updateLessonContentAction({
+        lessonId,
+        title,
+        content,
+        downloadAllowed,
+        currentVersion: lesson.version || 1,
+      })
+      if (!result.success) throw new Error(result.error)
       toast.success('Đã lưu bản nháp bài học.')
       setIsDirty(false)
       await fetchLessonDetails()
@@ -1085,9 +1068,9 @@ export function useLessonEditorState() {
   const handleDeleteMaterial = async (id: string) => {
     if (!confirm('Are you sure you want to remove this material from the lesson?')) return
     try {
-      const { error } = await supabase.from('canonical_materials').delete().eq('id', id)
-      if (error) throw error
-      fetchLessonDetails()
+      const result = await deleteCanonicalMaterialAction(id)
+      if (!result.success) throw new Error(result.error)
+      await fetchLessonDetails()
     } catch (err: any) {
       toast.error(`Xóa thất bại: ${err.message}`)
     }
@@ -1155,7 +1138,6 @@ export function useLessonEditorState() {
       setGeneratingRubric(true)
       try {
         const targetMaxScore = assignmentForm?.maxScore || 100
-        const mcqWeightPercent = assignmentForm?.mcqWeightPercent !== undefined ? assignmentForm.mcqWeightPercent : 50
         const essayWeightPercent = assignmentForm?.essayWeightPercent !== undefined ? assignmentForm.essayWeightPercent : 50
 
         let targetEssayTotal = targetMaxScore
@@ -2007,7 +1989,6 @@ export function useLessonEditorState() {
     setIsGeneratingRubric(true)
     try {
       const targetMaxScore = assignmentForm?.maxScore || 100
-      const mcqWeightPercent = assignmentForm?.mcqWeightPercent !== undefined ? assignmentForm.mcqWeightPercent : 50
       const essayWeightPercent = assignmentForm?.essayWeightPercent !== undefined ? assignmentForm.essayWeightPercent : 50
 
       let targetEssayTotal = targetMaxScore
@@ -2136,12 +2117,13 @@ export function useLessonEditorState() {
           const mcQuestions = mappedQuestions.filter((q: any) => q.detectedType === 'multiple_choice');
           const essayQuestions = mappedQuestions.filter((q: any) => q.detectedType === 'essay');
 
-          let updatedBatches = [...batches];
+          const updatedBatches = [...batches];
           let mcBatchCreated = false;
 
           if (mcQuestions.length > 0) {
             const mcQuestionsWithFormat = mcQuestions.map((q: any) => {
               const { detectedType, ...rest } = q;
+              void detectedType;
               return {
                 ...rest,
                 answerFormat: 'text' as const
@@ -2167,6 +2149,7 @@ export function useLessonEditorState() {
           if (essayQuestions.length > 0) {
             const essayQuestionsCleaned = essayQuestions.map((q: any) => {
               const { detectedType, ...rest } = q;
+              void detectedType;
               return rest;
             });
             setParsedQuestionsTemp(essayQuestionsCleaned);
@@ -2293,12 +2276,13 @@ export function useLessonEditorState() {
         const mcQuestions = mappedQuestions.filter((q: any) => q.detectedType === 'multiple_choice');
         const essayQuestions = mappedQuestions.filter((q: any) => q.detectedType === 'essay');
 
-        let updatedBatches = [...batches];
+        const updatedBatches = [...batches];
         let mcBatchCreated = false;
 
         if (mcQuestions.length > 0) {
           const mcQuestionsWithFormat = mcQuestions.map((q: any) => {
             const { detectedType, ...rest } = q;
+            void detectedType;
             return {
               ...rest,
               answerFormat: 'text' as const
@@ -2321,6 +2305,7 @@ export function useLessonEditorState() {
         if (essayQuestions.length > 0) {
           const essayQuestionsCleaned = essayQuestions.map((q: any) => {
             const { detectedType, ...rest } = q;
+            void detectedType;
             return rest;
           });
           setParsedQuestionsTemp(essayQuestionsCleaned);
@@ -2408,17 +2393,14 @@ export function useLessonEditorState() {
     let savedAssignmentIdForReload: string | undefined = assignmentId || undefined
 
     try {
-      const { error: lessonErr } = await supabase
-        .from('lessons')
-        .update({
-          title,
-          content,
-          download_allowed: downloadAllowed,
-          version: (lesson.version || 1) + 1,
-        })
-        .eq('id', lessonId)
-
-      if (lessonErr) throw lessonErr
+      const lessonResult = await updateLessonContentAction({
+        lessonId,
+        title,
+        content,
+        downloadAllowed,
+        currentVersion: lesson.version || 1,
+      })
+      if (!lessonResult.success) throw new Error(lessonResult.error)
 
       if (hasAssignment) {
         const approvedQuestions: any[] = []
@@ -2521,7 +2503,7 @@ export function useLessonEditorState() {
           mcqWeightPercent: assignmentForm.mcqWeightPercent || 50,
           essayWeightPercent: assignmentForm.essayWeightPercent || 50
         }
-        let currentInstructions = JSON.stringify(instructionsPayload)
+        const currentInstructions = JSON.stringify(instructionsPayload)
 
         const hasPromptFile = !!promptFile || !!promptStoragePath
         const hasAiQuestions = approvedQuestions.length > 0

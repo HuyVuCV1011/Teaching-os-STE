@@ -8,7 +8,9 @@ interface CertificateModalProps {
   showCertificateModal: boolean
   setShowCertificateModal: (val: boolean) => void
   studentEmail: string
-  classInfo: any
+  classInfo: {
+    name?: string | null
+  } | null
   certificateGrade: number
   handlePrintCertificate: () => void
   printRef: React.RefObject<HTMLDivElement | null>

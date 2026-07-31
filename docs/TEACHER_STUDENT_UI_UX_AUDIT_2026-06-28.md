@@ -1,5 +1,7 @@
 # Đánh giá toàn diện UI/UX và tính năng khu vực giáo viên – học sinh
 
+> **Trạng thái tài liệu:** Đây là snapshot lịch sử ngày 28/06/2026. Một số vấn đề đã được xử lý sau audit, gồm responsive shell cho Admin/Learner, accessibility baseline, loại bỏ fallback danh tính học viên và bổ sung `/admin/login` bằng Supabase SSR. Xem `FEATURE_TEST_MATRIX.md` để biết trạng thái triển khai hiện tại.
+
 > **Sản phẩm:** Teaching OS (STE)  
 > **Ngày đánh giá:** 28/06/2026  
 > **Phạm vi:** Khu vực giáo viên tại `/admin/*` và khu vực học sinh tại `/learn/*`  
@@ -1084,4 +1086,3 @@ Các số sau là grep/static count mang tính định hướng, không phải k
 - [ ] Chưa hoàn tất screenshot/pixel QA vì dev server local không trả response.
 - [ ] Chưa thực hiện usability test với giáo viên/học sinh thật.
 - [ ] Chưa đo contrast tự động hoặc screen-reader session.
-

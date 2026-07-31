@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Image from 'next/image'
 import ReactFlow, {
   Controls,
   Handle,
@@ -53,7 +54,15 @@ export const CustomNode: React.FC<CustomNodeProps> = ({ data }) => {
             <h4 className="font-semibold">{data.label}</h4>
           </div>
           <figure className="border rounded-md overflow-hidden">
-            <img src={data.image} alt={data.label} />
+            {data.image && (
+              <Image
+                src={data.image}
+                alt={data.label}
+                width={360}
+                height={220}
+                className="h-auto w-full"
+              />
+            )}
           </figure>
           <Handle type="target" position={Position.Left} />
           <Handle type="source" position={Position.Right} />
@@ -111,7 +120,7 @@ export const CustomNode: React.FC<CustomNodeProps> = ({ data }) => {
             position={Position.Right}
             style={{
               position: 'absolute',
-              top: '2x',
+              top: '2px',
               opacity: 0,
               width: 0,
               height: 0,
@@ -123,6 +132,8 @@ export const CustomNode: React.FC<CustomNodeProps> = ({ data }) => {
     </div>
   )
 }
+
+const nodeTypes = { customNode: CustomNode }
 
 // ... (rest of the FlowDiagram.tsx code remains unchanged)
 
@@ -233,7 +244,7 @@ const FlowDiagram = () => {
     )
     setNodes(layoutedNodes)
     setEdges(layoutedEdges)
-  }, [currentFlow])
+  }, [currentFlow, setEdges, setNodes])
 
   // 📌 Xử lý click vào Node
   const handleNodeClick: NodeMouseHandler = (
@@ -265,7 +276,7 @@ const FlowDiagram = () => {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            nodeTypes={{ customNode: CustomNode }}
+            nodeTypes={nodeTypes}
             onNodeClick={handleNodeClick}
           >
             <Controls />

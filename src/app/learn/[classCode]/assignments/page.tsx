@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { fetchStudentGradesAction } from './[assignmentId]/actions'
 import { formatDate } from '@/lib/date'
-import { motion, AnimatePresence } from 'motion/react'
 import {
   FileText,
   Calendar,
@@ -12,7 +11,6 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
-  Loader2,
   Timer
 } from 'lucide-react'
 import { useLearner } from '../LearnerContext'
@@ -24,6 +22,33 @@ interface AssignmentsPageProps {
   }>
 }
 
+interface AssignmentTaskRow {
+  id: string
+  title: string
+  lessonId?: string | null
+  lessonTitle?: string | null
+  moduleTitle?: string | null
+  dueDate?: string | null
+  maxScore?: number | null
+  submission?: unknown
+  grade?: unknown
+}
+
+interface LessonRow {
+  id: string
+  title?: string | null
+  metadata?: {
+    status?: string | null
+  } | null
+  modules?: {
+    title?: string | null
+    course_id?: string | null
+  } | Array<{
+    title?: string | null
+    course_id?: string | null
+  }> | null
+}
+
 export default function StudentAssignmentsPage({ params }: AssignmentsPageProps) {
   const resolvedParams = use(params)
   const classCode = resolvedParams.classCode
@@ -31,7 +56,7 @@ export default function StudentAssignmentsPage({ params }: AssignmentsPageProps)
 
   const [loading, setLoading] = useState(true)
   const [errorState, setErrorState] = useState<string | null>(null)
-  const [tasksData, setTasksData] = useState<any[]>([])
+  const [tasksData, setTasksData] = useState<AssignmentTaskRow[]>([])
 
   const loadTasksData = useCallback(async () => {
     if (!identityVerified) return
@@ -76,7 +101,7 @@ export default function StudentAssignmentsPage({ params }: AssignmentsPageProps)
         if (lessonsError) throw lessonsError
 
         const activeLessons = (lessons || []).filter(
-          (lesson: any) => lesson.modules && lesson.metadata?.status !== 'draft'
+          (lesson: LessonRow) => lesson.modules && lesson.metadata?.status !== 'draft'
         )
         const lessonIds = activeLessons.map((lesson) => lesson.id)
 
@@ -106,14 +131,14 @@ export default function StudentAssignmentsPage({ params }: AssignmentsPageProps)
         const scheduleMap = new Map((schedules || []).map((schedule) => [schedule.lesson_id, schedule]))
         setTasksData((assignments || []).map((assignment) => {
           const lesson = activeLessons.find((item) => item.id === assignment.lesson_id)
-          const module = Array.isArray(lesson?.modules) ? lesson.modules[0] : lesson?.modules
+          const lessonModule = Array.isArray(lesson?.modules) ? lesson.modules[0] : lesson?.modules
 
           return {
             id: assignment.id,
             title: assignment.title,
             lessonId: assignment.lesson_id,
             lessonTitle: lesson?.title || 'Bài học chưa xác định',
-            moduleTitle: module?.title || 'Học phần chưa xác định',
+            moduleTitle: lessonModule?.title || 'Học phần chưa xác định',
             dueDate: scheduleMap.get(assignment.lesson_id)?.due_date || null,
             maxScore: assignment.max_score,
             submission: null,
@@ -133,9 +158,10 @@ export default function StudentAssignmentsPage({ params }: AssignmentsPageProps)
       } else {
         throw new Error(res.error || 'Không thể tải danh sách bài tập.')
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load student tasks checklist:', err)
-      setErrorState(err.message || 'Không thể tải danh sách bài tập.')
+      const message = err instanceof Error ? err.message : 'Không thể tải danh sách bài tập.'
+      setErrorState(message)
     } finally {
       setLoading(false)
     }

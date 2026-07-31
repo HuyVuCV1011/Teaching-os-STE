@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServer } from '@/lib/supabase'
 import { signJWT } from '@/lib/jwt'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_secret_key_1234567890'
+const STUDENT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'fallback_development_secret_key_1234567890')) {
-    console.error('CRITICAL: JWT_SECRET is unset or using fallback key in production!')
+  const jwtSecret = process.env.JWT_SECRET
+  if (!jwtSecret) {
+    console.error('CRITICAL: JWT_SECRET is unset')
     return NextResponse.json(
       { error: 'Internal Configuration Error' },
       { status: 500 }
@@ -83,7 +84,9 @@ export async function POST(request: NextRequest) {
       role: 'student',
     }
 
-    const token = await signJWT(payload, JWT_SECRET)
+    const token = await signJWT(payload, jwtSecret, {
+      expiresInSeconds: STUDENT_SESSION_MAX_AGE_SECONDS,
+    })
 
     // Set cookie and respond
     const response = NextResponse.json({
@@ -99,7 +102,7 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      maxAge: STUDENT_SESSION_MAX_AGE_SECONDS,
     })
 
     // Set a non-httpOnly cookie for client UI to safely display and auto-fill student email
@@ -108,11 +111,11 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: STUDENT_SESSION_MAX_AGE_SECONDS,
     })
 
     return response
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error verifying class code:', error)
     return NextResponse.json(
       { error: 'Internal Server Error' },

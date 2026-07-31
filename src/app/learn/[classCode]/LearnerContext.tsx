@@ -8,8 +8,20 @@ interface LearnerContextType {
   isAdminPreview: boolean
   identityVerified: boolean
   identityError: string | null
-  classInfo: any | null
+  classInfo: LearnerClassInfo | null
   loadingClassInfo: boolean
+}
+
+interface LearnerClassInfo {
+  id: string
+  class_code: string
+  name?: string | null
+  course_id?: string | null
+  [key: string]: unknown
+}
+
+interface LearnerRouter {
+  push: (href: string) => void
 }
 
 const LearnerContext = createContext<LearnerContextType | undefined>(undefined)
@@ -29,13 +41,13 @@ export function LearnerProvider({
   children: React.ReactNode
   classCode: string
   pathname: string
-  router: any
+  router: LearnerRouter
 }) {
   const [studentEmail, setStudentEmail] = useState<string | null>(null)
   const [isAdminPreview, setIsAdminPreview] = useState(false)
   const [identityVerified, setIdentityVerified] = useState(false)
   const [identityError, setIdentityError] = useState<string | null>(null)
-  const [classInfo, setClassInfo] = useState<any>(null)
+  const [classInfo, setClassInfo] = useState<LearnerClassInfo | null>(null)
   const [loadingClassInfo, setLoadingClassInfo] = useState(true)
 
   useEffect(() => {
@@ -78,9 +90,10 @@ export function LearnerProvider({
           const redirectUrl = `/learn?redirect=${encodeURIComponent(pathname)}&reason=missing`
           router.push(redirectUrl)
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error verifying identity:', err)
-        setIdentityError(err.message || 'Không thể xác minh lớp học.')
+        const message = err instanceof Error ? err.message : 'Không thể xác minh lớp học.'
+        setIdentityError(message)
         setIdentityVerified(true)
         setLoadingClassInfo(false)
       }

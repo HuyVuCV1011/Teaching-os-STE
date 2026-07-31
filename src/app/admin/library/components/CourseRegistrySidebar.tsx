@@ -1,21 +1,38 @@
 'use client'
 
 import React from 'react'
-import { Search, Plus, BookOpen, Copy } from 'lucide-react'
+import { Search, Plus, Copy } from 'lucide-react'
 
 interface CourseRegistrySidebarProps {
-  courses: any[]
-  subjects: any[]
-  selectedCourse: any | null
+  courses: CourseRow[]
+  subjects: SubjectRow[]
+  selectedCourse: CourseRow | null
   searchQuery: string
   setSearchQuery: (val: string) => void
   showCourseForm: boolean
   setShowCourseForm: (val: boolean) => void
   courseForm: { title: string; slug: string; subject_id: string; description: string; status: string }
-  setCourseForm: React.Dispatch<React.SetStateAction<any>>
+  setCourseForm: React.Dispatch<React.SetStateAction<{ title: string; slug: string; subject_id: string; description: string; status: string }>>
   handleCreateCourse: (e: React.FormEvent) => void
-  handleSelectCourse: (course: any) => void
+  handleSelectCourse: (course: CourseRow) => void
   handleDuplicateCourse: (e: React.MouseEvent, courseId: string) => void
+}
+
+interface SubjectRow {
+  id: string
+  name: string
+}
+
+interface CourseRow {
+  id: string
+  title: string
+  slug: string
+  subject_id: string
+  description?: string
+  status: string
+  subjects?: {
+    name: string
+  }
 }
 
 export function CourseRegistrySidebar({
@@ -211,7 +228,7 @@ export function CourseRegistrySidebar({
           })}
           {filteredCourses.length === 0 && (
             <div className="text-center py-12 text-slate-500 text-xs font-semibold">
-              No catalog courses found matching "{searchQuery}"
+              No catalog courses found matching &ldquo;{searchQuery}&rdquo;
             </div>
           )}
         </div>

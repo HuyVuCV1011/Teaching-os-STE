@@ -8,9 +8,12 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 export const supabaseBrowser = supabase
 
 export function getSupabaseServer(useServiceRole = false) {
-  const key = useServiceRole
-    ? (process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey)
-    : supabaseKey
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (useServiceRole && !serviceRoleKey) {
+    throw new Error('Server configuration error: SUPABASE_SERVICE_ROLE_KEY is required')
+  }
+
+  const key = useServiceRole ? serviceRoleKey! : supabaseKey
 
   return createClient(supabaseUrl, key, {
     auth: {

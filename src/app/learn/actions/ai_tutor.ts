@@ -12,6 +12,20 @@ interface Message {
   content: string
 }
 
+type RagResult = {
+  content?: string | null
+  citation?: {
+    knowledge_source_title?: string | null
+  } | null
+  metadata?: {
+    title?: string | null
+  } | null
+}
+
+type RagResponse = {
+  results?: RagResult[]
+}
+
 function extractLessonText(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
@@ -34,7 +48,10 @@ async function verifyStudentSession(classCode: string) {
     throw new Error('Unauthorized: Session not found')
   }
 
-  const secret = process.env.JWT_SECRET || 'fallback_development_secret_key_1234567890'
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('Server configuration error: JWT_SECRET is required')
+  }
   const payload = await verifyJWT(token, secret)
 
   if (
@@ -55,6 +72,21 @@ export async function askAITutorAction(
   chatHistory: Message[]
 ) {
   try {
+    const normalizedMessage = message.trim()
+    if (!normalizedMessage || normalizedMessage.length > 2_000) {
+      throw new Error('Invalid tutor message length.')
+    }
+
+    const safeHistory = chatHistory
+      .filter(
+        (item): item is Message =>
+          (item.role === 'user' || item.role === 'model') &&
+          typeof item.content === 'string' &&
+          item.content.trim().length > 0,
+      )
+      .slice(-12)
+      .map((item) => ({ ...item, content: item.content.slice(0, 2_000) }))
+
     // 1. Verify student auth
     const session = await verifyStudentSession(classCode)
 
@@ -129,22 +161,22 @@ export async function askAITutorAction(
           'x-pilot-roles': 'system',
         },
         body: JSON.stringify({
-          query: message,
+          query: normalizedMessage,
           limit: 3,
           allowed_access_scopes: ['organization', 'public_safe'],
         }),
       })
 
       if (ragRes.ok) {
-        const ragData = await ragRes.json()
+        const ragData = await ragRes.json() as RagResponse
         if (ragData.results && ragData.results.length > 0) {
           const retrievedContext = ragData.results
-            .map((r: any, idx: number) => {
+            .map((r, idx) => {
               const sourceTitle = r.citation?.knowledge_source_title || r.metadata?.title || 'Tài liệu lớp học'
               if (!citations.includes(sourceTitle)) {
                 citations.push(sourceTitle)
               }
-              return `[Context Document ${idx + 1} - ${sourceTitle}]:\n${r.content}`
+              return `[Context Document ${idx + 1} - ${sourceTitle}]:\n${r.content || ''}`
             })
             .join('\n\n')
           ragContext = [ragContext, retrievedContext].filter(Boolean).join('\n\n')
@@ -169,13 +201,13 @@ STRICT CONSTRAINTS & RULES:
 5. Answer in the language the student queries (Vietnamese or English).`
 
     const formattedContents = [
-      ...chatHistory.map((h) => ({
+      ...safeHistory.map((h) => ({
         role: h.role === 'model' ? 'model' : 'user',
         parts: [{ text: h.content }],
       })),
       {
         role: 'user',
-        parts: [{ text: message }],
+        parts: [{ text: normalizedMessage }],
       },
     ]
 
@@ -211,7 +243,7 @@ STRICT CONSTRAINTS & RULES:
     }
 
     return { success: true, text: responseText, citations }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in askAITutorAction:', error)
     return {
       success: false,

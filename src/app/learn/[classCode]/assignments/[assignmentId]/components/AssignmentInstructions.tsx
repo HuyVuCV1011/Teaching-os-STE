@@ -7,34 +7,84 @@ import { renderSimpleMarkdown } from '@/lib/markdown'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { getStudentMaterialSignedUrlAction } from '../actions'
 import { AssignmentQuestionsForm } from './AssignmentQuestionsForm'
-import { parseAssignmentInstructions } from '@/lib/assignment'
+import { parseAssignmentInstructions, type ParsedAssignmentFile, type ParsedAssignmentQuestion } from '@/lib/assignment'
 import CodeFileViewer from '@/components/CodeFileViewer'
 import { toast } from 'react-hot-toast'
 import { formatDateTime } from '@/lib/date'
 
 interface AssignmentInstructionsProps {
-  assignment: any
+  assignment: AssignmentDetail | null
   promptDownloadUrl: string | null
-  parsedPromptContent: any
+  parsedPromptContent: ViewerArtifact | string | null
   parsingPrompt: boolean
   parsingPromptError: string | null
-  schedule: any
+  schedule: AssignmentSchedule | null
   classCode: string
   // interactive preview states
-  previewingFile: any
-  setPreviewingFile: (val: any) => void
-  previewContent: any
-  setPreviewContent: (val: any) => void
+  previewingFile: ParsedAssignmentFile | null
+  setPreviewingFile: (val: ParsedAssignmentFile | null) => void
+  previewContent: ViewerArtifact | string | null
+  setPreviewContent: (val: ViewerArtifact | string | null) => void
   previewSignedUrl: string | null
   setPreviewSignedUrl: (val: string | null) => void
   previewLoading: boolean
   previewError: string | null
   setPreviewError: (val: string | null) => void
-  handlePreviewFile: (fileItem: any) => Promise<void>
+  handlePreviewFile: (fileItem: ParsedAssignmentFile) => Promise<void>
   // questionnaire states
   answers: Record<number, string>
   setAnswers: React.Dispatch<React.SetStateAction<Record<number, string>>>
   disabled?: boolean
+}
+
+interface AssignmentDetail {
+  id?: string
+  title?: string | null
+  instructions?: string | null
+  prompt_file_path?: string | null
+  max_score?: number | null
+  rubrics?: Rubric | Rubric[] | null
+}
+
+interface Rubric {
+  title?: string | null
+  description?: string | null
+  rubric_criteria?: RubricCriterion[]
+}
+
+interface RubricCriterion {
+  id: string
+  name?: string | null
+  description?: string | null
+  weight?: string | number | null
+  max_points?: number | null
+}
+
+interface AssignmentSchedule {
+  due_date?: string | null
+}
+
+interface ViewerArtifact {
+  viewer_html?: string
+  headers?: string[]
+  rows?: unknown[][]
+  viewer_markdown?: string
+  viewer_json?: unknown
+  raw_text?: unknown
+  [key: string]: unknown
+}
+
+interface AssignmentFormQuestion {
+  id?: string
+  content: string
+  type: 'essay' | 'multiple_choice'
+  points?: number
+  answerFormat?: 'text' | 'file' | 'both'
+  options?: string[]
+}
+
+const isViewerArtifact = (value: ViewerArtifact | string | null): value is ViewerArtifact => {
+  return typeof value === 'object' && value !== null
 }
 
 export function AssignmentInstructions({
@@ -62,24 +112,42 @@ export function AssignmentInstructions({
   const instructionsStr = assignment?.instructions || ''
   const parsedObj = parseAssignmentInstructions(instructionsStr)
   
-  let questionsList: any[] = []
-  let dataFiles: any[] = []
-  let referenceFiles: any[] = []
+  let questionsList: ParsedAssignmentQuestion[] = []
+  let dataFiles: ParsedAssignmentFile[] = []
+  let referenceFiles: ParsedAssignmentFile[] = []
   let isNewJsonFormat = false
   
   if (parsedObj) {
     if (Array.isArray(parsedObj)) {
-      questionsList = parsedObj.filter((q: any) => !q.status || q.status === 'approved')
+      questionsList = parsedObj.filter((q) => !q.status || q.status === 'approved')
     } else {
       const allQuestions = parsedObj.questions || []
-      questionsList = allQuestions.filter((q: any) => !q.status || q.status === 'approved')
+      questionsList = allQuestions.filter((q) => !q.status || q.status === 'approved')
       dataFiles = parsedObj.data_files || []
       referenceFiles = parsedObj.reference_files || []
       isNewJsonFormat = true
     }
   }
 
-  const renderReferenceOrDataFileList = (filesList: any[], title: string, dotColor: string) => {
+  const formQuestions: AssignmentFormQuestion[] = questionsList.map((question) => {
+    const options = Array.isArray(question.options) ? question.options : undefined
+    const answerFormat = ['text', 'file', 'both'].includes(String(question.answerFormat))
+      ? question.answerFormat as 'text' | 'file' | 'both'
+      : undefined
+
+    return {
+      id: question.id,
+      content: typeof question.content === 'string' ? question.content : '',
+      type: options && options.length > 0 ? 'multiple_choice' : 'essay',
+      points: typeof question.points === 'number' ? question.points : undefined,
+      answerFormat,
+      options,
+    }
+  })
+
+  const activeRubric = Array.isArray(assignment?.rubrics) ? assignment.rubrics[0] : assignment?.rubrics
+
+  const renderReferenceOrDataFileList = (filesList: ParsedAssignmentFile[], title: string, dotColor: string) => {
     if (filesList.length === 0) return null
     return (
       <div className="space-y-3 pt-4 border-t border-slate-800/40">
@@ -139,7 +207,7 @@ export function AssignmentInstructions({
 
   const renderPreviewContent = () => {
     if (!previewingFile) return null
-    const ext = previewingFile.storage_path.split('.').pop()?.toLowerCase() || ''
+    const ext = previewingFile.storage_path?.split('.').pop()?.toLowerCase() || ''
 
     if (previewLoading) {
       return (
@@ -175,7 +243,7 @@ export function AssignmentInstructions({
             return <DocumentViewer url={previewSignedUrl} title={previewingFile.name} />
           }
           
-          if (['docx', 'doc'].includes(ext) && previewContent) {
+          if (['docx', 'doc'].includes(ext) && isViewerArtifact(previewContent)) {
             return (
               <div 
                 className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700 max-h-[500px] overflow-y-auto"
@@ -184,7 +252,7 @@ export function AssignmentInstructions({
             )
           }
           
-          if (['csv', 'xlsx', 'xls'].includes(ext) && previewContent) {
+          if (['csv', 'xlsx', 'xls'].includes(ext) && isViewerArtifact(previewContent)) {
             const headers = previewContent.headers || []
             const rows = previewContent.rows || []
             return (
@@ -201,11 +269,11 @@ export function AssignmentInstructions({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {rows.map((row: any[], i: number) => (
+                      {rows.map((row: unknown[], i: number) => (
                         <tr key={i} className="hover:bg-slate-50/50">
-                          {row.map((cell: any, j: number) => (
+                          {row.map((cell: unknown, j: number) => (
                             <td key={j} className="px-3 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
-                              {cell}
+                              {String(cell ?? '')}
                             </td>
                           ))}
                         </tr>
@@ -217,7 +285,7 @@ export function AssignmentInstructions({
             )
           }
           
-          if (['md', 'markdown'].includes(ext) && previewContent) {
+          if (['md', 'markdown'].includes(ext) && typeof previewContent === 'string') {
             return (
               <div 
                 className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700 max-h-[500px] overflow-y-auto"
@@ -263,7 +331,7 @@ export function AssignmentInstructions({
       return (
         <div className="space-y-4 pt-4 border-t border-slate-200">
           <span className="block text-xs font-semibold text-slate-500">Tệp đính kèm PDF</span>
-          <DocumentViewer url={promptDownloadUrl} title={assignment?.title} />
+          <DocumentViewer url={promptDownloadUrl} title={assignment?.title || undefined} />
         </div>
       )
     }
@@ -309,13 +377,13 @@ export function AssignmentInstructions({
             <span className="block text-xs font-semibold text-slate-500">Xem tài liệu (DOCX)</span>
             <div 
               className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsedPromptContent.viewer_html || '') }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(isViewerArtifact(parsedPromptContent) ? parsedPromptContent.viewer_html || '' : '') }}
             />
           </div>
         )
       }
 
-      if (['csv', 'xlsx', 'xls'].includes(promptExt || '')) {
+      if (['csv', 'xlsx', 'xls'].includes(promptExt || '') && isViewerArtifact(parsedPromptContent)) {
         const headers = parsedPromptContent.headers || []
         const rows = parsedPromptContent.rows || []
         return (
@@ -334,11 +402,11 @@ export function AssignmentInstructions({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {rows.map((row: any[], i: number) => (
+                    {rows.map((row: unknown[], i: number) => (
                       <tr key={i} className="hover:bg-slate-50/50">
-                        {row.map((cell: any, j: number) => (
+                        {row.map((cell: unknown, j: number) => (
                           <td key={j} className="px-3 py-2 text-slate-650 border-r border-slate-100 last:border-0 whitespace-nowrap">
-                            {cell}
+                            {String(cell ?? '')}
                           </td>
                         ))}
                       </tr>
@@ -357,7 +425,7 @@ export function AssignmentInstructions({
             <span className="block text-xs font-semibold text-slate-500">Tài liệu hướng dẫn (Markdown)</span>
             <div 
               className="p-6 bg-white border border-slate-200 rounded-xl prose max-w-none text-slate-700"
-              dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(parsedPromptContent) }}
+              dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(typeof parsedPromptContent === 'string' ? parsedPromptContent : '') }}
             />
           </div>
         )
@@ -373,7 +441,7 @@ export function AssignmentInstructions({
               <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0 text-slate-400 font-semibold select-none">
                 <div className="flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-blue-500" />
-                  <span>{assignment.prompt_file_path.split('/').pop()}</span>
+                  <span>{assignment?.prompt_file_path?.split('/').pop()}</span>
                 </div>
                 <span className="text-[10px] bg-blue-500/10 text-blue-600 border border-blue-500/20 px-2 py-0.5 rounded font-medium">
                   {promptExt?.toUpperCase()}
@@ -462,7 +530,7 @@ export function AssignmentInstructions({
           )}
 
           <AssignmentQuestionsForm
-            questionsList={questionsList}
+            questionsList={formQuestions}
             answers={answers}
             setAnswers={setAnswers}
             disabled={disabled}
@@ -471,7 +539,7 @@ export function AssignmentInstructions({
       ) : questionsList.length > 0 ? (
         <div className="space-y-6">
           <AssignmentQuestionsForm
-            questionsList={questionsList}
+            questionsList={formQuestions}
             answers={answers}
             setAnswers={setAnswers}
             disabled={disabled}
@@ -487,19 +555,19 @@ export function AssignmentInstructions({
       {renderPromptContent()}
 
       {/* Rubrics Matrix Section */}
-      {assignment?.rubrics && (
+      {activeRubric && (
         <div className="mt-8 pt-6 border-t border-slate-800/60 space-y-4">
           <div className="text-left">
             <span className="text-xs text-emerald-600 font-semibold">Tiêu chí đánh giá (Rubric)</span>
-            <h4 className="text-sm font-bold text-slate-100 mt-0.5">{assignment.rubrics.title}</h4>
-            {assignment.rubrics.description && (
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{assignment.rubrics.description}</p>
+            <h4 className="text-sm font-bold text-slate-100 mt-0.5">{activeRubric.title}</h4>
+            {activeRubric.description && (
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{activeRubric.description}</p>
             )}
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-            {(assignment.rubrics.rubric_criteria || []).map((crit: any) => {
-              const weightVal = parseFloat(crit.weight || '1');
+            {(activeRubric.rubric_criteria || []).map((crit) => {
+              const weightVal = parseFloat(String(crit.weight || '1'));
               return (
                 <div key={crit.id} className="bg-slate-950/60 border border-slate-800 p-4.5 rounded-xl space-y-3 flex flex-col justify-between hover:border-slate-800 transition-all text-left shadow-sm">
                   <div className="space-y-1.5">

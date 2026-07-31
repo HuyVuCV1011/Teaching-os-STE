@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
 import { AlertCircle, BookOpen, ClipboardList, Sparkles, FolderOpen } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -12,8 +12,18 @@ import { CourseRegistrySidebar } from './components/CourseRegistrySidebar'
 import { SyllabusTimelineCanvas } from './components/SyllabusTimelineCanvas'
 import { SubjectsTaxonomyBento } from './components/SubjectsTaxonomyBento'
 import { RefinedKnowledgeTab } from './components/RefinedKnowledgeTab'
-import { duplicateCourseAction, saveSyllabusStructureAction } from './actions/courses'
-import { toggleLessonPublishStatusAction } from './actions/refined_knowledge'
+import {
+  createCourseAdminAction,
+  createLessonAdminAction,
+  createModuleAdminAction,
+  createSubjectAdminAction,
+  duplicateCourseAction,
+  getCourseSyllabusAdminAction,
+  listLibraryAdminAction,
+  saveSyllabusStructureAction,
+  swapLessonOrderAdminAction,
+  swapModuleOrderAdminAction,
+} from './actions/courses'
 
 interface Subject {
   id: string
@@ -48,6 +58,12 @@ interface Module {
   title: string
   order_index: number
   lessons?: Lesson[]
+}
+
+type SyllabusStructureUpdate = {
+  moduleId: string
+  orderIndex: number
+  lessonIds: string[]
 }
 
 interface SubjectForm {
@@ -108,19 +124,14 @@ function AdminLibraryContent() {
     setErrorState(null)
 
     try {
-      const [subjectsResult, coursesResult] = await Promise.all([
-        supabase.from('subjects').select('*').order('name'),
-        supabase.from('courses').select('*, subjects(name)').neq('status', 'archived').order('created_at', { ascending: false }),
-      ])
-
-      if (subjectsResult.error) throw subjectsResult.error
-      if (coursesResult.error) throw coursesResult.error
-
-      setSubjects((subjectsResult.data || []) as Subject[])
-      setCourses((coursesResult.data || []) as Course[])
+      const result = await listLibraryAdminAction()
+      if (!result.success) throw new Error(result.error)
+      setSubjects(result.data.subjects as Subject[])
+      setCourses(result.data.courses as Course[])
     } catch (error) {
-      console.error('Error fetching CMS data:', error)
-      setErrorState(error instanceof Error ? error.message : 'Không thể tải dữ liệu thư viện.')
+      const message = getSupabaseFetchErrorMessage(error, 'Không thể tải dữ liệu thư viện.')
+      console.warn('Unable to fetch CMS data:', message)
+      setErrorState(message)
     } finally {
       setLoading(false)
     }
@@ -141,8 +152,9 @@ function AdminLibraryContent() {
       } else {
         toast.error(`Failed to duplicate course: ${res.error}`)
       }
-    } catch (err: any) {
-      toast.error(`An error occurred: ${err.message}`)
+    } catch (err) {
+      const error = err as Error
+      toast.error(`An error occurred: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -160,12 +172,11 @@ function AdminLibraryContent() {
     if (!subjectForm.name || !subjectForm.slug) return
 
     try {
-      const { error } = await supabase.from('subjects').insert([subjectForm])
-      if (error) throw error
-
+      const result = await createSubjectAdminAction(subjectForm)
+      if (!result.success) throw new Error(result.error)
       setSubjectForm({ name: '', slug: '', description: '' })
       setShowSubjectForm(false)
-      fetchData()
+      await fetchData()
     } catch (err) {
       const error = err as Error
       toast.error(`Failed to create subject: ${error.message}`)
@@ -178,26 +189,25 @@ function AdminLibraryContent() {
     if (!courseForm.title || !courseForm.slug || !courseForm.subject_id) return
 
     try {
-      const { error } = await supabase.from('courses').insert([courseForm])
-      if (error) throw error
-
+      const result = await createCourseAdminAction(courseForm)
+      if (!result.success) throw new Error(result.error)
       setCourseForm({ title: '', slug: '', subject_id: '', description: '', status: 'draft' })
       setShowCourseForm(false)
-      fetchData()
+      await fetchData()
     } catch (err) {
       const error = err as Error
       toast.error(`Failed to create course: ${error.message}`)
     }
   }
 
-  const handleSaveSyllabusStructure = async (updatedModules: any[]) => {
+  const handleSaveSyllabusStructure = async (updatedModules: Module[]) => {
     setCourseModules(updatedModules)
     setLoading(true)
     try {
-      const structure = updatedModules.map((m, idx) => ({
+      const structure: SyllabusStructureUpdate[] = updatedModules.map((m, idx) => ({
         moduleId: m.id,
         orderIndex: idx + 1,
-        lessonIds: m.lessons?.map((l: any) => l.id) || []
+        lessonIds: m.lessons?.map((l) => l.id) || []
       }))
       const res = await saveSyllabusStructureAction(selectedCourse!.id, structure)
       if (res.success) {
@@ -206,8 +216,9 @@ function AdminLibraryContent() {
       } else {
         toast.error(`Failed to save syllabus structure: ${res.error}`)
       }
-    } catch (err: any) {
-      toast.error(`Error saving syllabus structure: ${err.message}`)
+    } catch (err) {
+      const error = err as Error
+      toast.error(`Error saving syllabus structure: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -218,14 +229,9 @@ function AdminLibraryContent() {
     setSelectedCourse(course)
     setLoading(true)
     try {
-      const { data: modulesData } = await supabase
-        .from('modules')
-        .select('*, lessons(*)')
-        .eq('course_id', course.id)
-        .order('order_index')
-        .order('order_index', { foreignTable: 'lessons', ascending: true })
-
-      setCourseModules((modulesData || []) as Module[])
+      const result = await getCourseSyllabusAdminAction(course.id)
+      if (!result.success) throw new Error(result.error)
+      setCourseModules(result.data as Module[])
     } catch (error) {
       console.error('Error fetching modules:', error)
     } finally {
@@ -238,18 +244,15 @@ function AdminLibraryContent() {
     if (!selectedCourse || !moduleForm.title) return
 
     try {
-      const { error } = await supabase.from('modules').insert([
-        {
-          course_id: selectedCourse.id,
-          title: moduleForm.title,
-          order_index: moduleForm.order_index,
-        },
-      ])
-
-      if (error) throw error
+      const result = await createModuleAdminAction(
+        selectedCourse.id,
+        moduleForm.title,
+        moduleForm.order_index,
+      )
+      if (!result.success) throw new Error(result.error)
       setModuleForm({ title: '', order_index: courseModules.length + 2 })
       setShowModuleForm(false)
-      handleSelectCourse(selectedCourse)
+      await handleSelectCourse(selectedCourse)
     } catch (err) {
       const error = err as Error
       toast.error(`Failed to add module: ${error.message}`)
@@ -261,21 +264,13 @@ function AdminLibraryContent() {
     if (!lessonForm.title || !lessonForm.moduleId) return
 
     try {
-      const { data: lessonData, error } = await supabase
-        .from('lessons')
-        .insert([
-          {
-            module_id: lessonForm.moduleId,
-            title: lessonForm.title,
-            order_index: lessonForm.order_index,
-            content: '{"type":"doc","content":[]}', // default empty TipTap content
-          },
-        ])
-        .select()
-        .single()
-
-      if (error) throw error
-      const newLessonId = lessonData?.id
+      const result = await createLessonAdminAction(
+        lessonForm.moduleId,
+        lessonForm.title,
+        lessonForm.order_index,
+      )
+      if (!result.success) throw new Error(result.error)
+      const newLessonId = result.data?.id
 
       setLessonForm({ title: '', order_index: 1, moduleId: '' })
       setShowLessonForm(false)
@@ -283,7 +278,7 @@ function AdminLibraryContent() {
       if (redirectToEditor && newLessonId) {
         router.push(`/admin/library/lesson-editor?lessonId=${newLessonId}`)
       } else {
-        handleSelectCourse(selectedCourse!)
+        await handleSelectCourse(selectedCourse!)
       }
     } catch (err) {
       const error = err as Error
@@ -302,23 +297,14 @@ function AdminLibraryContent() {
     const currentMod = courseModules[currentIdx]
     const targetMod = courseModules[targetIdx]
 
-    // Swap order indices
-    const currentOrder = currentMod.order_index
-    const targetOrder = targetMod.order_index
-
     setLoading(true)
     try {
-      const { error: err1 } = await supabase
-        .from('modules')
-        .update({ order_index: targetOrder })
-        .eq('id', currentMod.id)
-      if (err1) throw err1
-
-      const { error: err2 } = await supabase
-        .from('modules')
-        .update({ order_index: currentOrder })
-        .eq('id', targetMod.id)
-      if (err2) throw err2
+      const result = await swapModuleOrderAdminAction(
+        selectedCourse!.id,
+        { id: currentMod.id, orderIndex: currentMod.order_index },
+        { id: targetMod.id, orderIndex: targetMod.order_index },
+      )
+      if (!result.success) throw new Error(result.error)
 
       if (selectedCourse) {
         await handleSelectCourse(selectedCourse)
@@ -352,23 +338,14 @@ function AdminLibraryContent() {
     const currentLess = lessonsList[currentIdx]
     const targetLess = lessonsList[targetIdx]
 
-    // Swap order indices
-    const currentOrder = currentLess.order_index
-    const targetOrder = targetLess.order_index
-
     setLoading(true)
     try {
-      const { error: err1 } = await supabase
-        .from('lessons')
-        .update({ order_index: targetOrder })
-        .eq('id', currentLess.id)
-      if (err1) throw err1
-
-      const { error: err2 } = await supabase
-        .from('lessons')
-        .update({ order_index: currentOrder })
-        .eq('id', targetLess.id)
-      if (err2) throw err2
+      const result = await swapLessonOrderAdminAction(
+        targetModule.id,
+        { id: currentLess.id, orderIndex: currentLess.order_index },
+        { id: targetLess.id, orderIndex: targetLess.order_index },
+      )
+      if (!result.success) throw new Error(result.error)
 
       if (selectedCourse) {
         await handleSelectCourse(selectedCourse)
@@ -420,7 +397,7 @@ function AdminLibraryContent() {
       <div className="flex bg-slate-900/10 p-1.5 rounded-full border border-slate-800/20 backdrop-blur-md w-fit gap-2 shadow-sm">
         <button
           onClick={() => handleTabChange('courses')}
-          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-premium-soft ${
             activeTab === 'courses'
               ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
               : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'
@@ -432,7 +409,7 @@ function AdminLibraryContent() {
 
         <button
           onClick={() => handleTabChange('subjects')}
-          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-premium-soft ${
             activeTab === 'subjects'
               ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
               : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'
@@ -444,7 +421,7 @@ function AdminLibraryContent() {
 
         <button
           onClick={() => handleTabChange('knowledge')}
-          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-[cubic-bezier(0.32,_0.72,_0,_1)] ${
+          className={`flex items-center gap-2.5 px-6 py-2.5 rounded-full text-base font-semibold transition-all duration-300 ease-premium-soft ${
             activeTab === 'knowledge'
               ? 'bg-slate-955 border border-slate-800/40 text-blue-600 shadow-sm'
               : 'text-slate-500 hover:text-slate-100 hover:bg-slate-900/10'

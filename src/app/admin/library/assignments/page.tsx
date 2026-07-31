@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
 import { toast } from 'react-hot-toast'
 import {
   ClipboardList,
@@ -16,7 +16,7 @@ import {
   FileText,
   Trash2,
 } from 'lucide-react'
-import { deleteAssignmentAction } from '../actions/assignments'
+import { deleteAssignmentAction, listAssignmentsAdminAction } from '../actions/assignments'
 
 interface AssignmentRow {
   id: string
@@ -26,7 +26,10 @@ interface AssignmentRow {
   max_files: number
   max_total_size_mb: number
   auto_publish_grades: boolean
-  late_policy: any
+  late_policy: {
+    grace_period_hours?: number
+    penalty_percent_per_day?: number
+  } | null
   ai_model_used: string
   created_at: string
   lesson: {
@@ -50,6 +53,7 @@ export default function ManageAssignmentsPage() {
   const router = useRouter()
   const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorState, setErrorState] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -58,31 +62,15 @@ export default function ManageAssignmentsPage() {
 
   async function fetchAssignments() {
     setLoading(true)
+    setErrorState(null)
     try {
-      const { data, error } = await supabase
-        .from('assignments')
-        .select(`
-          *,
-          lesson:lessons (
-            id,
-            title,
-            module:modules (
-              id,
-              title,
-              course:courses (
-                id,
-                title,
-                subject:subjects ( name )
-              )
-            )
-          )
-        `)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setAssignments(data || [])
-    } catch (err: any) {
-      console.error('Error fetching assignments:', err)
+      const result = await listAssignmentsAdminAction()
+      if (!result.success) throw new Error(result.error)
+      setAssignments(result.data as AssignmentRow[])
+    } catch (err) {
+      const message = getSupabaseFetchErrorMessage(err, 'Không thể tải danh sách bài tập.')
+      console.warn('Unable to fetch assignments:', message)
+      setErrorState(message)
     } finally {
       setLoading(false)
     }
@@ -155,6 +143,11 @@ export default function ManageAssignmentsPage() {
           {loading ? (
             <div className="flex justify-center items-center py-20 text-slate-500 text-sm font-semibold gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" /> Loading assignments...
+            </div>
+          ) : errorState ? (
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-sm text-amber-800">
+              <p className="font-semibold">Không thể tải danh sách bài tập</p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-900/80">{errorState}</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 border border-dashed border-slate-800/80 rounded-2xl text-slate-500 text-sm font-medium flex flex-col items-center justify-center gap-4">

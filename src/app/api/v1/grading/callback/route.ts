@@ -1,11 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServer } from '@/lib/supabase'
 
-const GRADING_SECRET_TOKEN = process.env.GRADING_SECRET_TOKEN || 'a1b2c3d4e5f6_development_token'
+type CallbackScore = {
+  rubric_criterion_id?: unknown
+  score?: unknown
+  feedback?: unknown
+}
+
+type CallbackBody = {
+  submission_id?: unknown
+  secret_token?: unknown
+  overall_feedback?: unknown
+  scores?: unknown
+}
+
+type SubmissionWithAssignment = {
+  assignments?: {
+    auto_publish_grades?: boolean | null
+  } | null
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Internal Server Error'
+}
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === 'production' && (!process.env.GRADING_SECRET_TOKEN || process.env.GRADING_SECRET_TOKEN === 'a1b2c3d4e5f6_development_token')) {
-    console.error('CRITICAL: GRADING_SECRET_TOKEN is unset or using fallback key in production!')
+  const gradingSecretToken = process.env.GRADING_SECRET_TOKEN
+  if (!gradingSecretToken) {
+    console.error('CRITICAL: GRADING_SECRET_TOKEN is unset')
     return NextResponse.json(
       { error: 'Internal Configuration Error' },
       { status: 500 }
@@ -13,7 +35,7 @@ export async function POST(request: NextRequest) {
   }
   const supabase = getSupabaseServer(true)
   try {
-    const body = await request.json()
+    const body = await request.json() as CallbackBody
     const { submission_id, secret_token, overall_feedback, scores } = body
 
     // 1. Authentication Check
@@ -25,14 +47,14 @@ export async function POST(request: NextRequest) {
 
     const token = tokenFromHeader || secret_token
 
-    if (!token || token !== GRADING_SECRET_TOKEN) {
+    if (typeof token !== 'string' || token !== gradingSecretToken) {
       return NextResponse.json(
         { error: 'Unauthorized: Invalid callback token' },
         { status: 401 }
       )
     }
 
-    if (!submission_id || !Array.isArray(scores)) {
+    if (typeof submission_id !== 'string' || !Array.isArray(scores)) {
       return NextResponse.json(
         { error: 'Bad Request: Missing submission_id or scores list' },
         { status: 400 }
@@ -72,7 +94,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const autoPublish = submissionData.assignments?.auto_publish_grades || false
+    const typedSubmissionData = submissionData as SubmissionWithAssignment
+    const autoPublish = typedSubmissionData.assignments?.auto_publish_grades || false
     const targetStatus = autoPublish ? 'published' : 'draft'
     const publishedAtVal = autoPublish ? new Date().toISOString() : null
 
@@ -83,7 +106,7 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabase
         .from('grading_results')
         .update({
-          overall_feedback: overall_feedback || 'Automated score callback received.',
+          overall_feedback: typeof overall_feedback === 'string' ? overall_feedback : 'Automated score callback received.',
           status: targetStatus,
           published_at: publishedAtVal,
         })
@@ -96,7 +119,7 @@ export async function POST(request: NextRequest) {
         .insert([
           {
             submission_id,
-            overall_feedback: overall_feedback || 'Automated score callback received.',
+            overall_feedback: typeof overall_feedback === 'string' ? overall_feedback : 'Automated score callback received.',
             status: targetStatus,
             published_at: publishedAtVal,
           },
@@ -110,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // 4. Upsert individual Rubric Scores
     // The calculate_total_score DB trigger will automatically re-compute total_score in grading_results
-    for (const scoreEntry of scores) {
+    for (const scoreEntry of scores as CallbackScore[]) {
       const { rubric_criterion_id, score, feedback } = scoreEntry
       if (!rubric_criterion_id || score === undefined) continue
 
@@ -121,7 +144,7 @@ export async function POST(request: NextRequest) {
             grading_result_id: resultId,
             rubric_criterion_id,
             score,
-            feedback: feedback || '',
+            feedback: typeof feedback === 'string' ? feedback : '',
           },
           {
             onConflict: 'grading_result_id,rubric_criterion_id',
@@ -143,10 +166,10 @@ export async function POST(request: NextRequest) {
       message: `Grading callback processed successfully. Result saved as ${targetStatus}.`,
       gradingResultId: resultId,
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Callback processor error:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
+      { error: getErrorMessage(error) },
       { status: 500 }
     )
   }

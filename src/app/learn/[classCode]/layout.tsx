@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, use } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import { motion } from 'motion/react'
 import {
   Map,
@@ -48,7 +49,7 @@ function LearnerLayoutInner({
   children: React.ReactNode
   classCode: string
   pathname: string
-  router: any
+  router: AppRouterInstance
 }) {
   const { isAdminPreview, identityVerified, identityError, classInfo, loadingClassInfo } = useLearner()
   const [isZenMode, setIsZenMode] = useState(false)
@@ -340,7 +341,7 @@ function LearnerLayoutInner({
       </aside>
 
       {/* Main Content Area */}
-      <main id="learner-content" tabIndex={-1} className="flex-1 flex flex-col min-w-0 min-h-screen relative z-10 focus:outline-none">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col min-w-0 min-h-screen relative z-10 focus:outline-none">
         {/* Mobile Header Bar */}
         <header className="h-16 border-b border-slate-800/80 bg-slate-950 flex items-center justify-between px-4 md:hidden shrink-0">
           <div className="flex items-center gap-3">

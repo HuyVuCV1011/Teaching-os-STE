@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 interface ProjectDescriptionViewProps {
   description: string
@@ -22,7 +23,7 @@ export function ProjectDescriptionView({
           isDescriptionExpanded ? '' : 'max-h-[200px] overflow-hidden'
         } transition-all duration-300`}
       >
-        <div dangerouslySetInnerHTML={{ __html: description }} />
+        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(description) }} />
         {!isDescriptionExpanded && (
           <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none" />
         )}

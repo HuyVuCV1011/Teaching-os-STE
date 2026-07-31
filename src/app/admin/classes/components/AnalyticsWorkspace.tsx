@@ -1,19 +1,67 @@
 'use client'
 
 import React from 'react'
-import { BarChart3, Loader2, AlertTriangle, ExternalLink, BookOpen, AlertCircle, Clock, UserX } from 'lucide-react'
+import { BarChart3, Loader2, AlertTriangle, ExternalLink, BookOpen, AlertCircle, UserX } from 'lucide-react'
 import { formatDate } from '@/lib/date'
 
 interface AnalyticsWorkspaceProps {
-  selectedClass: any
-  enrollments: any[]
-  analyticsAssignments: any[]
-  analyticsSubmissions: any[]
+  enrollments: EnrollmentRow[]
+  analyticsAssignments: AnalyticsAssignment[]
+  analyticsSubmissions: AnalyticsSubmission[]
   analyticsLoading: boolean
 }
 
+interface EnrollmentRow {
+  student_email?: string | null
+}
+
+interface AnalyticsAssignment {
+  id: string
+  title?: string | null
+}
+
+interface RubricScore {
+  score?: string | number | null
+  rubric_criteria?: {
+    name?: string | null
+    max_points?: number | null
+  } | null
+}
+
+interface AnalyticsGrade {
+  status?: string | null
+  total_score?: string | number | null
+  rubric_scores?: RubricScore[] | null
+}
+
+interface AnalyticsSubmission {
+  id: string
+  assignment_id?: string | null
+  student_identifier?: string | null
+  created_at?: string | null
+  status?: string | null
+  is_late?: boolean | null
+  grading_results?: AnalyticsGrade | null
+  assignments?: {
+    title?: string | null
+  } | null
+}
+
+interface StudentMetric {
+  email: string
+  totalScore: number
+  gradedCount: number
+  lateCount: number
+  missingCount: number
+  submissions: AnalyticsSubmission[]
+}
+
+function toNumericScore(value: string | number | null | undefined) {
+  const score = Number.parseFloat(String(value ?? 0))
+  return Number.isFinite(score) ? score : 0
+}
+
 export function AnalyticsWorkspace({
-  selectedClass,
   enrollments,
   analyticsAssignments,
   analyticsSubmissions,
@@ -27,7 +75,7 @@ export function AnalyticsWorkspace({
   
   const gradedSubmissions = analyticsSubmissions.filter((s) => s.grading_results && s.grading_results.status === 'published')
   const averageScore = gradedSubmissions.length > 0 
-    ? (gradedSubmissions.reduce((sum, s) => sum + parseFloat(s.grading_results.total_score), 0) / gradedSubmissions.length).toFixed(1)
+    ? (gradedSubmissions.reduce((sum, s) => sum + toNumericScore(s.grading_results?.total_score), 0) / gradedSubmissions.length).toFixed(1)
     : 'N/A'
   
   const backlogCount = analyticsSubmissions.filter(
@@ -46,7 +94,7 @@ export function AnalyticsWorkspace({
   ]
 
   gradedSubmissions.forEach((sub) => {
-    const score = parseFloat(sub.grading_results.total_score)
+    const score = toNumericScore(sub.grading_results?.total_score)
     for (const b of brackets) {
       if (score >= b.min && score <= b.max) {
         b.count++
@@ -59,15 +107,16 @@ export function AnalyticsWorkspace({
   // 2. Concept Difficulty Check
   const conceptScores: { [name: string]: { sum: number; count: number; max: number } } = {}
   gradedSubmissions.forEach((sub) => {
-    const scores = sub.grading_results.rubric_scores || []
-    scores.forEach((rs: any) => {
+    const grade = sub.grading_results
+    const scores = grade?.rubric_scores || []
+    scores.forEach((rs) => {
       const criterionName = rs.rubric_criteria?.name
       const maxPts = rs.rubric_criteria?.max_points
       if (criterionName && maxPts) {
         if (!conceptScores[criterionName]) {
           conceptScores[criterionName] = { sum: 0, count: 0, max: 0 }
         }
-        conceptScores[criterionName].sum += parseFloat(rs.score)
+        conceptScores[criterionName].sum += toNumericScore(rs.score)
         conceptScores[criterionName].count++
         conceptScores[criterionName].max += maxPts
       }
@@ -82,20 +131,12 @@ export function AnalyticsWorkspace({
     .sort((a, b) => a.avgPercent - b.avgPercent) // Hardest (lowest scoring) first
 
   // 3. At-risk Students
-  const studentMetrics: {
-    [email: string]: {
-      email: string
-      totalScore: number
-      gradedCount: number
-      lateCount: number
-      missingCount: number
-      submissions: any[]
-    }
-  } = {}
+  const studentMetrics: Record<string, StudentMetric> = {}
 
   // Initialize from enrollment list
   enrollments.forEach((enrollment) => {
     const email = enrollment.student_email
+    if (!email) return
     studentMetrics[email] = {
       email,
       totalScore: 0,
@@ -109,6 +150,7 @@ export function AnalyticsWorkspace({
   // Populate from actual submissions
   analyticsSubmissions.forEach((sub) => {
     const email = sub.student_identifier
+    if (!email) return
     if (!studentMetrics[email]) {
       studentMetrics[email] = {
         email,
@@ -125,7 +167,7 @@ export function AnalyticsWorkspace({
     }
     const grade = sub.grading_results
     if (grade && grade.status === 'published') {
-      studentMetrics[email].totalScore += parseFloat(grade.total_score)
+      studentMetrics[email].totalScore += toNumericScore(grade.total_score)
       studentMetrics[email].gradedCount++
     }
   })
@@ -356,7 +398,7 @@ export function AnalyticsWorkspace({
                           {formatDate(sub.created_at)}
                         </td>
                         <td className="p-3 text-center font-bold text-slate-200">
-                          {grade ? `${parseFloat(grade.total_score).toFixed(0)}%` : '—'}
+                          {grade ? `${toNumericScore(grade.total_score).toFixed(0)}%` : '—'}
                         </td>
                         <td className="p-3 text-center">
                           <span
@@ -396,7 +438,7 @@ export function AnalyticsWorkspace({
           <div>
             <h5 className="text-xs font-bold text-slate-205">Instructor Insight</h5>
             <p className="text-[11px] text-slate-450 mt-1 leading-relaxed">
-              Ensure grading is completed and click <strong className="text-slate-300">"Publish"</strong> on drafts in order for grades to be included in the Class Average calculation and student dashboards.
+              Ensure grading is completed and click <strong className="text-slate-300">&ldquo;Publish&rdquo;</strong> on drafts in order for grades to be included in the Class Average calculation and student dashboards.
             </p>
           </div>
         </div>

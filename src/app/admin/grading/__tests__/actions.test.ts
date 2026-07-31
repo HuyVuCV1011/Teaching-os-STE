@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ---------- Hoisted mocks ----------
-const { mockFrom, mockSingle, mockUpsert } = vi.hoisted(() => {
+const { mockFrom, mockSingle, mockUpsert, mockAuthGetUser } = vi.hoisted(() => {
   const mockSingle = vi.fn()
   const mockUpsert = vi.fn()
 
@@ -45,25 +45,20 @@ const { mockFrom, mockSingle, mockUpsert } = vi.hoisted(() => {
     return { select: vi.fn(), insert: vi.fn(), update: vi.fn() }
   })
 
-  return { mockFrom, mockSingle, mockUpsert }
+  return { mockFrom, mockSingle, mockUpsert, mockAuthGetUser: vi.fn() }
 })
-
-// Mocking 'next/headers' which uses async cookies()
-vi.mock('next/headers', () => ({
-  cookies: vi.fn(),
-}))
 
 vi.mock('@/lib/supabase', () => ({
   getSupabaseServer: vi.fn(() => ({ from: mockFrom })),
 }))
 
-vi.mock('@/lib/jwt', () => ({
-  verifyJWT: vi.fn(),
+vi.mock('@/lib/supabase/server', () => ({
+  createSupabaseServerClient: vi.fn(async () => ({
+    auth: { getUser: mockAuthGetUser },
+  })),
 }))
 
 import { saveGradingResultAction } from '../[submissionId]/actions'
-import { cookies } from 'next/headers'
-import { verifyJWT } from '@/lib/jwt'
 
 // ---------- Tests ----------
 describe('saveGradingResultAction', () => {
@@ -82,22 +77,19 @@ describe('saveGradingResultAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.BYPASS_ADMIN_AUTH = 'true';
-    (process.env as any).NODE_ENV = 'development'
+    vi.stubEnv('NODE_ENV', 'development')
     mockUpsert.mockResolvedValue({ error: null })
   })
 
   afterEach(() => {
     delete process.env.BYPASS_ADMIN_AUTH;
-    (process.env as any).NODE_ENV = 'test'
+    vi.stubEnv('NODE_ENV', 'test')
   })
 
   describe('authorization', () => {
     it('throws if not authenticated when bypass is off', async () => {
       delete process.env.BYPASS_ADMIN_AUTH
-
-      // Mock cookies to return nothing
-      const mockCookieStore = { get: vi.fn().mockReturnValue(null) }
-      vi.mocked(cookies).mockResolvedValue(mockCookieStore as any)
+      mockAuthGetUser.mockResolvedValue({ data: { user: null }, error: null })
 
       await expect(saveGradingResultAction(baseInput)).rejects.toThrow(/unauthorized/i)
     })

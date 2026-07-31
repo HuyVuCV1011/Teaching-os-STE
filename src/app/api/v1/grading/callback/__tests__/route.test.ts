@@ -1,12 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // ---------- Hoisted mocks ----------
-const { mockFrom, mockSingle, mockSelect, mockEq, mockUpsert } = vi.hoisted(() => {
+const { mockFrom, mockSingle, mockUpsert } = vi.hoisted(() => {
   const mockSingle = vi.fn()
   const mockUpsert = vi.fn()
-  const mockUpdate = vi.fn()
-
   const mockEq = vi.fn(() => ({ single: mockSingle }))
   const mockInsert = vi.fn(() => ({ select: vi.fn(() => ({ single: mockSingle })) }))
   const mockSelectFrom = vi.fn(() => ({ eq: mockEq }))
@@ -41,7 +39,7 @@ const { mockFrom, mockSingle, mockSelect, mockEq, mockUpsert } = vi.hoisted(() =
     return { select: vi.fn(), insert: vi.fn(), update: vi.fn() }
   })
 
-  return { mockFrom, mockSingle, mockSelect: mockSelectFrom, mockEq, mockUpsert }
+  return { mockFrom, mockSingle, mockUpsert }
 })
 
 vi.mock('@/lib/supabase', () => ({
@@ -51,7 +49,7 @@ vi.mock('@/lib/supabase', () => ({
 import { POST } from '../route'
 
 // ---------- Helpers ----------
-const VALID_TOKEN = 'a1b2c3d4e5f6_development_token'
+const VALID_TOKEN = 'test-only-callback-token'
 
 function makeRequest(body: unknown, token?: string): NextRequest {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -69,7 +67,12 @@ function makeRequest(body: unknown, token?: string): NextRequest {
 describe('POST /api/v1/grading/callback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('GRADING_SECRET_TOKEN', VALID_TOKEN)
     mockUpsert.mockResolvedValue({ error: null })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   describe('authentication', () => {

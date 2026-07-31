@@ -7,8 +7,30 @@ import { FileText, Code } from 'lucide-react'
 import { renderSimpleMarkdown } from '@/lib/markdown'
 
 interface AdminMaterialPreviewCardProps {
-  m: any
+  m: MaterialPreview
   downloadAllowed: boolean
+}
+
+type ViewerArtifact = {
+  viewer_html?: string
+  viewer_markdown?: string
+  viewer_json?: unknown
+  raw_text?: string
+  headers?: string[]
+  rows?: unknown[][]
+  row_count?: number
+  col_count?: number
+}
+
+type MaterialPreview = {
+  id?: string
+  type: string
+  title: string
+  signedUrl?: string | null
+  metadata?: {
+    display_mode?: 'both' | 'web' | 'original'
+    viewer_artifact?: ViewerArtifact
+  } | null
 }
 
 export function AdminMaterialPreviewCard({
@@ -28,11 +50,12 @@ export function AdminMaterialPreviewCard({
       {/* PDF Preview */}
       {m.type === 'pdf' && (() => {
         const displayMode = m.metadata?.display_mode || 'both';
-        const hasValidUrl = m.signedUrl && (
-          m.signedUrl.startsWith('http://') || 
-          m.signedUrl.startsWith('https://') || 
-          m.signedUrl.startsWith('blob:') || 
-          m.signedUrl.startsWith('data:')
+        const signedUrl = m.signedUrl || ''
+        const hasValidUrl = (
+          signedUrl.startsWith('http://') ||
+          signedUrl.startsWith('https://') ||
+          signedUrl.startsWith('blob:') ||
+          signedUrl.startsWith('data:')
         );
 
         return (
@@ -40,7 +63,7 @@ export function AdminMaterialPreviewCard({
             {displayMode !== 'original' ? (
               hasValidUrl ? (
                 <div className="border border-slate-800 bg-slate-900 rounded-2xl overflow-hidden shadow-sm h-[450px]">
-                  <DocumentViewer url={m.signedUrl} title={m.title} />
+                  <DocumentViewer url={signedUrl} title={m.title} />
                 </div>
               ) : (
                 <div className="border border-slate-800 bg-slate-950/20 rounded-2xl p-6 shadow-sm text-slate-400 flex flex-col justify-center items-center gap-2 h-[450px] text-center">
@@ -59,7 +82,7 @@ export function AdminMaterialPreviewCard({
                 </h3>
                 {downloadAllowed && hasValidUrl ? (
                   <a
-                    href={m.signedUrl}
+                    href={signedUrl}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
@@ -90,7 +113,7 @@ export function AdminMaterialPreviewCard({
               </h3>
               {downloadAllowed && (
                 <a
-                  href={m.signedUrl}
+                  href={m.signedUrl || '#'}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
@@ -130,7 +153,7 @@ export function AdminMaterialPreviewCard({
               </h3>
               {downloadAllowed && (
                 <a
-                  href={m.signedUrl}
+                  href={m.signedUrl || '#'}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
@@ -156,11 +179,11 @@ export function AdminMaterialPreviewCard({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-850 bg-slate-950/20">
-                        {rows.slice(0, 5).map((row: any[], i: number) => (
+                        {rows.slice(0, 5).map((row: unknown[], i: number) => (
                           <tr key={i} className="hover:bg-slate-800/10">
-                            {row.map((cell: any, j: number) => (
+                            {row.map((cell: unknown, j: number) => (
                               <td key={j} className="px-3 py-2 text-slate-300 border-r border-slate-850 last:border-0 whitespace-nowrap">
-                                {cell}
+                                {String(cell ?? '')}
                               </td>
                             ))}
                           </tr>

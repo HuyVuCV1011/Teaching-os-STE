@@ -5,15 +5,40 @@ import { FileText, Loader2 } from 'lucide-react'
 import DocumentViewer from '@/components/DocumentViewer'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
 import { renderSimpleMarkdown } from '@/lib/markdown'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 interface DocumentPreviewPaneProps {
-  material: any
+  material: MaterialPreview | null
   downloadAllowed: boolean
-  previewUrlStatus: any
+  previewUrlStatus: PreviewUrlStatus
   previewSignedUrls: Record<string, string>
   previewErrors: Record<string, string>
   markdownTemplates: Record<string, 'default' | 'dark' | 'accent'>
   setMarkdownTemplates: React.Dispatch<React.SetStateAction<Record<string, 'default' | 'dark' | 'accent'>>>
+}
+
+type ViewerArtifact = {
+  viewer_html?: string
+  viewer_markdown?: string
+  viewer_json?: unknown
+  raw_text?: string
+  headers?: string[]
+  rows?: unknown[][]
+  row_count?: number
+}
+
+type MaterialPreview = {
+  id: string
+  type: string
+  title: string
+  metadata?: {
+    viewer_artifact?: ViewerArtifact
+  } | null
+}
+
+type PreviewUrlStatus = {
+  loading: boolean
+  elapsed?: string | number
 }
 
 export function DocumentPreviewPane({
@@ -85,14 +110,18 @@ export function DocumentPreviewPane({
           </div>
           <div 
             className="prose max-w-none text-slate-705 leading-relaxed text-xs flex-1 overflow-y-auto"
-            dangerouslySetInnerHTML={{ __html: material.metadata?.viewer_artifact?.viewer_html || '<p class="text-slate-400 italic">No HTML preview available.</p>' }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(material.metadata?.viewer_artifact?.viewer_html || '<p class="text-slate-400 italic">No HTML preview available.</p>') }}
           />
         </div>
       )}
 
       {/* CSV / XLSX tabular preview */}
-      {['csv', 'xlsx'].includes(material.type) && (
-        <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col">
+      {['csv', 'xlsx'].includes(material.type) && (() => {
+        const artifact = material.metadata?.viewer_artifact
+        const rowCount = artifact?.row_count || 0
+
+        return (
+          <div className="border border-slate-800 bg-white rounded-2xl p-6 shadow-sm space-y-4 h-[450px] overflow-y-auto flex flex-col">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
             <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
               <FileText className={`w-4 h-4 ${styles.iconColor}`} />
@@ -110,12 +139,12 @@ export function DocumentPreviewPane({
               </a>
             )}
           </div>
-          {material.metadata?.viewer_artifact?.rows && material.metadata?.viewer_artifact?.rows.length > 0 ? (
+          {artifact?.rows && artifact.rows.length > 0 ? (
             <div className="overflow-x-auto border border-slate-200 rounded-xl flex-1 overflow-y-auto">
               <table className="min-w-full divide-y divide-slate-200 text-xs">
                 <thead className="bg-slate-900 sticky top-0 z-10">
                   <tr>
-                    {(material.metadata.viewer_artifact.headers || []).map((hdr: string, i: number) => (
+                    {(artifact.headers || []).map((hdr: string, i: number) => (
                       <th key={i} className="px-3 py-2 text-left font-bold text-slate-100 border-r border-slate-200 last:border-0 whitespace-nowrap bg-slate-900">
                         {hdr}
                       </th>
@@ -123,11 +152,11 @@ export function DocumentPreviewPane({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150 bg-white">
-                  {(material.metadata.viewer_artifact.rows || []).map((row: any[], i: number) => (
+                  {(artifact.rows || []).map((row: unknown[], i: number) => (
                     <tr key={i} className="hover:bg-slate-50 transition-colors">
-                      {row.map((cell: any, j: number) => (
+                      {row.map((cell: unknown, j: number) => (
                         <td key={j} className="px-3 py-2 text-slate-800 border-r border-slate-200 last:border-0 whitespace-nowrap">
-                          {cell}
+                          {String(cell ?? '')}
                         </td>
                       ))}
                     </tr>
@@ -138,13 +167,14 @@ export function DocumentPreviewPane({
           ) : (
             <p className="text-xs text-slate-400 italic">No table data available.</p>
           )}
-          {material.metadata?.viewer_artifact?.row_count > 5 && (
+          {rowCount > 5 && (
             <span className="block text-[10px] text-slate-400 italic shrink-0">
-              Showing first 5 of {material.metadata.viewer_artifact.row_count} rows.
+              Showing first 5 of {rowCount} rows.
             </span>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* Markdown Preview */}
       {material.type === 'markdown' && (() => {
@@ -203,7 +233,7 @@ export function DocumentPreviewPane({
             </div>
             <div 
               className={`prose max-w-none text-xs flex-1 overflow-y-auto ${textColor}`}
-              dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(material.metadata?.viewer_artifact?.viewer_markdown || '') }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderSimpleMarkdown(material.metadata?.viewer_artifact?.viewer_markdown || '')) }}
             />
           </div>
         )

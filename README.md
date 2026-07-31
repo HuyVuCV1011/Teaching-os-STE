@@ -41,7 +41,7 @@ Teaching OS (STE) combines a public-facing portfolio, secure student learning jo
 | --- | --- |
 | Public showcase layer | An elegant portfolio displaying consulting projects, student case studies, process mapping diagrams with React Flow, and visual before/after dashboard comparison sliders. |
 | Student learning gateway | A secure area gated by class-code authorization and HTTP-only cookies, allowing students to access course roadmaps, view materials, and submit assignments securely. |
-| Admin CMS and grading terminal | A centralized management workspace where administrators configure classes, assign syllabi, author lesson content using a guided stepper wizard, reorder syllabus modules and lessons dynamically, and evaluate homework against frozen rubric snapshots. |
+| Admin CMS and grading terminal | A role-protected workspace with a dedicated Supabase SSR login where administrators configure classes, assign syllabi, author lesson content, manage the public portfolio, and evaluate homework against frozen rubric snapshots. |
 | Self-evolving RAG and knowledge base CMS | A production-grade telemetry panel with `pgvector` and HNSW cosine index support for drag-and-drop file ingestion, a real-time playground, and visual semantic search drawer overrides to guide lesson composition. |
 | Retro-terminal AI grading dossier | A high-impact CRT electron-beam console displaying ASCII confidence ratings, granular selection grids, and structured telemetry injections for AI-assisted grading assessments. |
 | Multi-format materials pipeline | Automatically processes PDF, DOCX, CSV, and XLSX deliverables, creating polished web readviews and preview grids. |
@@ -78,6 +78,7 @@ graph LR
 
 | Step | Flow |
 | --- | --- |
+| Authentication | Administrators sign in at `/admin/login`; the server refreshes the Supabase cookie session and authorizes roles from protected `app_metadata`. |
 | Curriculum design | Admins manage subjects, courses, modules, and lessons directly via the inline syllabus designer inside `/admin/library`, and compose materials using a guided 3-step or 4-step wizard (dynamically skipping step 4 if there are no approved essay/coding questions) in the lesson editor. |
 | Class operations | Admins set up cohorts on `/admin/classes`, enabling whitelisting and generating custom access codes. |
 | Rubric snapshotting | Captures a frozen criteria snapshot upon saving assignments to prevent grading drift. |
@@ -183,9 +184,19 @@ Open [http://localhost:3000](http://localhost:3000) to view the system.
 ### Build and Test Production
 
 ```bash
+npm run lint
+npm run test
 npm run build
 npm run start
 ```
+
+The default test suite is read-only against Supabase. A live write-path smoke test is available only for an explicitly approved linked staging project:
+
+```bash
+node --env-file=.env.local scripts/live-staging-smoke.mjs --confirm-live
+```
+
+It creates only disposable `CODEX_QA_*` records and removes its database rows, storage objects, and temporary Auth user in a `finally` cleanup.
 
 ---
 
@@ -195,7 +206,7 @@ npm run start
 | --- | --- |
 | Web application | Next.js, React, TypeScript |
 | Styling | Tailwind CSS |
-| Data platform | Supabase, PostgreSQL, `pgvector` |
+| Data platform | Supabase Auth/SSR, PostgreSQL, Storage, RLS, `pgvector` |
 | Backend worker | Python, FastAPI |
 | Knowledge retrieval | HNSW cosine index, RRF hybrid retrieval |
 | AI providers | Gemini, Groq, OpenRouter, Ollama |

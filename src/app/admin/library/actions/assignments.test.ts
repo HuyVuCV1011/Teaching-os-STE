@@ -15,13 +15,17 @@ vi.mock('@/lib/jwt', () => ({
   verifyJWT: vi.fn(),
 }))
 
+vi.mock('@/lib/admin-auth', () => ({
+  requireAdminUser: vi.fn().mockResolvedValue({ userId: 'admin-user', role: 'admin' }),
+}))
+
 import { generateAssignmentQuestionsAction } from './assignments'
 
 test('test generateAssignmentQuestionsAction', async () => {
   const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
     ok: true,
     json: async () => ({ questions: [] }),
-  } as any)
+  } as Response)
 
   const res = await generateAssignmentQuestionsAction({
     modelChoice: 'ollama',

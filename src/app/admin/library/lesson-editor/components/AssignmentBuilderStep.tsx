@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Sparkles, Upload, FileText, Database, BookOpen, Trash2, FileUp, Paperclip, Loader2 } from 'lucide-react'
+import { Sparkles, Upload, FileText, Database, BookOpen, Trash2, FileUp, Loader2 } from 'lucide-react'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 
 interface AssignmentFileItem {
@@ -21,7 +21,7 @@ interface QuestionItem {
   status: 'pending' | 'approved' | 'rejected'
   answerFormat?: 'text' | 'file' | 'both'
   answerSource?: 'ai_generated' | 'file_import' | 'teacher_edit'
-  data?: any
+  data?: unknown
   source: 'ai_generator' | 'file_import'
   source_file?: string | null
   points?: number
@@ -50,8 +50,8 @@ const AI_MODEL_OPTIONS = [
 interface AssignmentBuilderStepProps {
   hasAssignment: boolean
   setHasAssignment: (val: boolean) => void
-  assignmentForm: any
-  setAssignmentForm: React.Dispatch<React.SetStateAction<any>>
+  assignmentForm: AssignmentForm
+  setAssignmentForm: React.Dispatch<React.SetStateAction<AssignmentForm>>
   title: string
   assignmentId: string
   batches: BatchItem[]
@@ -71,8 +71,8 @@ interface AssignmentBuilderStepProps {
   setClassifyDownloadable: (val: boolean) => void
   setClassifyPreviewable: (val: boolean) => void
   setClassifyModalOpen: (val: boolean) => void
-  pinnedChunks?: any[]
-  setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
+  pinnedChunks?: PinnedKnowledgeChunk[]
+  setPinnedChunks?: React.Dispatch<React.SetStateAction<PinnedKnowledgeChunk[]>>
   setActiveBatchIndex: (val: number) => void
   promptFile: File | null
   setPromptFile: (val: File | null) => void
@@ -89,6 +89,28 @@ interface AssignmentBuilderStepProps {
   setSelectedModel: (val: string) => void
 }
 
+interface AssignmentForm {
+  title: string
+  maxScore: number
+  maxFiles: number
+  maxTotalSizeMb: number
+  autoPublishGrades: boolean
+  gracePeriodHours: number
+  penaltyPercentPerDay: number
+  mcqWeightPercent: number
+  essayWeightPercent: number
+  instructions: string
+}
+
+interface PinnedKnowledgeChunk {
+  chunk_id: string
+  content: string
+  score?: number | string | null
+  citation?: {
+    knowledge_source_title?: string | null
+  } | null
+}
+
 export function AssignmentBuilderStep({
   hasAssignment,
   setHasAssignment,
@@ -101,18 +123,10 @@ export function AssignmentBuilderStep({
   setDataFiles,
   referenceFiles,
   setReferenceFiles,
-  asgDragActive,
   setModalStep,
   setShowAiModal,
   handleDeleteBatch,
   setShowBatchSummaryModal,
-  handleAsgDrag,
-  handleAsgDrop,
-  setClassifyFile,
-  setClassifyType,
-  setClassifyDownloadable,
-  setClassifyPreviewable,
-  setClassifyModalOpen,
   pinnedChunks = [],
   setPinnedChunks,
   setActiveBatchIndex,
@@ -169,7 +183,7 @@ export function AssignmentBuilderStep({
                 onClick={() => {
                   setHasAssignment(true)
                   if (!assignmentForm.title) {
-                    setAssignmentForm((prev: any) => ({ ...prev, title: title + ' Assignment' }))
+                    setAssignmentForm((prev) => ({ ...prev, title: title + ' Assignment' }))
                   }
                 }}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
@@ -377,7 +391,7 @@ export function AssignmentBuilderStep({
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           const file = e.target.files[0]
-                          setDataFiles((prev: any) => [
+                          setDataFiles((prev) => [
                             ...prev,
                             {
                               name: file.name,
@@ -410,7 +424,7 @@ export function AssignmentBuilderStep({
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           const file = e.target.files[0]
-                          setReferenceFiles((prev: any) => [
+                          setReferenceFiles((prev) => [
                             ...prev,
                             {
                               name: file.name,
@@ -540,7 +554,7 @@ export function AssignmentBuilderStep({
                         </span>
                         <button
                           type="button"
-                          onClick={() => setDataFiles((prev: any) => prev.filter((_: any, i: any) => i !== idx))}
+                          onClick={() => setDataFiles((prev) => prev.filter((_, i) => i !== idx))}
                           className="text-rose-600 hover:text-rose-700 font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600/20 rounded"
                         >
                           [Delete]
@@ -567,7 +581,7 @@ export function AssignmentBuilderStep({
                         </span>
                         <button
                           type="button"
-                          onClick={() => setReferenceFiles((prev: any) => prev.filter((_: any, i: any) => i !== idx))}
+                          onClick={() => setReferenceFiles((prev) => prev.filter((_, i) => i !== idx))}
                           className="text-rose-600 hover:text-rose-700 font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600/20 rounded"
                         >
                           [Delete]

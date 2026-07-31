@@ -9,8 +9,25 @@ import { parseAssignmentInstructions } from '@/lib/assignment'
 
 interface LessonSidebarProps {
   classCode: string
-  assignmentsData: any[] | null
-  links: any[]
+  assignmentsData: LessonAssignment[] | null
+  links: LessonResourceLink[]
+}
+
+interface LessonAssignment {
+  id: string
+  title: string
+  instructions?: string | null
+}
+
+interface LessonResourceLink {
+  id: string
+  title: string
+  type: string
+  storage_url: string
+}
+
+interface ParsedInstructionQuestion {
+  content?: string
 }
 
 export function LessonSidebar({
@@ -37,7 +54,7 @@ export function LessonSidebar({
                     const parsedObj = parseAssignmentInstructions(instr)
                     if (parsedObj) {
                       if (Array.isArray(parsedObj)) {
-                        return `${parsedObj.length} Questions: ` + parsedObj.map((q: any, idx: number) => `Q${idx + 1}: ${q.content}`).join('; ')
+                        return `${parsedObj.length} Questions: ` + parsedObj.map((q: ParsedInstructionQuestion, idx: number) => `Q${idx + 1}: ${typeof q.content === 'string' ? q.content : ''}`).join('; ')
                       } else {
                         const qCount = parsedObj.questions?.length || 0
                         const dfCount = parsedObj.data_files?.length || 0

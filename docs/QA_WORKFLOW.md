@@ -37,6 +37,10 @@ Phase 5 - Consolidate
 3. Chạy `npm run build` khi khả thi.
 4. Mở local dev server trong Chrome và kiểm tra thủ công các route liên quan.
 
+Theo mặc định, `npm run test` không được thay đổi dữ liệu Supabase live. Chỉ bật integration check bằng `RUN_SUPABASE_INTEGRATION_TESTS=true`, và các check này phải giữ read-only trừ khi đã chọn một project test dùng riêng.
+
+Khi cần xác minh write path trên project linked và user đã phê duyệt rõ ràng, dùng `node --env-file=.env.local scripts/live-staging-smoke.mjs --confirm-live`. Script chỉ tạo dữ liệu có tiền tố `CODEX_QA_`, kiểm tra RLS/Auth/CRUD/storage/submission/grading/portfolio, và dọn các row, storage object, auth user đã tạo trong khối `finally`. Sau khi chạy vẫn phải truy vấn xác nhận không còn dữ liệu staging.
+
 **Khi nhận bug từ exploratory agent:**
 - Sửa lỗi trong code logic.
 - Xác nhận lỗi đã được khắc phục thông qua type check, unit tests, build, hoặc manual browser check phù hợp.
@@ -66,7 +70,7 @@ Khi có agent kiểm thử chuyên trách, agent đó có thể dùng các scrip
 2. Open `http://localhost:3000`.
 3. Check public home, project detail, learner login, learner dashboard, roadmap, lesson, assignment workspace, grades, admin dashboard, classes, library, knowledge hub, projects CMS, grading queue, and similarity audit.
 4. Use a whitelisted learner test identity from Supabase for learner login. Do not commit private emails or credentials.
-5. Use `BYPASS_ADMIN_AUTH=true` only in local development when testing admin routes.
+5. Prefer `/admin/login` with a disposable Supabase Auth user whose role is stored in `app_metadata`. Use `BYPASS_ADMIN_AUTH=true` only for local UI smoke tests, never in production.
 6. Capture screenshots locally when needed, but do not commit screenshots or browser issue reports unless explicitly requested.
 7. Review console errors and obvious network failures.
 
@@ -77,6 +81,13 @@ Khi có agent kiểm thử chuyên trách, agent đó có thể dùng các scrip
 3. Consolidate confirmed bugs.
 4. Run regression checks.
 5. Deploy only when the user explicitly approves deployment.
+
+## Dependency Audit Policy
+
+- Run `npm audit --omit=dev` and `npm audit` before release-oriented commits.
+- Apply compatible fixes with `npm audit fix`, then rerun typecheck, lint, tests, and production build.
+- Never use `npm audit fix --force` when npm proposes a framework downgrade or another breaking major change. Record remaining upstream/transitive advisories and track the patched framework release instead.
+- As of 2026-08-01 this repository resolves Next.js 15.5.22, newer than the 15.5.21 Maintenance LTS security release. npm still reports upstream transitive advisories for Next.js-bundled PostCSS/Sharp and tooling dependencies; forcing npm's proposed downgrade to Next.js 9 is not an acceptable remediation.
 
 ## Prompt cho Antigravity — Review QA_WORKFLOW.md
 

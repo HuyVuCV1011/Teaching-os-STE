@@ -14,19 +14,85 @@ import {
   FileCheck, 
   FolderOpen, 
   CheckCircle,
-  Eye,
   EyeOff,
   ExternalLink,
   ChevronRight,
   Maximize2
 } from 'lucide-react'
-import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
-import { parseAssignmentInstructions } from '@/lib/assignment'
+import { parseAssignmentInstructions, type ParsedAssignmentQuestion } from '@/lib/assignment'
+
+interface LessonForPresentation {
+  title: string
+  content?: string | null
+  order_index?: number | null
+  modules?: {
+    title?: string | null
+    courses?: {
+      title?: string | null
+    } | null
+  } | null
+}
+
+interface PresentationMaterial {
+  id: string
+  title: string
+  type: string
+  storage_url?: string | null
+  signedUrl?: string | null
+  visibility?: string | null
+  metadata?: {
+    viewer_artifact?: {
+      viewer_markdown?: string
+      headers?: string[]
+      rows?: unknown[][]
+      row_count?: number
+      col_count?: number
+    }
+    extracted_text?: string
+  } | null
+}
+
+interface PresentationAssignment {
+  id: string
+  title: string
+  instructions?: string | null
+  max_score?: number | null
+  rubrics?: Rubric | Rubric[] | null
+}
+
+interface Rubric {
+  id?: string
+  title?: string | null
+  description?: string | null
+  rubric_criteria?: RubricCriterion[]
+}
+
+interface RubricCriterion {
+  id: string
+  name: string
+  description?: string | null
+  weight?: string | number | null
+  max_score?: number | null
+  max_points?: number | null
+}
+
+interface MermaidApi {
+  initialize: (config: Record<string, unknown>) => void
+  run: () => Promise<void> | void
+}
+
+type MermaidWindow = Window & {
+  mermaid?: MermaidApi
+}
+
+type MermaidElement = Element & {
+  _originalText?: string | null
+}
 
 interface PresentationViewClientProps {
-  lesson: any
-  materials: any[]
-  assignments: any[]
+  lesson: LessonForPresentation
+  materials: PresentationMaterial[]
+  assignments: PresentationAssignment[]
 }
 
 export default function PresentationViewClient({
@@ -36,7 +102,7 @@ export default function PresentationViewClient({
 }: PresentationViewClientProps) {
   const [activeTab, setActiveTab] = useState<'slides' | 'theory' | 'practice' | 'assignments'>('slides')
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false)
-  const [selectedMaterial, setSelectedMaterial] = useState<any>(null)
+  const [selectedMaterial, setSelectedMaterial] = useState<PresentationMaterial | null>(null)
 
   // Find default slide material (first pdf or markdown slide)
   const slidesList = materials.filter(m => 
@@ -84,12 +150,16 @@ export default function PresentationViewClient({
       const mermaidElements = document.querySelectorAll('.mermaid')
       if (mermaidElements.length === 0) return
 
-      if (!(window as any).mermaid) {
+      const mermaidWindow = window as MermaidWindow
+
+      if (!mermaidWindow.mermaid) {
         const script = document.createElement('script')
         script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js'
         script.async = true
         script.onload = () => {
-          const mermaid = (window as any).mermaid
+          const mermaid = mermaidWindow.mermaid
+          if (!mermaid) return
+
           mermaid.initialize({
             startOnLoad: false,
             theme: 'neutral',
@@ -104,13 +174,14 @@ export default function PresentationViewClient({
         mermaidElements.forEach(el => {
           el.removeAttribute('data-processed')
           // If the element has been mutated, we should restore its original text if saved
-          const originalText = (el as any)._originalText || el.textContent
+          const mermaidElement = el as MermaidElement
+          const originalText = mermaidElement._originalText || el.textContent
           if (originalText) {
-            (el as any)._originalText = originalText
+            mermaidElement._originalText = originalText
             el.textContent = originalText
           }
         })
-        ;(window as any).mermaid.run()
+        mermaidWindow.mermaid.run()
       }
     }
 
@@ -230,7 +301,7 @@ export default function PresentationViewClient({
                         title={selectedMaterial.title} 
                       />
                     ) : (
-                      <DocumentViewer url={selectedMaterial.signedUrl} title={selectedMaterial.title} />
+                      <DocumentViewer url={selectedMaterial.signedUrl || selectedMaterial.storage_url || ''} title={selectedMaterial.title} />
                     )}
                   </div>
                 </div>
@@ -306,11 +377,11 @@ export default function PresentationViewClient({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-850 bg-slate-950">
-                              {rows.slice(0, 5).map((row: any[], i: number) => (
+                              {rows.slice(0, 5).map((row: unknown[], i: number) => (
                                 <tr key={i} className="hover:bg-slate-900/40 transition-colors">
-                                  {row.map((cell: any, j: number) => (
+                                  {row.map((cell: unknown, j: number) => (
                                     <td key={j} className="px-3.5 py-2.5 text-slate-650 border-r border-slate-850 last:border-0 truncate max-w-[120px]">
-                                      {cell}
+                                      {String(cell ?? '')}
                                     </td>
                                   ))}
                                 </tr>
@@ -382,11 +453,11 @@ export default function PresentationViewClient({
                         {(() => {
                           const parsedObj = parseAssignmentInstructions(assign.instructions)
                           if (parsedObj) {
-                            const questionsList = (parsedObj.questions || []).filter((q: any) => !q.status || q.status === 'approved')
+                            const questionsList = (Array.isArray(parsedObj) ? parsedObj : parsedObj.questions || []).filter((q) => !q.status || q.status === 'approved')
                             if (questionsList.length > 0) {
                               return (
                                 <div className="space-y-3">
-                                  {questionsList.map((q: any, qIdx: number) => (
+                                  {questionsList.map((q: ParsedAssignmentQuestion, qIdx: number) => (
                                     <div key={q.id || qIdx} className="bg-slate-950 border border-slate-800/80 p-4 rounded-xl space-y-2.5 text-left shadow-sm">
                                       <div className="flex items-center justify-between pb-2 border-b border-slate-900">
                                         <span className="text-sm font-semibold text-slate-500">
@@ -435,19 +506,23 @@ export default function PresentationViewClient({
                         })()}
 
                         {/* Rubrics Matrix Section */}
-                        {assign.rubrics && (
+                        {(() => {
+                          const rubric = Array.isArray(assign.rubrics) ? assign.rubrics[0] : assign.rubrics
+                          if (!rubric) return null
+
+                          return (
                           <div className="mt-6 pt-6 border-t border-slate-800 space-y-4 text-left">
                             <div>
                               <span className="text-xs text-emerald-600 font-semibold">Tiêu chí đánh giá (Rubric)</span>
-                              <h4 className="text-sm font-bold text-slate-100 mt-0.5">{assign.rubrics.title}</h4>
-                              {assign.rubrics.description && (
-                                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{assign.rubrics.description}</p>
+                              <h4 className="text-sm font-bold text-slate-100 mt-0.5">{rubric.title}</h4>
+                              {rubric.description && (
+                                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{rubric.description}</p>
                               )}
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                              {(assign.rubrics.rubric_criteria || []).map((crit: any) => {
-                                const weightVal = parseFloat(crit.weight || '1');
+                              {(rubric.rubric_criteria || []).map((crit) => {
+                                const weightVal = parseFloat(String(crit.weight || '1'));
                                 return (
                                   <div key={crit.id} className="bg-slate-950 border border-slate-850 p-4 rounded-xl space-y-3 flex flex-col justify-between hover:border-slate-800 transition-all">
                                     <div className="space-y-1">
@@ -458,7 +533,7 @@ export default function PresentationViewClient({
                                             w: {weightVal.toFixed(1)}x
                                           </span>
                                           <span className="text-[8px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">
-                                            {crit.max_points} pts
+                                            {crit.max_points ?? crit.max_score ?? 0} pts
                                           </span>
                                         </div>
                                       </div>
@@ -484,7 +559,8 @@ export default function PresentationViewClient({
                               })}
                             </div>
                           </div>
-                        )}
+                          )
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -662,7 +738,7 @@ export default function PresentationViewClient({
                     {externalLinks.map((m) => (
                       <a
                         key={m.id}
-                        href={m.storage_url}
+                        href={m.storage_url || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full p-2.5 rounded-xl text-left text-xs bg-slate-900 text-slate-500 border border-transparent hover:bg-slate-950/40 hover:text-slate-300 transition-all flex items-center justify-between group"
@@ -714,12 +790,6 @@ export default function PresentationViewClient({
       </main>
     </div>
   )
-}
-
-// Client helper: Extract basename
-function os_basename(path: string): string {
-  const parts = path.split('/')
-  return parts[parts.length - 1]
 }
 
 // Client helper: Get Supabase public URL

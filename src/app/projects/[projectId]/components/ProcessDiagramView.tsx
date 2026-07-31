@@ -1,25 +1,29 @@
 'use client'
 
 import React from 'react'
-import ReactFlow, { Controls, Node, Edge } from 'reactflow'
+import ReactFlow, {
+  Controls,
+  Edge,
+  Node,
+  type OnEdgesChange,
+  type OnNodesChange,
+} from 'reactflow'
 import 'reactflow/dist/style.css'
 import { CustomNode } from '@/components/ui/FlowDiagram'
 
 interface ProcessDiagramViewProps {
   nodes: Node[]
-  setNodes: any // required by ReactFlow hooks
-  onNodesChange: any
+  onNodesChange: OnNodesChange
   edges: Edge[]
-  setEdges: any
-  onEdgesChange: any
+  onEdgesChange: OnEdgesChange
 }
+
+const nodeTypes = { customNode: CustomNode }
 
 export function ProcessDiagramView({
   nodes,
-  setNodes,
   onNodesChange,
   edges,
-  setEdges,
   onEdgesChange,
 }: ProcessDiagramViewProps) {
   return (
@@ -36,7 +40,7 @@ export function ProcessDiagramView({
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        nodeTypes={{ customNode: CustomNode }}
+        nodeTypes={nodeTypes}
         fitView
       >
         <Controls />

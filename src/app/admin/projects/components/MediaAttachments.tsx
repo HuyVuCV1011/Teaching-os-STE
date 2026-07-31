@@ -66,6 +66,11 @@ export function MediaAttachments({
             Currently uploaded: {existingThumbnails.length} image(s). Uploading new images will replace them.
           </div>
         )}
+        {thumbnails.length > 0 && (
+          <div className="text-[10px] text-blue-600 mt-1.5">
+            Selected for upload: {thumbnails.length} image(s).
+          </div>
+        )}
       </div>
 
       <div>
@@ -82,6 +87,11 @@ export function MediaAttachments({
         {existingFiles.length > 0 && (
           <div className="text-[10px] text-slate-500 mt-1.5">
             Currently uploaded: {existingFiles.length} PDF(s). Uploading new files will replace them.
+          </div>
+        )}
+        {files.length > 0 && (
+          <div className="text-[10px] text-blue-600 mt-1.5">
+            Selected for upload: {files.length} PDF(s).
           </div>
         )}
       </div>

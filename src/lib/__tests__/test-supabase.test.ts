@@ -21,34 +21,21 @@ if (fs.existsSync(envPath)) {
 
 import { describe, it, expect } from 'vitest'
 
-describe('Supabase Cohort Cleanup', () => {
-  it('should find and delete existing E2E-LEARN classes', async () => {
+const describeIntegration = process.env.RUN_SUPABASE_INTEGRATION_TESTS === 'true'
+  ? describe
+  : describe.skip
+
+describeIntegration('Supabase read-only integration', () => {
+  it('can read the classes table without mutating live data', async () => {
     const { getSupabaseServer } = await import('../supabase')
     const supabase = getSupabaseServer(true)
-    
-    // Check if class exists
-    const { data: existingClasses } = await supabase
+
+    const { data, error } = await supabase
       .from('classes')
       .select('id')
-      .eq('class_code', 'E2E-LEARN')
-    
-    console.log('EXISTING E2E-LEARN CLASSES:', existingClasses)
-    
-    if (existingClasses && existingClasses.length > 0) {
-      for (const cls of existingClasses) {
-        // Delete related schedules, enrollments, courses, etc.
-        await supabase.from('class_schedules').delete().eq('class_id', cls.id)
-        await supabase.from('class_enrollments').delete().eq('class_id', cls.id)
-        await supabase.from('class_courses').delete().eq('class_id', cls.id)
-        const { error: delErr } = await supabase.from('classes').delete().eq('id', cls.id)
-        console.log(`Deleted class ${cls.id}:`, delErr)
-      }
-    }
-    
-    const { data: verifyClasses } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('class_code', 'E2E-LEARN')
-    expect(verifyClasses?.length || 0).toBe(0)
+      .limit(1)
+
+    expect(error).toBeNull()
+    expect(Array.isArray(data)).toBe(true)
   })
 })

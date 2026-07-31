@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /.next-dev/
+/.next-codex-*/
 /out/
 
 # production
@@ -33,6 +34,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+!rubricore-engine/.env.example
 
 # vercel
 .vercel
@@ -67,6 +70,7 @@ docs/specs/AGENTS.md
 *.db
 *.sqlite
 *.sqlite3
+/supabase/.temp/
 
 # Agent run instructions
 run_guide.md
@@ -74,6 +78,9 @@ run_guide.md
 # Local agent dependencies and tools
 .agents/
 skills-lock.json
+
+# Private assessment fixtures and student evidence (keep local only)
+/rubricore-engine/tests/fixtures/private/
 
 # Local machine-specific user simulation tests
 src/__tests__/simulate_real_user.test.ts

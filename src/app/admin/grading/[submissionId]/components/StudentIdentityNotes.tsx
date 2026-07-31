@@ -5,11 +5,30 @@ import { User, AlertCircle } from 'lucide-react'
 import { formatDateTime } from '@/lib/date'
 
 interface StudentIdentityNotesProps {
-  submission: any
+  submission: SubmissionSummary | null
   dueDate: string | null
-  lateInfo: any
+  lateInfo: LateInfo | null
   applyLatePenalty: boolean
   setApplyLatePenalty: (val: boolean) => void
+}
+
+interface SubmissionSummary {
+  student_identifier?: string | null
+  submitted_at?: string | null
+  submitted_text?: string | null
+  assignments?: {
+    late_policy?: {
+      grace_period_hours?: number | null
+    } | null
+  } | null
+}
+
+interface LateInfo {
+  isLate?: boolean
+  hoursLate: number
+  inGracePeriod?: boolean
+  daysLate?: number
+  deductionPercent: number
 }
 
 export function StudentIdentityNotes({

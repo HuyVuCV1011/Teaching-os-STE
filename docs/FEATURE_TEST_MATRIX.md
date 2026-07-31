@@ -1,6 +1,6 @@
 # Teaching OS Feature Inventory & Test Matrix
 
-Last reviewed: 2026-06-30
+Last reviewed: 2026-08-01
 
 This document records the current product surface and the non-E2E verification plan for Teaching-os-STE. It is safe to commit publicly: it does not include secrets, private account emails, screenshots, or local browser findings.
 
@@ -22,7 +22,7 @@ Supporting services:
 | Area | Current Features |
 |---|---|
 | Home `/` | Header, floating navigation, hero, metrics stack, about/approach sections, project showcase, before/after showcase, student projects, system architecture, testimonials, and footer contact CTA. |
-| Projects `/projects` | Redirects to the home project section. |
+| Projects `/projects` | Server-rendered registry of live customer projects with local fallback data, project taxonomy labels, metadata, and links to case-study details. |
 | Project detail `/projects/[projectId]` | Dynamic project metadata from Supabase with fallback local data, thumbnail/PDF/media support, table of contents, project description, document viewer, and process diagram rendering. |
 | Certificate verification `/verify/[certHash]` | Looks up certificate hash, renders learner/class/course verification state, shows issued certificate details, and handles invalid/missing hashes. |
 | Static assets | Tool icons, images, PDFs, project thumbnails, and generated public visual assets under `public/`. |
@@ -45,7 +45,8 @@ Supporting services:
 
 | Area | Current Features |
 |---|---|
-| Admin middleware | Protects `/admin/*`, supports Supabase admin role checks, and supports local dev bypass through `BYPASS_ADMIN_AUTH=true`. |
+| Admin sign-in `/admin/login` | Email/password sign-in through Supabase SSR cookies, generic error responses, safe return-path handling, and role authorization from server-controlled `app_metadata`. |
+| Admin middleware | Protects `/admin/*`, refreshes Supabase SSR sessions, verifies the current user with Supabase Auth, requires an allowed `app_metadata.role`, sets private/no-index headers, and supports local dev bypass through `BYPASS_ADMIN_AUTH=true`. |
 | Dashboard `/admin` | Counts for subjects, courses/classes, pending submissions, and quick navigation to admin workspaces. |
 | Classes `/admin/classes` | Class cohort CRUD, primary course assignment, many-course mapping, status tracking, student whitelist management, notice board, schedule generation, schedule editing, and class analytics. |
 | Class analytics | Average grade, submission rate, grading backlog, grade distribution, concept difficulty, and at-risk learner indicators. |
@@ -66,7 +67,7 @@ Supporting services:
 | `POST /api/v1/verify-code` | Validates class code and whitelisted student email, requires running class status, signs learner JWT, sets class-scoped cookies, and returns dashboard redirect data. |
 | `POST /api/v1/logout` | Clears class-scoped learner cookies. |
 | `POST /api/v1/grading/callback` | Validates RubriCore callback token, handles idempotency, stores grading result and criterion scores, and supports auto-publish metadata. |
-| `POST /api/v1/generate-assignment` | Proxies assignment generation requests to RubriCore. |
+| `POST /api/v1/generate-assignment` | Requires an authorized Admin session, validates input limits, and proxies assignment generation requests to RubriCore. |
 
 ## RubriCore Engine Features
 
@@ -86,9 +87,10 @@ Codex/Antigravity should not write or run Playwright E2E tests in this project. 
 | TypeScript | `npx tsc --noEmit` | No TypeScript errors. |
 | Unit tests | `npm run test` | All Vitest tests pass. |
 | Production build | `npm run build` | Next.js production compilation completes without runtime build errors. |
-| Lint status | `npm run lint` | Known limitation: `next lint` is deprecated in Next 15 and currently reports existing lint debt. Do not hide this result. |
+| Lint status | `npm run lint` | ESLint checks application source and Next.js configuration without warnings or errors. |
 | Manual browser QA | Chrome extension or browser at `http://localhost:3000` | Key public, learner, and admin routes render without blank screens, obvious layout breakage, or console runtime errors. |
 | Secret hygiene | `.gitignore`, `git status`, staged diff review | `.env*`, local databases, generated reports, traces, screenshots, and private specs are not staged. |
+| Isolated live staging | `node --env-file=.env.local scripts/live-staging-smoke.mjs --confirm-live` | Uses only `CODEX_QA_*` data, covers RLS/Auth/CRUD/storage/submission/grading/portfolio flows, and removes every created row, object, and auth user in `finally`. Run only with explicit approval against the linked project. |
 
 ## Manual Route Test Matrix
 
@@ -103,6 +105,7 @@ Use a whitelisted learner test identity from Supabase for learner login. Do not 
 | P0 | Lesson reader | Lesson content renders, material preview modes open, completion button updates state or shows current completion, discussion section renders, AI tutor drawer opens without crashing. |
 | P0 | Assignment workspace | Instructions render, question fields accept input, upload validation blocks invalid count/size, submit path handles missing/valid inputs safely. |
 | P0 | Admin dashboard | Dev bypass or admin session reaches dashboard, counters render, quick links navigate. |
+| P0 | Admin login `/admin/login` | Invalid credentials show a generic error, a valid allowed role reaches the requested Admin path, non-admin roles are signed out, and logout returns to the login page. |
 | P0 | Classes CMS | Class list loads, tab navigation works, whitelist/schedule/notice/analytics sections render. Avoid destructive data edits unless explicitly requested. |
 | P0 | Library CMS | Subjects/courses/modules/lessons render, search works, tabs switch between timeline, subjects, assignments, and knowledge surfaces. |
 | P0 | Lesson editor | Editor shell loads, material/assignment/rubric steps switch, existing data can be viewed. Avoid uploading or overwriting production materials during smoke tests. |
@@ -120,4 +123,5 @@ Use a whitelisted learner test identity from Supabase for learner login. Do not 
 - Feature inventory and test matrix are updated when a major surface is added or removed.
 - Browser findings and screenshots stay out of committed markdown unless the user explicitly asks for a public QA report.
 - `.env.local`, service-role keys, JWT secrets, webhook tokens, local DB files, traces, screenshots, and generated reports remain ignored/untracked.
-- Build/type/test results are reported honestly, including known lint debt.
+- Live Supabase integration checks are read-only by default. The isolated write smoke script additionally requires `--confirm-live`, explicit user approval, a linked project, and successful cleanup verification.
+- Build/type/test/lint results are reported honestly, including any residual warnings or environment limitations.

@@ -42,4 +42,4 @@ Core specifications detailing:
 - JWT verify-code payload contracts
 - Webhook encryption signatures
 
-are kept in private repository volumes. When implementing changes, ensure RLS constraints are maintained and public routes never expose user session records.
+Public migrations and sanitized contracts remain versioned, while credentials, local environment files, generated reports, and `rubricore-engine/tests/fixtures/private/` stay local through `.gitignore`. Never commit real student evidence, private account identifiers, service-role keys, JWT secrets, or callback tokens. When implementing changes, preserve RLS constraints and never expose user session records from public routes.

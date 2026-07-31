@@ -1,53 +1,59 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { getSupabaseServer } from '@/lib/supabase'
-import { verifyJWT } from '@/lib/jwt'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
+import { requireAdminUser } from '@/lib/admin-auth'
 
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
 
+type ApiErrorResponse = {
+  detail?: string
+}
+
+type KnowledgeSourcesResponse = {
+  sources?: KnowledgeSourceResult[]
+}
+
+type KnowledgeQueryResponse = {
+  results?: RetrievedChunkResult[]
+}
+
+type KnowledgeSourceResult = {
+  id: string
+  title: string
+  version_number: number
+  access_scope: string
+  conversion_status: string
+  status: string
+  summary: string | null
+  original_filename: string
+  chunks_count: number
+  created_at: string | null
+  metadata_payload?: {
+    original_filename?: unknown
+  } | null
+}
+
+type RetrievedChunkResult = {
+  chunk_id: string
+  knowledge_source_id: string
+  heading_path: string[]
+  content: string
+  score: number
+  matched_terms: string[]
+  citation: {
+    knowledge_source_title?: string
+    knowledge_source_version_number?: number
+    access_scope?: string
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
+
 async function checkAdminAuth() {
-  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_ADMIN_AUTH === 'true') {
-    return { userId: '00000000-0000-0000-0000-000000000000' }
-  }
-
-  const cookieStore = await cookies()
-  const sbToken = cookieStore.get('sb-access-token') || cookieStore.get('supabase-auth-token')
-
-  if (!sbToken) {
-    throw new Error('Unauthorized: No authentication token found')
-  }
-
-  const secret = process.env.SUPABASE_JWT_SECRET
-  let payload: any = null
-
-  if (secret) {
-    payload = await verifyJWT(sbToken.value, secret)
-  } else {
-    const parts = sbToken.value.split('.')
-    if (parts.length === 3) {
-      payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-    }
-  }
-
-  if (!payload) {
-    throw new Error('Unauthorized: Invalid token payload')
-  }
-
-  const role = payload.app_metadata?.role || payload.role
-  const isAuthorized = [
-    'admin',
-    'teacher',
-    'super-admin',
-    'content-admin',
-    'class-operator'
-  ].includes(role)
-
-  if (!isAuthorized) {
-    throw new Error('Unauthorized: Insufficient privileges')
-  }
-
-  return { userId: payload.sub }
+  return requireAdminUser()
 }
 
 async function resolveOrganizationId() {
@@ -59,10 +65,10 @@ async function resolveOrganizationId() {
     .single()
 
   if (error || !org) {
-    throw new Error(`Failed to resolve organization boundary: ${error?.message || 'Not found'}`)
+    throw new Error(getSupabaseFetchErrorMessage(error, 'Không thể xác định organization mặc định.'))
   }
 
-  return org.id
+  return org.id as string
 }
 
 async function getKnowledgeSourcesFromSupabase(organizationId: string) {
@@ -108,7 +114,7 @@ async function getKnowledgeSourcesFromSupabase(organizationId: string) {
         ? source.metadata_payload.original_filename
         : '',
     chunks_count: chunkCounts.get(source.id) || 0,
-  }))
+  })) as KnowledgeSourceResult[]
 }
 
 /**
@@ -130,14 +136,14 @@ export async function uploadKnowledgeAction(formData: FormData) {
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Knowledge upload failed in RAG engine')
     }
 
     return { success: true, data: await res.json() }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to upload RAG knowledge source:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -160,11 +166,11 @@ export async function getKnowledgeSourcesAction() {
       })
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
+        const errData = await res.json().catch(() => ({})) as ApiErrorResponse
         throw new Error(errData.detail || 'Failed to list knowledge sources')
       }
 
-      const data = await res.json()
+      const data = await res.json() as KnowledgeSourcesResponse
       const sources = data.sources || []
       if (sources.length > 0) {
         return { success: true, sources }
@@ -177,9 +183,9 @@ export async function getKnowledgeSourcesAction() {
       success: true,
       sources: await getKnowledgeSourcesFromSupabase(orgId),
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to get knowledge sources:', error)
-    return { success: false, error: error.message, sources: [] }
+    return { success: false, error: getErrorMessage(error), sources: [] }
   }
 }
 
@@ -201,14 +207,14 @@ export async function deleteKnowledgeSourceAction(id: string) {
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Failed to delete knowledge source')
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to delete knowledge source:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -242,15 +248,15 @@ export async function searchKnowledgeAction(
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Knowledge query failed in RAG engine')
     }
 
-    const data = await res.json()
+    const data = await res.json() as KnowledgeQueryResponse
     return { success: true, results: data.results || [] }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to search RAG knowledge:', error)
-    return { success: false, error: error.message, results: [] }
+    return { success: false, error: getErrorMessage(error), results: [] }
   }
 }
 
@@ -268,9 +274,9 @@ export async function getKnowledgeSourceChunksAction(sourceId: string) {
       .order('position')
 
     if (error) throw error
-    return { success: true, chunks: chunks || [] }
-  } catch (error: any) {
+    return { success: true, chunks: (chunks || []) as RetrievedChunkResult[] }
+  } catch (error) {
     console.error('Failed to get knowledge source chunks:', error)
-    return { success: false, error: error.message, chunks: [] }
+    return { success: false, error: getErrorMessage(error), chunks: [] }
   }
 }

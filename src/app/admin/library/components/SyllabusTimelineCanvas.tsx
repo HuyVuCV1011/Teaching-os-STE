@@ -8,25 +8,55 @@ import { deleteLessonAction, deleteModuleAction } from '../actions/courses'
 import { toast } from 'react-hot-toast'
 
 interface SyllabusTimelineCanvasProps {
-  selectedCourse: any | null
-  courseModules: any[]
+  selectedCourse: CourseRow | null
+  courseModules: ModuleRow[]
   showModuleForm: boolean
   setShowModuleForm: (val: boolean) => void
   moduleForm: { title: string; order_index: number }
-  setModuleForm: React.Dispatch<React.SetStateAction<any>>
+  setModuleForm: React.Dispatch<React.SetStateAction<{ title: string; order_index: number }>>
   handleAddModule: (e: React.FormEvent) => void
   showLessonForm: boolean
   setShowLessonForm: (val: boolean) => void
   lessonForm: { title: string; order_index: number; moduleId: string }
-  setLessonForm: React.Dispatch<React.SetStateAction<any>>
+  setLessonForm: React.Dispatch<React.SetStateAction<{ title: string; order_index: number; moduleId: string }>>
   handleAddLesson: (e: React.FormEvent) => void
   handleMoveModule: (moduleId: string, direction: 'up' | 'down') => void
   handleMoveLesson: (lessonId: string, direction: 'up' | 'down') => void
   redirectToEditor: boolean
   setRedirectToEditor: (val: boolean) => void
-  router: any
-  onSaveSyllabusStructure?: (updatedModules: any[]) => Promise<void>
+  router: { push: (href: string) => void }
+  onSaveSyllabusStructure?: (updatedModules: ModuleRow[]) => Promise<void>
   onRefreshCourse?: () => void
+}
+
+interface CourseRow {
+  id: string
+  title: string
+  slug: string
+  subject_id: string
+}
+
+interface LessonRow {
+  id: string
+  order_index: number
+  module_id: string
+  title: string
+  content: string
+  metadata?: {
+    status?: 'draft' | 'published'
+  }
+}
+
+interface ModuleRow {
+  id: string
+  course_id: string
+  title: string
+  order_index: number
+  lessons?: LessonRow[]
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
 }
 
 export function SyllabusTimelineCanvas({
@@ -62,8 +92,8 @@ export function SyllabusTimelineCanvas({
         } else {
           toast.error(`Không thể xóa bài học: ${res.error}`)
         }
-      } catch (err: any) {
-        toast.error(`Lỗi khi xóa bài học: ${err.message}`)
+      } catch (err) {
+        toast.error(`Lỗi khi xóa bài học: ${getErrorMessage(err)}`)
       }
     }
   }
@@ -77,8 +107,8 @@ export function SyllabusTimelineCanvas({
         } else {
           toast.error(`Không thể xóa học phần: ${res.error}`)
         }
-      } catch (err: any) {
-        toast.error(`Lỗi khi xóa học phần: ${err.message}`)
+      } catch (err) {
+        toast.error(`Lỗi khi xóa học phần: ${getErrorMessage(err)}`)
       }
     }
   }
@@ -119,8 +149,8 @@ export function SyllabusTimelineCanvas({
     e.preventDefault()
     if (!draggedModuleId || draggedModuleId === targetModuleId || !onSaveSyllabusStructure) return
 
-    const dragIdx = courseModules.findIndex(m => m.id === draggedModuleId)
-    const hoverIdx = courseModules.findIndex(m => m.id === targetModuleId)
+    const dragIdx = courseModules.findIndex((m) => m.id === draggedModuleId)
+    const hoverIdx = courseModules.findIndex((m) => m.id === targetModuleId)
 
     if (dragIdx !== -1 && hoverIdx !== -1) {
       const newModules = [...courseModules]
@@ -160,21 +190,21 @@ export function SyllabusTimelineCanvas({
     e.stopPropagation()
     if (!draggedLessonId || !draggedLessonSourceModuleId || !onSaveSyllabusStructure) return
 
-    const updatedModules = courseModules.map(m => ({
+    const updatedModules = courseModules.map((m) => ({
       ...m,
       lessons: m.lessons ? [...m.lessons] : []
     }))
 
-    const sourceMod = updatedModules.find(m => m.id === draggedLessonSourceModuleId)
-    const targetMod = updatedModules.find(m => m.id === targetModuleId)
+    const sourceMod = updatedModules.find((m) => m.id === draggedLessonSourceModuleId)
+    const targetMod = updatedModules.find((m) => m.id === targetModuleId)
 
     if (!sourceMod || !targetMod) return
 
-    const dragIdx = sourceMod.lessons.findIndex((l: any) => l.id === draggedLessonId)
+    const dragIdx = sourceMod.lessons.findIndex((l) => l.id === draggedLessonId)
     if (dragIdx === -1) return
 
     const [draggedLesson] = sourceMod.lessons.splice(dragIdx, 1)
-    const hoverIdx = targetMod.lessons.findIndex((l: any) => l.id === targetLessonId)
+    const hoverIdx = targetMod.lessons.findIndex((l) => l.id === targetLessonId)
     
     if (hoverIdx !== -1) {
       targetMod.lessons.splice(hoverIdx, 0, draggedLesson)
@@ -183,11 +213,11 @@ export function SyllabusTimelineCanvas({
     }
 
     // Re-index
-    sourceMod.lessons.forEach((l: any, idx: number) => {
+    sourceMod.lessons.forEach((l, idx: number) => {
       l.order_index = idx + 1
       l.module_id = sourceMod.id
     })
-    targetMod.lessons.forEach((l: any, idx: number) => {
+    targetMod.lessons.forEach((l, idx: number) => {
       l.order_index = idx + 1
       l.module_id = targetMod.id
     })
@@ -204,28 +234,28 @@ export function SyllabusTimelineCanvas({
     e.preventDefault()
     if (!draggedLessonId || !draggedLessonSourceModuleId || !onSaveSyllabusStructure) return
 
-    const updatedModules = courseModules.map(m => ({
+    const updatedModules = courseModules.map((m) => ({
       ...m,
       lessons: m.lessons ? [...m.lessons] : []
     }))
 
-    const sourceMod = updatedModules.find(m => m.id === draggedLessonSourceModuleId)
-    const targetMod = updatedModules.find(m => m.id === targetModuleId)
+    const sourceMod = updatedModules.find((m) => m.id === draggedLessonSourceModuleId)
+    const targetMod = updatedModules.find((m) => m.id === targetModuleId)
 
     if (!sourceMod || !targetMod) return
 
-    const dragIdx = sourceMod.lessons.findIndex((l: any) => l.id === draggedLessonId)
+    const dragIdx = sourceMod.lessons.findIndex((l) => l.id === draggedLessonId)
     if (dragIdx === -1) return
 
     const [draggedLesson] = sourceMod.lessons.splice(dragIdx, 1)
     targetMod.lessons.push(draggedLesson)
 
     // Re-index
-    sourceMod.lessons.forEach((l: any, idx: number) => {
+    sourceMod.lessons.forEach((l, idx: number) => {
       l.order_index = idx + 1
       l.module_id = sourceMod.id
     })
-    targetMod.lessons.forEach((l: any, idx: number) => {
+    targetMod.lessons.forEach((l, idx: number) => {
       l.order_index = idx + 1
       l.module_id = targetMod.id
     })
@@ -248,8 +278,8 @@ export function SyllabusTimelineCanvas({
       } else if (!res.success) {
         toast.error(`Không thể đổi trạng thái bài học: ${res.error}`)
       }
-    } catch (err: any) {
-      toast.error(`Lỗi khi đổi trạng thái bài học: ${err.message}`)
+    } catch (err) {
+      toast.error(`Lỗi khi đổi trạng thái bài học: ${getErrorMessage(err)}`)
     } finally {
       setStatusTogglingLessonId(null)
     }
@@ -491,7 +521,7 @@ export function SyllabusTimelineCanvas({
 
                     {/* Lessons inside Module */}
                     <div className="space-y-3 pl-3 relative">
-                      {mod.lessons && mod.lessons.map((lesson: any, lessonIdx: number) => {
+                      {mod.lessons && mod.lessons.map((lesson, lessonIdx: number) => {
                         const status = lesson.metadata?.status || 'published'
                         const isDraft = status === 'draft'
                         const isToggling = statusTogglingLessonId === lesson.id
@@ -573,7 +603,7 @@ export function SyllabusTimelineCanvas({
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={lessonIdx === mod.lessons.length - 1}
+                                  disabled={lessonIdx === (mod.lessons?.length || 0) - 1}
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleMoveLesson(lesson.id, 'down')

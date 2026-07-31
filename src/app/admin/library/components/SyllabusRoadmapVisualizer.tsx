@@ -12,10 +12,41 @@ import ReactFlow, {
 } from 'reactflow'
 import dagre from 'dagre'
 import 'reactflow/dist/style.css'
-import { Eye, X, BookOpen, Layers, Award } from 'lucide-react'
+import { X, Award } from 'lucide-react'
 
 // Custom Nodes - Light Theme Clean Style
-function CourseNode({ data }: any) {
+type CourseNodeData = {
+  title: string
+}
+
+type ModuleNodeData = {
+  title: string
+  orderIndex: number
+}
+
+type LessonNodeData = {
+  title: string
+  orderIndex: string
+  status: 'draft' | 'published'
+}
+
+interface LessonRow {
+  id: string
+  title: string
+  order_index: number
+  metadata?: {
+    status?: 'draft' | 'published'
+  } | null
+}
+
+interface ModuleRow {
+  id: string
+  title: string
+  order_index: number
+  lessons?: LessonRow[] | null
+}
+
+function CourseNode({ data }: { data: CourseNodeData }) {
   return (
     <div className="px-5 py-3 rounded-2xl border-2 border-blue-600 bg-white shadow-md text-center min-w-[200px]">
       <span className="block text-[10px] font-bold text-blue-600 uppercase tracking-widest font-mono">Course</span>
@@ -24,7 +55,7 @@ function CourseNode({ data }: any) {
   )
 }
 
-function ModuleNode({ data }: any) {
+function ModuleNode({ data }: { data: ModuleNodeData }) {
   return (
     <div className="px-4 py-3 rounded-xl border border-indigo-500 bg-indigo-50/10 shadow-sm text-left min-w-[180px]">
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
@@ -35,7 +66,7 @@ function ModuleNode({ data }: any) {
   )
 }
 
-function LessonNode({ data }: any) {
+function LessonNode({ data }: { data: LessonNodeData }) {
   const isDraft = data.status === 'draft'
   return (
     <div className={`px-4 py-3 rounded-lg border shadow-sm text-left min-w-[160px] transition-all ${
@@ -102,7 +133,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
 
 interface SyllabusRoadmapVisualizerProps {
   courseTitle: string
-  courseModules: any[]
+  courseModules: ModuleRow[]
   onClose: () => void
 }
 
@@ -126,7 +157,7 @@ export function SyllabusRoadmapVisualizer({
     ]
     const tempEdges: Edge[] = []
 
-    courseModules.forEach((mod, modIdx) => {
+    courseModules.forEach((mod) => {
       const modNodeId = `mod-${mod.id}`
       // Add Module Node
       tempNodes.push({
@@ -148,7 +179,7 @@ export function SyllabusRoadmapVisualizer({
       })
 
       const lessons = mod.lessons || []
-      lessons.forEach((lesson: any) => {
+      lessons.forEach((lesson) => {
         const lesNodeId = `les-${lesson.id}`
         const isDraft = lesson.metadata?.status === 'draft'
         // Add Lesson Node

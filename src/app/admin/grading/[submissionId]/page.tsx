@@ -1,9 +1,13 @@
 'use client'
 
-import React, { useEffect, useRef, useState, use } from 'react'
+import React, { useCallback, useEffect, useRef, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { saveGradingResultAction, suggestAIScoresAction } from './actions'
+import {
+  getGradingDetailAdminAction,
+  saveGradingResultAction,
+  suggestAIScoresAction,
+  updateSubmissionShowcaseAdminAction,
+} from './actions'
 import { ArrowLeft, Save, CheckCircle, Loader2, Sparkles, Cpu, X, AlertCircle } from 'lucide-react'
 
 // Import extracted components
@@ -74,6 +78,80 @@ interface GradingPageProps {
   }>
 }
 
+interface RubricCriterion {
+  id: string
+  name?: string | null
+  description?: string | null
+  weight?: string | number | null
+  max_points?: number | null
+}
+
+interface RubricDetail {
+  max_points?: number | null
+  rubric_criteria?: RubricCriterion[] | null
+}
+
+interface RubricSuggestion {
+  id: string
+  rubric_criterion_id?: string | null
+  suggested_score?: string | number | null
+  suggested_feedback?: string | null
+  confidence?: string | number | null
+}
+
+interface GradingScoreRow {
+  rubric_criterion_id: string
+  score?: string | number | null
+  feedback?: string | null
+  override_reason?: string | null
+}
+
+interface SubmissionDetail {
+  id: string
+  class_id?: string | null
+  student_identifier?: string | null
+  submitted_at?: string | null
+  submitted_text?: string | null
+  submitted_files?: string[] | null
+  showcase_requested?: boolean | null
+  showcase_approved?: boolean | null
+  rubric_snapshot_id?: string | null
+  assignments?: {
+    title?: string | null
+    lesson_id?: string | null
+    rubric_snapshot_id?: string | null
+    rubrics?: RubricDetail | null
+    late_policy?: {
+      grace_period_hours?: number | null
+      penalty_percent_per_day?: number | null
+    } | null
+  } | null
+  classes?: {
+    name?: string | null
+  } | null
+}
+
+interface GradingResultRow {
+  id: string
+  overall_feedback?: string | null
+  rubric_scores?: GradingScoreRow[] | null
+}
+
+interface AISuggestionsResponse {
+  success?: boolean
+  suggestions?: RubricSuggestion[]
+  error?: string
+}
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
+
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number.parseFloat(String(value ?? 0))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export default function GradingPage({ params }: GradingPageProps) {
   const resolvedParams = use(params)
   const submissionId = resolvedParams.submissionId
@@ -84,7 +162,8 @@ export default function GradingPage({ params }: GradingPageProps) {
   const [publishing, setPublishing] = useState(false)
   const [aiGrading, setAiGrading] = useState(false)
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
-  const [submission, setSubmission] = useState<any>(null)
+  const [submission, setSubmission] = useState<SubmissionDetail | null>(null)
+  const [signedFileUrls, setSignedFileUrls] = useState<Record<string, string>>({})
   const [showcaseApproved, setShowcaseApproved] = useState(false)
   const [togglingShowcase, setTogglingShowcase] = useState(false)
 
@@ -106,25 +185,21 @@ export default function GradingPage({ params }: GradingPageProps) {
     setTogglingShowcase(true)
     try {
       const nextVal = !showcaseApproved
-      const { error } = await supabase
-        .from('submissions')
-        .update({ showcase_approved: nextVal })
-        .eq('id', submissionId)
-
-      if (error) throw error
+      const result = await updateSubmissionShowcaseAdminAction(submissionId, nextVal)
+      if (!result.success) throw new Error(result.error)
       setShowcaseApproved(nextVal)
       showToast(nextVal ? 'Đã duyệt hiển thị công khai bài làm học sinh!' : 'Đã hủy quyền hiển thị công khai.')
-    } catch (err: any) {
-      showToast(`Không thể cập nhật showcase: ${err.message}`, 'error')
+    } catch (err) {
+      showToast(`Không thể cập nhật showcase: ${getErrorMessage(err, 'Lỗi không rõ')}`, 'error')
     } finally {
       setTogglingShowcase(false)
     }
   }
 
   // Data states
-  const [rubric, setRubric] = useState<any>(null)
-  const [criteria, setCriteria] = useState<any[]>([])
-  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [rubric, setRubric] = useState<RubricDetail | null>(null)
+  const [criteria, setCriteria] = useState<RubricCriterion[]>([])
+  const [suggestions, setSuggestions] = useState<RubricSuggestion[]>([])
   const [dueDate, setDueDate] = useState<string | null>(null)
   const [applyLatePenalty, setApplyLatePenalty] = useState(true)
 
@@ -142,51 +217,23 @@ export default function GradingPage({ params }: GradingPageProps) {
   const [overallFeedback, setOverallFeedback] = useState('')
   const [gradingResultId, setGradingResultId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchSubmissionDetails()
-  }, [submissionId])
-
-  async function fetchSubmissionDetails() {
+  const fetchSubmissionDetails = useCallback(async () => {
     setLoading(true)
     try {
-      // 1. Fetch submission with parent structures
-      const { data: subData } = await supabase
-        .from('submissions')
-        .select('*, classes(*), assignments(*, rubrics(*, rubric_criteria(*)))')
-        .eq('id', submissionId)
-        .single()
+      const result = await getGradingDetailAdminAction(submissionId)
+      if (!result.success) throw new Error(result.error)
+      const subData = result.data.submission
+      setSubmission(subData as SubmissionDetail)
+      setSignedFileUrls(result.data.signedFileUrls || {})
+      setDueDate(result.data.dueDate)
 
-      if (!subData) throw new Error('Submission not found')
-      setSubmission(subData)
-
-      // Query due date from schedules
-      if (subData?.class_id && subData?.assignments?.lesson_id) {
-        const { data: sched } = await supabase
-          .from('class_schedules')
-          .select('due_date')
-          .eq('class_id', subData.class_id)
-          .eq('lesson_id', subData.assignments.lesson_id)
-          .maybeSingle()
-        if (sched?.due_date) {
-          setDueDate(sched.due_date)
-        }
-      }
-
-      const rubricData = subData.assignments?.rubrics
+      const typedSubData = subData as SubmissionDetail
+      const rubricData = typedSubData.assignments?.rubrics || null
       setRubric(rubricData)
 
-      let rubricCriteria = []
-      const snapshotId = subData.rubric_snapshot_id || subData.assignments?.rubric_snapshot_id
-      if (snapshotId) {
-        const { data: snapshotData } = await supabase
-          .from('rubric_snapshots')
-          .select('*')
-          .eq('id', snapshotId)
-          .single()
-
-        if (snapshotData && snapshotData.snapshot?.criteria) {
-          rubricCriteria = snapshotData.snapshot.criteria
-        }
+      let rubricCriteria: RubricCriterion[] = []
+      if (result.data.snapshot?.criteria) {
+        rubricCriteria = result.data.snapshot.criteria as RubricCriterion[]
       }
 
       if (rubricCriteria.length === 0) {
@@ -197,39 +244,26 @@ export default function GradingPage({ params }: GradingPageProps) {
       // Initialize scores map with default max
       const initialScores: Record<string, number> = {}
       const initialFeedbacks: Record<string, string> = {}
-      rubricCriteria.forEach((c: any) => {
-        initialScores[c.id] = c.max_points
+      rubricCriteria.forEach((c) => {
+        initialScores[c.id] = c.max_points || 0
         initialFeedbacks[c.id] = ''
       })
 
-      // 2. Fetch existing grading results and rubric scores
-      const { data: resultData } = await supabase
-        .from('grading_results')
-        .select('*, rubric_scores(*)')
-        .eq('submission_id', submissionId)
-        .single()
-
+      const resultData = result.data.gradingResult
       if (resultData) {
-        setGradingResultId(resultData.id)
+        const gradingResult = resultData as GradingResultRow
+        setGradingResultId(gradingResult.id)
         setOverallFeedback(resultData.overall_feedback || '')
-        resultData.rubric_scores?.forEach((rs: any) => {
-          initialScores[rs.rubric_criterion_id] = parseFloat(rs.score)
+        gradingResult.rubric_scores?.forEach((rs) => {
+          initialScores[rs.rubric_criterion_id] = toNumber(rs.score)
           initialFeedbacks[rs.rubric_criterion_id] = rs.feedback || ''
           if (rs.override_reason) {
-            setOverrideReasons(prev => ({ ...prev, [rs.rubric_criterion_id]: rs.override_reason }))
+            setOverrideReasons(prev => ({ ...prev, [rs.rubric_criterion_id]: rs.override_reason || '' }))
           }
         })
       }
 
-      // 3. Fetch rubric score suggestions (AI grading results)
-      const { data: suggestionsData } = await supabase
-        .from('rubric_score_suggestions')
-        .select('*')
-        .eq('submission_id', submissionId)
-
-      if (suggestionsData) {
-        setSuggestions(suggestionsData)
-      }
+      setSuggestions(result.data.suggestions as RubricSuggestion[])
 
       setScores(initialScores)
       setFeedbacks(initialFeedbacks)
@@ -238,13 +272,17 @@ export default function GradingPage({ params }: GradingPageProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [submissionId])
+
+  useEffect(() => {
+    fetchSubmissionDetails()
+  }, [fetchSubmissionDetails])
 
   // Pre-calculate running total score client-side for immediate feedback
   const clientTotalScore = Object.keys(scores).reduce((total, cid) => {
     const criterion = criteria.find((c) => c.id === cid)
     if (!criterion) return total
-    return total + scores[cid] * parseFloat(criterion.weight)
+    return total + scores[cid] * toNumber(criterion.weight)
   }, 0)
 
   // Late calculations
@@ -294,7 +332,7 @@ export default function GradingPage({ params }: GradingPageProps) {
       const rubricScoresData = criteria.map((c) => {
         const suggestion = suggestions.find(s => s.rubric_criterion_id === c.id)
         const isOverridden = suggestion && (
-          scores[c.id] !== parseFloat(suggestion.suggested_score) ||
+          scores[c.id] !== toNumber(suggestion.suggested_score) ||
           feedbacks[c.id] !== (suggestion.suggested_feedback || '')
         )
         return {
@@ -327,8 +365,8 @@ export default function GradingPage({ params }: GradingPageProps) {
       setTimeout(() => {
         router.push('/admin/grading')
       }, 1000)
-    } catch (err: any) {
-      showToast(`Lỗi lưu kết quả chấm điểm: ${err.message}`, 'error')
+    } catch (err) {
+      showToast(`Lỗi lưu kết quả chấm điểm: ${getErrorMessage(err, 'Lỗi không rõ')}`, 'error')
     } finally {
       setSaving(false)
       setPublishing(false)
@@ -344,17 +382,17 @@ export default function GradingPage({ params }: GradingPageProps) {
 
         // Auto-select all suggestions for injection
         const initialSelected: Record<string, boolean> = {}
-        res.suggestions.forEach((s: any) => {
+        res.suggestions.forEach((s) => {
           initialSelected[s.id] = true
         })
         setSelectedSuggestions(initialSelected)
         setShowDossier(true)
         showToast('Đã nhận gợi ý chấm từ AI.')
       } else {
-        showToast(`Không thể lấy gợi ý chấm: ${(res as any).error || 'Lỗi không rõ'}`, 'error')
+        showToast(`Không thể lấy gợi ý chấm: ${(res as AISuggestionsResponse).error || 'Lỗi không rõ'}`, 'error')
       }
-    } catch (err: any) {
-      showToast(`Lỗi gợi ý AI: ${err.message}`, 'error')
+    } catch (err) {
+      showToast(`Lỗi gợi ý AI: ${getErrorMessage(err, 'Lỗi không rõ')}`, 'error')
     } finally {
       setAiGrading(false)
     }
@@ -362,7 +400,7 @@ export default function GradingPage({ params }: GradingPageProps) {
 
   const handleOpenDossier = () => {
     const initialSelected: Record<string, boolean> = {}
-    suggestions.forEach((s: any) => {
+    suggestions.forEach((s) => {
       initialSelected[s.id] = selectedSuggestions[s.id] !== undefined ? selectedSuggestions[s.id] : true
     })
     setSelectedSuggestions(initialSelected)
@@ -373,9 +411,10 @@ export default function GradingPage({ params }: GradingPageProps) {
     const updatedScores = { ...scores }
     const updatedFeedbacks = { ...feedbacks }
 
-    suggestions.forEach((s: any) => {
+    suggestions.forEach((s) => {
       if (selectedSuggestions[s.id]) {
-        updatedScores[s.rubric_criterion_id] = parseFloat(s.suggested_score)
+        if (!s.rubric_criterion_id) return
+        updatedScores[s.rubric_criterion_id] = toNumber(s.suggested_score)
         updatedFeedbacks[s.rubric_criterion_id] = s.suggested_feedback || ''
       }
     })
@@ -498,7 +537,10 @@ export default function GradingPage({ params }: GradingPageProps) {
             applyLatePenalty={applyLatePenalty}
             setApplyLatePenalty={setApplyLatePenalty}
           />
-          <UploadedDeliverables submittedFiles={submission?.submitted_files} />
+          <UploadedDeliverables
+            submittedFiles={submission?.submitted_files || null}
+            signedFileUrls={signedFileUrls}
+          />
         </div>
 
         {/* Right: Rubric Matrix Panel */}
@@ -575,7 +617,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                     if (!sug) return null
 
                     const isChecked = !!selectedSuggestions[sug.id]
-                    const confPct = Math.round(parseFloat(sug.confidence) * 100)
+                    const confPct = Math.round(toNumber(sug.confidence) * 100)
                     let confColor = 'text-rose-500'
                     let confText = 'Thấp'
                     if (confPct >= 80) {
@@ -636,7 +678,7 @@ export default function GradingPage({ params }: GradingPageProps) {
                           <div className="flex justify-between items-center font-semibold">
                             <span className="text-slate-500">Điểm AI đề xuất</span>
                             <span className="text-blue-500">
-                              {parseFloat(sug.suggested_score).toFixed(1)} / {c.max_points.toFixed(1)} Điểm
+                              {toNumber(sug.suggested_score).toFixed(1)} / {toNumber(c.max_points).toFixed(1)} Điểm
                             </span>
                           </div>
                         </div>

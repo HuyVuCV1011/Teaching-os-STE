@@ -1,8 +1,7 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { getSupabaseServer } from '@/lib/supabase'
-import { verifyJWT } from '@/lib/jwt'
+import { requireAdminUser } from '@/lib/admin-auth'
 import * as fs from 'fs'
 import * as path from 'path'
 import { exec } from 'child_process'
@@ -11,49 +10,59 @@ import { promisify } from 'util'
 const execAsync = promisify(exec)
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
 
-async function checkAdminAuth() {
-  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_ADMIN_AUTH === 'true') {
-    return { userId: '00000000-0000-0000-0000-000000000000' }
+type RubricCriterion = {
+  id: string
+  name?: string | null
+  description?: string | null
+  weight?: string | number | null
+  max_points?: number | null
+}
+
+type SubmissionFileRow = {
+  original_filename: string
+  storage_path: string
+}
+
+type RubricSuggestionRow = {
+  id: string
+  suggested_score?: string | number | null
+  suggested_feedback?: string | null
+}
+
+type MatchGradingFeedbackRow = {
+  similarity?: number | null
+  student_submission_text?: string | null
+  override_score?: number | null
+  override_feedback?: string | null
+  override_reason?: string | null
+}
+
+type EmbeddingApiResponse = {
+  status?: string
+  embeddings?: number[][]
+}
+
+type StatelessGradingResponse = {
+  criterion_suggestions?: {
+    criterion_key: string
+    score?: string | number | null
+    explanation?: string | null
+    confidence?: string | number | null
+  }[]
+}
+
+type ApiErrorResponse = {
+  detail?: string
+  error?: {
+    message?: string
   }
+}
 
-  const cookieStore = await cookies()
-  const sbToken = cookieStore.get('sb-access-token') || cookieStore.get('supabase-auth-token')
+type SupabaseServerClient = ReturnType<typeof getSupabaseServer>
 
-  if (!sbToken) {
-    throw new Error('Unauthorized: No authentication token found')
-  }
-
-  const secret = process.env.SUPABASE_JWT_SECRET
-  let payload: any = null
-
-  if (secret) {
-    payload = await verifyJWT(sbToken.value, secret)
-  } else {
-    // Fallback parsing for development if secret is not set yet
-    const parts = sbToken.value.split('.')
-    if (parts.length === 3) {
-      payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-    }
-  }
-
-  if (!payload) {
-    throw new Error('Unauthorized: Invalid token payload')
-  }
-
-  const role = payload.app_metadata?.role || payload.role
-  const isAuthorized = [
-    'admin',
-    'teacher',
-    'super-admin',
-    'content-admin',
-    'class-operator'
-  ].includes(role)
-
-  if (!isAuthorized) {
-    throw new Error('Unauthorized: Insufficient privileges')
-  }
-
-  return { userId: payload.sub }
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number.parseFloat(String(value ?? 0))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 interface GradingInput {
@@ -71,7 +80,7 @@ interface GradingInput {
   }>
 }
 
-async function getCompiledEvidenceText(submissionId: string, supabase: any): Promise<string> {
+async function getCompiledEvidenceText(submissionId: string, supabase: SupabaseServerClient): Promise<string> {
   const { data: subData } = await supabase
     .from('submissions')
     .select('*, assignments(*, rubrics(*, rubric_criteria(*)))')
@@ -101,7 +110,7 @@ async function getCompiledEvidenceText(submissionId: string, supabase: any): Pro
   const extractedPieces: string[] = []
 
   if (files) {
-    for (const f of files) {
+    for (const f of (files || []) as SubmissionFileRow[]) {
       const ext = f.original_filename.split('.').pop()?.toLowerCase() || ''
       const { data: downloadData, error: downloadError } = await supabase.storage
         .from('student-submissions')
@@ -121,7 +130,7 @@ async function getCompiledEvidenceText(submissionId: string, supabase: any): Pro
           if (stderr.trim()) {
             console.warn(`Python parsing stderr for evidence file: ${stderr}`)
           }
-          const parsedOutput = JSON.parse(stdout)
+          const parsedOutput = JSON.parse(stdout) as { extracted_text?: string }
           if (parsedOutput.extracted_text) {
             extractedPieces.push(`--- ATTACHED FILE CONTENT: ${f.original_filename} ---\n${parsedOutput.extracted_text}\n--- END OF FILE CONTENT ---`)
           }
@@ -135,7 +144,9 @@ async function getCompiledEvidenceText(submissionId: string, supabase: any): Pro
         if (tempFilePath && fs.existsSync(tempFilePath)) {
           try {
             fs.unlinkSync(tempFilePath)
-          } catch (e) {}
+          } catch {
+            // Best-effort cleanup.
+          }
         }
       }
     }
@@ -157,7 +168,7 @@ async function getEmbeddingText(text: string, userId: string, organizationId: st
       body: JSON.stringify({ contents: [text.slice(0, 8000)] }),
     })
     if (res.ok) {
-      const data = await res.json()
+      const data = await res.json() as EmbeddingApiResponse
       if (data.status === 'success' && data.embeddings && data.embeddings.length > 0) {
         return data.embeddings[0]
       }
@@ -168,8 +179,122 @@ async function getEmbeddingText(text: string, userId: string, organizationId: st
   return null
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
+
+export async function getGradingDetailAdminAction(submissionId: string) {
+  try {
+    await requireAdminUser()
+    const normalizedSubmissionId = submissionId.trim()
+    if (!normalizedSubmissionId) throw new Error('Submission id is required')
+
+    const supabase = getSupabaseServer(true)
+    const { data: submission, error: submissionError } = await supabase
+      .from('submissions')
+      .select('*, classes(*), assignments(*, rubrics(*, rubric_criteria(*)))')
+      .eq('id', normalizedSubmissionId)
+      .single()
+
+    if (submissionError || !submission) {
+      throw submissionError || new Error('Submission not found')
+    }
+
+    const snapshotId = submission.rubric_snapshot_id || submission.assignments?.rubric_snapshot_id
+    const schedulePromise = submission.class_id && submission.assignments?.lesson_id
+      ? supabase
+          .from('class_schedules')
+          .select('due_date')
+          .eq('class_id', submission.class_id)
+          .eq('lesson_id', submission.assignments.lesson_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null })
+    const snapshotPromise = snapshotId
+      ? supabase
+          .from('rubric_snapshots')
+          .select('*')
+          .eq('id', snapshotId)
+          .single()
+      : Promise.resolve({ data: null, error: null })
+
+    const [scheduleResult, snapshotResult, gradingResult, suggestionsResult] = await Promise.all([
+      schedulePromise,
+      snapshotPromise,
+      supabase
+        .from('grading_results')
+        .select('*, rubric_scores(*)')
+        .eq('submission_id', normalizedSubmissionId)
+        .maybeSingle(),
+      supabase
+        .from('rubric_score_suggestions')
+        .select('*')
+        .eq('submission_id', normalizedSubmissionId),
+    ])
+
+    if (scheduleResult.error) throw scheduleResult.error
+    if (snapshotResult.error) throw snapshotResult.error
+    if (gradingResult.error) throw gradingResult.error
+    if (suggestionsResult.error) throw suggestionsResult.error
+
+    const submittedFiles = Array.isArray(submission.submitted_files)
+      ? submission.submitted_files.filter(
+          (file: unknown): file is string => typeof file === 'string' && file.length > 0,
+        )
+      : []
+    const signedFilesResult = submittedFiles.length > 0
+      ? await supabase.storage
+          .from('student-submissions')
+          .createSignedUrls(submittedFiles, 3600, { download: true })
+      : { data: [], error: null }
+
+    if (signedFilesResult.error) throw signedFilesResult.error
+
+    const signedFileUrls = Object.fromEntries(
+      (signedFilesResult.data || []).flatMap((file) =>
+        file.path && file.signedUrl ? [[file.path, file.signedUrl]] : [],
+      ),
+    )
+
+    return {
+      success: true as const,
+      data: {
+        submission,
+        dueDate: scheduleResult.data?.due_date || null,
+        snapshot: snapshotResult.data?.snapshot || null,
+        gradingResult: gradingResult.data || null,
+        suggestions: suggestionsResult.data || [],
+        signedFileUrls,
+      },
+    }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function updateSubmissionShowcaseAdminAction(
+  submissionId: string,
+  approved: boolean,
+) {
+  try {
+    await requireAdminUser()
+    const normalizedSubmissionId = submissionId.trim()
+    if (!normalizedSubmissionId) throw new Error('Submission id is required')
+
+    const supabase = getSupabaseServer(true)
+    const { error } = await supabase
+      .from('submissions')
+      .update({ showcase_approved: approved })
+      .eq('id', normalizedSubmissionId)
+    if (error) throw error
+
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
 export async function saveGradingResultAction(input: GradingInput) {
-  const { userId } = await checkAdminAuth()
+  const { userId } = await requireAdminUser()
 
   // Use service-role to write securely bypassing strict RLS
   const supabase = getSupabaseServer(true)
@@ -255,14 +380,14 @@ export async function saveGradingResultAction(input: GradingInput) {
           .eq('submission_id', input.submissionId)
           .eq('rubric_criterion_id', scoreRow.rubric_criterion_id)
 
-        const suggestion = suggestions?.find(s => s.id === scoreRow.derived_from_suggestion_id)
+        const suggestion = ((suggestions || []) as RubricSuggestionRow[]).find(s => s.id === scoreRow.derived_from_suggestion_id)
         await supabase
           .from('grading_feedback_embeddings')
           .insert({
             submission_id: input.submissionId,
             rubric_criterion_id: scoreRow.rubric_criterion_id,
             assignment_id: subData.assignment_id,
-            original_suggested_score: suggestion ? parseFloat(suggestion.suggested_score) : null,
+            original_suggested_score: suggestion ? toNumber(suggestion.suggested_score) : null,
             original_suggested_feedback: suggestion ? suggestion.suggested_feedback : null,
             override_score: scoreRow.score,
             override_feedback: scoreRow.feedback,
@@ -287,7 +412,8 @@ export async function saveGradingResultAction(input: GradingInput) {
 }
 
 export async function suggestAIScoresAction(submissionId: string, modelChoice: string = 'gemini-2.0-flash') {
-  const { userId } = await checkAdminAuth()
+  void modelChoice
+  const { userId } = await requireAdminUser()
   const supabase = getSupabaseServer(true)
 
   // 1. Fetch submission with parent structures
@@ -300,7 +426,7 @@ export async function suggestAIScoresAction(submissionId: string, modelChoice: s
   if (!subData) throw new Error('Submission not found')
 
   // 2. Resolve rubric criteria
-  let rubricCriteria = []
+  let rubricCriteria: RubricCriterion[] = []
   const snapshotId = subData.rubric_snapshot_id || subData.assignments?.rubric_snapshot_id
   if (snapshotId) {
     const { data: snapshotData } = await supabase
@@ -310,12 +436,12 @@ export async function suggestAIScoresAction(submissionId: string, modelChoice: s
       .single()
     
     if (snapshotData && snapshotData.snapshot?.criteria) {
-      rubricCriteria = snapshotData.snapshot.criteria
+      rubricCriteria = snapshotData.snapshot.criteria as RubricCriterion[]
     }
   }
 
   if (rubricCriteria.length === 0) {
-    rubricCriteria = subData.assignments?.rubrics?.rubric_criteria || []
+    rubricCriteria = (subData.assignments?.rubrics?.rubric_criteria || []) as RubricCriterion[]
   }
 
   // 3. Compile student submission text
@@ -323,7 +449,7 @@ export async function suggestAIScoresAction(submissionId: string, modelChoice: s
 
   // 4. RAG Memory Loop: Retrieve similar grading overrides from teacher history
   const queryEmbedding = await getEmbeddingText(compiledEvidenceText, userId, subData.assignments?.organization_id || '00000000-0000-0000-0000-000000000000')
-  const fewShotExamplesMap: Record<string, any[]> = {}
+  const fewShotExamplesMap: Record<string, MatchGradingFeedbackRow[]> = {}
 
   if (queryEmbedding) {
     for (const c of rubricCriteria) {
@@ -335,8 +461,8 @@ export async function suggestAIScoresAction(submissionId: string, modelChoice: s
 
       if (matches && matches.length > 0) {
         const validMatches = matches
-          .filter((m: any) => m.similarity > 0.7)
-          .map((m: any) => ({
+          .filter((m: MatchGradingFeedbackRow) => (m.similarity || 0) > 0.7)
+          .map((m: MatchGradingFeedbackRow) => ({
             student_submission_text: m.student_submission_text,
             override_score: m.override_score,
             override_feedback: m.override_feedback,
@@ -352,7 +478,7 @@ export async function suggestAIScoresAction(submissionId: string, modelChoice: s
   // 5. Construct rubric_schema with few_shot_examples inside
   const rubricSchema = {
     schema_version: '1.0',
-    criteria: rubricCriteria.map((c: any) => ({
+    criteria: rubricCriteria.map((c) => ({
       key: c.id,
       label: c.name,
       description: c.description || '',
@@ -393,19 +519,19 @@ export async function suggestAIScoresAction(submissionId: string, modelChoice: s
   })
 
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({}))
+    const errData = await res.json().catch(() => ({})) as ApiErrorResponse
     throw new Error(errData.detail || errData.error?.message || `Stateless grading API returned HTTP ${res.status}`)
   }
 
-  const result = await res.json()
+  const result = await res.json() as StatelessGradingResponse
   
   // Format suggestions list
-  const suggestions = (result.criterion_suggestions || []).map((s: any, idx: number) => ({
+  const suggestions = (result.criterion_suggestions || []).map((s, idx) => ({
     id: `stateless-suggestion-${idx}`,
     rubric_criterion_id: s.criterion_key,
-    suggested_score: parseFloat(s.score),
+    suggested_score: toNumber(s.score),
     suggested_feedback: s.explanation || '',
-    confidence: parseFloat(s.confidence),
+    confidence: toNumber(s.confidence),
     status: 'suggested'
   }))
 

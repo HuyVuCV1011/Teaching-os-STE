@@ -152,10 +152,11 @@ export function AITutorDrawer({ classCode, lessonId }: AITutorDrawerProps) {
           },
         ])
       }
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Vui lòng thử lại sau'
       setMessages((prev) => [
         ...prev,
-        { role: 'model', content: `Lỗi kết nối: ${err.message || 'Vui lòng thử lại sau'}` },
+        { role: 'model', content: `Lỗi kết nối: ${message}` },
       ])
     } finally {
       setLoading(false)

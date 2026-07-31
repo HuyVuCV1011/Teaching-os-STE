@@ -47,17 +47,22 @@ function LearnGatewayContent() {
 
       // Successful verification
       router.push(redirectPath || data.redirectUrl)
-    } catch (err: any) {
-      setError(err.message || 'Xác minh thất bại. Vui lòng thử lại.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Xác minh thất bại. Vui lòng thử lại.'
+      setError(message)
       setLoading(false)
     }
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-slate-950 overflow-hidden text-slate-100 px-4">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-slate-950 px-4 py-20 text-slate-100 focus:outline-none"
+    >
       {/* Background gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-violet-600/10 blur-[120px] pointer-events-none" />
+      <div className="absolute left-[-10%] top-[-20%] h-[50%] w-[50%] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] h-[50%] w-[50%] rounded-full bg-sky-500/10 blur-[120px] pointer-events-none" />
 
       <motion.div
         initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
@@ -65,16 +70,17 @@ function LearnGatewayContent() {
         transition={{ duration: shouldReduceMotion ? 0 : 0.4 }}
         className="w-full max-w-md"
       >
-        <div className="relative backdrop-blur-xl bg-slate-900/60 border border-slate-800/80 rounded-2xl p-8 shadow-2xl">
+        <div className="relative rounded-[2rem] border border-slate-800 bg-white/90 p-2 shadow-[0_24px_90px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[calc(2rem-0.5rem)] border border-slate-850 bg-slate-955 p-6 shadow-sm sm:p-8">
           {/* Header */}
           <div className="flex flex-col items-center text-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 mb-4">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/20">
               <KeyRound className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">
+            <h1 className="text-balance text-3xl font-extrabold tracking-tight text-slate-100">
               Vào lớp học
             </h1>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-pretty text-sm leading-6 text-slate-500">
               Nhập email đã đăng ký và mã lớp do giảng viên cung cấp.
             </p>
           </div>
@@ -82,7 +88,7 @@ function LearnGatewayContent() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="student-email" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <label htmlFor="student-email" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Email học viên
               </label>
               <div className="relative">
@@ -90,11 +96,11 @@ function LearnGatewayContent() {
                   id="student-email"
                   name="email"
                   type="email"
-                  placeholder="ten@truong.edu.vn"
+                  placeholder="ten@truong.edu.vn…"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-3 px-4 text-left text-sm font-semibold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-200 disabled:opacity-50"
+                  className="w-full rounded-xl border border-slate-800 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-100 placeholder-slate-500 transition-[border-color,box-shadow] duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50"
                   autoComplete="email"
                   required
                 />
@@ -102,7 +108,7 @@ function LearnGatewayContent() {
             </div>
 
             <div>
-              <label htmlFor="class-code" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <label htmlFor="class-code" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Mã lớp
               </label>
               <div className="relative">
@@ -110,11 +116,11 @@ function LearnGatewayContent() {
                   id="class-code"
                   name="classCode"
                   type="text"
-                  placeholder="Ví dụ: DATA-2026"
+                  placeholder="Ví dụ: DATA-2026…"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   disabled={loading}
-                  className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-3 px-4 text-center text-lg font-mono font-bold tracking-widest text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-200 disabled:opacity-50"
+                  className="w-full rounded-xl border border-slate-800 bg-white px-4 py-3 text-center font-mono text-lg font-bold tracking-widest text-slate-100 placeholder-slate-500 transition-[border-color,box-shadow] duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50"
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
@@ -128,7 +134,7 @@ function LearnGatewayContent() {
               <motion.div
                 initial={shouldReduceMotion ? false : { opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="flex items-start gap-2.5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm"
+                className="flex items-start gap-2.5 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-600"
                 role="alert"
                 aria-live="assertive"
               >
@@ -141,7 +147,7 @@ function LearnGatewayContent() {
             <button
               type="submit"
               disabled={loading || !code.trim() || !email.trim()}
-              className="w-full relative group overflow-hidden bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-blue-600/10 hover:shadow-blue-500/20 transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              className="group relative flex w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl bg-blue-600 px-4 py-3 font-medium text-white shadow-lg shadow-blue-600/10 transition-[background-color,box-shadow,transform] duration-300 ease-premium hover:bg-blue-550 hover:shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -161,7 +167,7 @@ function LearnGatewayContent() {
                 variants={{
                   visible: { transition: { staggerChildren: shouldReduceMotion ? 0 : 0.35 } }
                 }}
-                className="space-y-2 p-4 rounded-xl bg-slate-950/90 border border-slate-800/40 text-xs text-slate-400 text-left"
+                className="space-y-2 rounded-xl border border-slate-800 bg-slate-950 p-4 text-left text-xs text-slate-500"
                 aria-live="polite"
               >
                 {[
@@ -192,17 +198,22 @@ function LearnGatewayContent() {
             </p>
           </form>
         </div>
+        </div>
       </motion.div>
-    </div>
+    </main>
   )
 }
 
 export default function LearnGateway() {
   return (
     <Suspense fallback={
-      <div className="relative min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="relative flex min-h-[100dvh] items-center justify-center bg-slate-950 text-slate-500 focus:outline-none"
+      >
         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      </div>
+      </main>
     }>
       <LearnGatewayContent />
     </Suspense>

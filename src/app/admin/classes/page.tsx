@@ -12,6 +12,8 @@ import { StudentWhitelist } from './components/StudentWhitelist'
 import { NoticeBoardWorkspace } from './components/NoticeBoardWorkspace'
 import { AnalyticsWorkspace } from './components/AnalyticsWorkspace'
 
+const workspaceTabs = ['syllabus', 'notices', 'analytics'] as const
+
 function AdminClassesContent() {
   const searchParams = useSearchParams()
   const initialAction = searchParams.get('action')
@@ -88,10 +90,10 @@ function AdminClassesContent() {
 
               {/* Workspace Tab Navigation */}
               <div className="flex border-b border-slate-700 gap-6">
-                {['syllabus', 'notices', 'analytics'].map((tab) => (
+                {workspaceTabs.map((tab) => (
                   <button
                     key={tab}
-                    onClick={() => manager.setActiveWorkspaceTab(tab as any)}
+                    onClick={() => manager.setActiveWorkspaceTab(tab)}
                     className={`pb-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                       manager.activeWorkspaceTab === tab
                         ? 'border-blue-600 text-blue-500'
@@ -130,7 +132,6 @@ function AdminClassesContent() {
                   />
 
                   <StudentWhitelist
-                    selectedClass={manager.selectedClass}
                     enrollments={manager.enrollments}
                     newEmail={manager.newEmail}
                     setNewEmail={manager.setNewEmail}
@@ -160,7 +161,6 @@ function AdminClassesContent() {
               {/* Tab 3: Cohort Metrics Analytics */}
               {manager.activeWorkspaceTab === 'analytics' && (
                 <AnalyticsWorkspace
-                  selectedClass={manager.selectedClass}
                   enrollments={manager.enrollments}
                   analyticsAssignments={manager.analyticsAssignments}
                   analyticsSubmissions={manager.analyticsSubmissions}

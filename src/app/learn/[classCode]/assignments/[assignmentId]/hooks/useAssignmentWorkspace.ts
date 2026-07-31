@@ -1,21 +1,94 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { calculateFileHash } from '@/lib/hash'
-import { parseAssignmentInstructions } from '@/lib/assignment'
+import { useCallback, useEffect, useState } from 'react'
+import { parseAssignmentInstructions, type ParsedAssignmentFile, type ParsedAssignmentQuestion } from '@/lib/assignment'
 import {
-  fetchStudentSubmissionAction,
+  fetchAssignmentWorkspaceAction,
+  fetchLatestGradingRunAction,
   submitAssignmentAction,
   getAssignmentPromptSignedUrlAction,
   parseAssignmentPromptAction,
   getStudentMaterialSignedUrlAction,
-  parseStudentMaterialAction
+  parseStudentMaterialAction,
+  rollbackStudentSubmissionFilesAction,
+  uploadStudentSubmissionFilesAction,
 } from '../actions'
 
 export interface UseAssignmentWorkspaceProps {
   classCode: string
   assignmentId: string
+}
+
+type AssignmentRecord = {
+  id?: string
+  title?: string | null
+  lesson_id?: string
+  instructions?: string | null
+  prompt_file_path?: string | null
+  max_files?: number | null
+  max_total_size_mb?: number | null
+  max_score?: number | null
+  lessons?: {
+    title?: string | null
+  } | null
+  rubrics?: RubricRecord | RubricRecord[] | null
+}
+
+type RubricRecord = {
+  title?: string | null
+  description?: string | null
+  rubric_criteria?: {
+    id: string
+    name?: string | null
+    description?: string | null
+    weight?: string | number | null
+    max_points?: number | null
+  }[]
+}
+
+type AssignmentSchedule = {
+  lesson_id?: string
+  due_date?: string | null
+}
+
+type ViewerArtifact = {
+  viewer_html?: string
+  headers?: string[]
+  rows?: unknown[][]
+  viewer_markdown?: string
+  viewer_json?: unknown
+  raw_text?: unknown
+  [key: string]: unknown
+}
+
+type GradingResultRecord = {
+  status?: string | null
+  total_score?: number | null
+  overall_feedback?: string | null
+  rubric_scores?: {
+    id: string
+    score?: number | null
+    rubric_criteria?: {
+      name?: string | null
+      max_points?: number | null
+    } | null
+  }[]
+}
+
+type StudentSubmissionRecord = {
+  id: string
+  submitted_at: string
+  submitted_files?: string[] | null
+  grading_results?: GradingResultRecord | null
+}
+
+type GradingRunRecord = {
+  id?: string
+  status?: string | null
+}
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
 }
 
 export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmentWorkspaceProps) {
@@ -25,15 +98,15 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
   const [success, setSuccess] = useState(false)
 
   // Data states
-  const [assignment, setAssignment] = useState<any>(null)
+  const [assignment, setAssignment] = useState<AssignmentRecord | null>(null)
   const [promptDownloadUrl, setPromptDownloadUrl] = useState<string | null>(null)
-  const [parsedPromptContent, setParsedPromptContent] = useState<any>(null)
+  const [parsedPromptContent, setParsedPromptContent] = useState<ViewerArtifact | string | null>(null)
   const [parsingPrompt, setParsingPrompt] = useState(false)
   const [parsingPromptError, setParsingPromptError] = useState<string | null>(null)
-  const [schedule, setSchedule] = useState<any>(null)
-  const [existingSubmission, setExistingSubmission] = useState<any>(null)
-  const [gradingResult, setGradingResult] = useState<any>(null)
-  const [gradingRun, setGradingRun] = useState<any>(null)
+  const [schedule, setSchedule] = useState<AssignmentSchedule | null>(null)
+  const [existingSubmission, setExistingSubmission] = useState<StudentSubmissionRecord | null>(null)
+  const [gradingResult, setGradingResult] = useState<GradingResultRecord | null>(null)
+  const [gradingRun, setGradingRun] = useState<GradingRunRecord | null>(null)
   const [polling, setPolling] = useState(false)
   const [pollingMessage, setPollingMessage] = useState('')
 
@@ -45,24 +118,30 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
   const [showcaseRequested, setShowcaseRequested] = useState(false)
 
   // Student view interactive file preview states
-  const [previewingFile, setPreviewingFile] = useState<any>(null)
-  const [previewContent, setPreviewContent] = useState<any>(null)
+  const [previewingFile, setPreviewingFile] = useState<ParsedAssignmentFile | null>(null)
+  const [previewContent, setPreviewContent] = useState<ViewerArtifact | string | null>(null)
   const [previewSignedUrl, setPreviewSignedUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
 
-  const handlePreviewFile = async (fileItem: any) => {
+  const handlePreviewFile = async (fileItem: ParsedAssignmentFile) => {
+    if (!fileItem.storage_path) {
+      setPreviewError('File preview path is unavailable.')
+      return
+    }
+
     setPreviewingFile(fileItem)
     setPreviewContent(null)
     setPreviewSignedUrl(null)
     setPreviewLoading(true)
     setPreviewError(null)
 
-    const ext = fileItem.storage_path.split('.').pop()?.toLowerCase() || ''
+    const storagePath = fileItem.storage_path
+    const ext = storagePath.split('.').pop()?.toLowerCase() || ''
     
     try {
       // 1. Get signed URL first (needed for PDFs or download links in previewer)
-      const urlRes = await getStudentMaterialSignedUrlAction(classCode, fileItem.storage_path)
+      const urlRes = await getStudentMaterialSignedUrlAction(classCode, storagePath)
       if (urlRes.success && urlRes.signedUrl) {
         setPreviewSignedUrl(urlRes.signedUrl)
       } else {
@@ -71,86 +150,27 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
 
       // 2. Parse if previewable content type (docx, csv, xlsx, xls, md, markdown, json, txt, js, ts, py)
       if (['docx', 'doc', 'csv', 'xlsx', 'xls', 'md', 'markdown', 'json', 'txt', 'js', 'ts', 'py'].includes(ext)) {
-        const parseRes = await parseStudentMaterialAction(classCode, fileItem.storage_path)
+        const parseRes = await parseStudentMaterialAction(classCode, storagePath)
         if (parseRes.success) {
           setPreviewContent(parseRes.content)
         } else {
           setPreviewError(parseRes.error || 'Failed to parse file preview content.')
         }
       }
-    } catch (err: any) {
-      setPreviewError(err.message || 'An error occurred while loading the preview.')
+    } catch (err) {
+      setPreviewError(getErrorMessage(err, 'An error occurred while loading the preview.'))
     } finally {
       setPreviewLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchAssignmentData()
-  }, [assignmentId, classCode])
-
-  // Poll for grading runs
-  useEffect(() => {
-    if (!polling || !existingSubmission?.id) return
-
-    let isMounted = true
-    const intervalId = setInterval(async () => {
-      try {
-        const { data: runData } = await supabase
-          .from('grading_runs')
-          .select('*')
-          .eq('submission_id', existingSubmission.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (isMounted && runData && runData.length > 0) {
-          const latestRun = runData[0]
-          setGradingRun(latestRun)
-          
-          if (latestRun.status === 'succeeded' || latestRun.status === 'failed' || latestRun.status === 'cancelled') {
-            setPolling(false)
-            // Trigger data reload
-            fetchAssignmentDataSilent()
-          } else {
-            setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
-          }
-        }
-      } catch (err) {
-        console.error('Error polling grading run:', err)
-      }
-    }, 3000)
-
-    return () => {
-      isMounted = false
-      clearInterval(intervalId)
+  const fetchAssignmentDataInner = useCallback(async () => {
+    const workspaceRes = await fetchAssignmentWorkspaceAction(classCode, assignmentId)
+    if (!workspaceRes.success) {
+      throw new Error(workspaceRes.error || 'Failed to load assignment workspace.')
     }
-  }, [polling, existingSubmission?.id])
 
-  async function fetchAssignmentData() {
-    setLoading(true)
-    try {
-      await fetchAssignmentDataInner()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function fetchAssignmentDataSilent() {
-    try {
-      await fetchAssignmentDataInner()
-    } catch (err) {
-      console.error('Silent reload failed:', err)
-    }
-  }
-
-  async function fetchAssignmentDataInner() {
-    // 1. Fetch assignment details
-    const { data: assignmentData } = await supabase
-      .from('assignments')
-      .select('*, lessons(title), rubrics(id, title, description, rubric_criteria(*))')
-      .eq('id', assignmentId)
-      .single()
-
+    const assignmentData = workspaceRes.assignment as AssignmentRecord | null
     setAssignment(assignmentData)
 
     if (assignmentData?.prompt_file_path) {
@@ -171,76 +191,103 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
           }
           setParsingPrompt(false)
         }).catch((err) => {
-          setParsingPromptError(err.message || 'Failed to parse assignment prompt file content.')
+          setParsingPromptError(getErrorMessage(err, 'Failed to parse assignment prompt file content.'))
           setParsingPrompt(false)
         })
       }
     }
 
-    // 2. Fetch class schedules for due_date
-    if (assignmentData) {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('id')
-        .eq('class_code', classCode.toUpperCase())
-        .single()
+    setSchedule(workspaceRes.schedule as AssignmentSchedule | null)
+    setEmail(workspaceRes.email || '')
 
-      if (classData) {
-        const { data: scheduleData } = await supabase
-          .from('class_schedules')
-          .select('*')
-          .eq('class_id', classData.id)
-          .eq('lesson_id', assignmentData.lesson_id)
-          .maybeSingle()
-
-        setSchedule(scheduleData)
+    const submission = workspaceRes.submission as StudentSubmissionRecord | null
+    if (submission) {
+      setExistingSubmission(submission)
+      if (submission.grading_results && submission.grading_results.status === 'published') {
+        setGradingResult(submission.grading_results)
       }
-    }
 
-    // Securely check/load student's submission from HTTP-Only cookie session
-    const res = await fetchStudentSubmissionAction(classCode, assignmentId)
-    if (res.success) {
-      setEmail(res.email || '')
-      if (res.submission) {
-        setExistingSubmission(res.submission)
-        if (res.submission.grading_results && res.submission.grading_results.status === 'published') {
-          setGradingResult(res.submission.grading_results)
-        }
-
-        // Fetch latest grading run
-        const { data: runData } = await supabase
-          .from('grading_runs')
-          .select('*')
-          .eq('submission_id', res.submission.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (runData && runData.length > 0) {
-          const latestRun = runData[0]
-          setGradingRun(latestRun)
-          if (latestRun.status === 'queued' || latestRun.status === 'running') {
-            setPolling(true)
-            setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
-          } else {
-            setPolling(false)
-          }
+      if (workspaceRes.gradingRun) {
+        const latestRun = workspaceRes.gradingRun as GradingRunRecord
+        setGradingRun(latestRun)
+        if (latestRun.status === 'queued' || latestRun.status === 'running') {
+          setPolling(true)
+          setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
+        } else {
+          setPolling(false)
         }
       } else {
-        setExistingSubmission(null)
-        setGradingResult(null)
+        setGradingRun(null)
+        setPolling(false)
       }
     } else {
-      setError(res.error || 'Failed to authenticate student session.')
+      setExistingSubmission(null)
+      setGradingResult(null)
+      setGradingRun(null)
+      setPolling(false)
     }
-  }
+  }, [assignmentId, classCode])
+
+  const fetchAssignmentDataSilent = useCallback(async () => {
+    try {
+      await fetchAssignmentDataInner()
+    } catch (err) {
+      console.error('Silent reload failed:', err)
+    }
+  }, [fetchAssignmentDataInner])
+
+  const fetchAssignmentData = useCallback(async () => {
+    setLoading(true)
+    try {
+      await fetchAssignmentDataInner()
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchAssignmentDataInner])
+
+  useEffect(() => {
+    fetchAssignmentData()
+  }, [fetchAssignmentData])
+
+  // Poll for grading runs
+  useEffect(() => {
+    if (!polling || !existingSubmission?.id) return
+
+    let isMounted = true
+    const intervalId = setInterval(async () => {
+      try {
+        const runRes = await fetchLatestGradingRunAction(classCode, existingSubmission.id)
+
+        if (isMounted && runRes.success && runRes.gradingRun) {
+          const latestRun = runRes.gradingRun as GradingRunRecord
+          setGradingRun(latestRun)
+
+          if (latestRun.status === 'succeeded' || latestRun.status === 'failed' || latestRun.status === 'cancelled') {
+            setPolling(false)
+            // Trigger data reload
+            fetchAssignmentDataSilent()
+          } else {
+            setPollingMessage(latestRun.status === 'queued' ? 'Waiting in grading queue...' : 'AI extraction and grading in progress...')
+          }
+        }
+      } catch (err) {
+        console.error('Error polling grading run:', err)
+      }
+    }, 3000)
+
+    return () => {
+      isMounted = false
+      clearInterval(intervalId)
+    }
+  }, [polling, existingSubmission?.id, fetchAssignmentDataSilent, classCode])
 
   const handleCheckSubmission = async () => {
     setLoading(true)
     setError(null)
     try {
       await fetchAssignmentDataInner()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to reload assignment data.'))
     } finally {
       setLoading(false)
     }
@@ -275,15 +322,15 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
 
   const handleSubmit = async () => {
     // Parse questions list from instructions
-    let questionsList: any[] = []
+    let questionsList: ParsedAssignmentQuestion[] = []
     const instructionsStr = assignment?.instructions || ''
     const parsedObj = parseAssignmentInstructions(instructionsStr)
     if (parsedObj) {
       if (Array.isArray(parsedObj)) {
-        questionsList = parsedObj.filter((q: any) => !q.status || q.status === 'approved')
+        questionsList = parsedObj.filter((q) => !q.status || q.status === 'approved')
       } else {
         const allQuestions = parsedObj.questions || []
-        questionsList = allQuestions.filter((q: any) => !q.status || q.status === 'approved')
+        questionsList = allQuestions.filter((q) => !q.status || q.status === 'approved')
       }
     }
 
@@ -296,45 +343,24 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
     setSubmitting(true)
     setError(null)
 
-    const uploadedUrls: string[] = []
+    let uploadedUrls: string[] = []
 
     try {
-      // Compute email hash using Web Crypto SHA-256 for folder path
-      const emailBuffer = new TextEncoder().encode(email.trim().toLowerCase())
-      const emailHashBuffer = await crypto.subtle.digest('SHA-256', emailBuffer)
-      const emailHashHex = Array.from(new Uint8Array(emailHashBuffer))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('')
-        .slice(0, 10)
-
-      // Upload files to Supabase Storage
-      for (const file of files) {
-        const hash = await calculateFileHash(file)
-        const pathName = `classes/${classCode}/${assignmentId}/${emailHashHex}/${hash}_${file.name}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('student-submissions')
-          .upload(pathName, file, { upsert: false })
-
-        if (uploadError) {
-          throw new Error(`Upload error: ${uploadError.message}`)
-        }
-
-        uploadedUrls.push(pathName)
+      const uploadFormData = new FormData()
+      files.forEach((file) => uploadFormData.append('files', file))
+      const uploadRes = await uploadStudentSubmissionFilesAction(classCode, assignmentId, uploadFormData)
+      if (!uploadRes.success) {
+        throw new Error(uploadRes.error)
       }
 
-      // Prepare files list metadata for the backend insertion
-      const fileData = files.map((file) => ({
-        name: file.name,
-        size: file.size,
-        type: file.type
-      }))
+      uploadedUrls = uploadRes.uploadedUrls
+      const fileData = uploadRes.files
 
       // Serialize questions and responses
       let finalSubmissionText = text
       if (questionsList.length > 0) {
         let answersSection = '\n\n--- CÂU TRẢ LỜI CỦA HỌC VIÊN ---\n'
-        questionsList.forEach((q: any, idx: number) => {
+        questionsList.forEach((q, idx) => {
           const ans = answers[idx] || '(Chưa trả lời)'
           const typeText = q.type === 'multiple_choice' ? 'Trắc nghiệm' : 'Tự luận'
           answersSection += `Câu ${idx + 1} (${typeText}): ${ans}\n`
@@ -353,10 +379,7 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
       })
 
       if (!submitRes.success) {
-        // Rollback uploaded files
-        for (const pathName of uploadedUrls) {
-          await supabase.storage.from('student-submissions').remove([pathName])
-        }
+        await rollbackStudentSubmissionFilesAction(classCode, uploadedUrls)
         throw new Error(submitRes.error)
       }
 
@@ -369,8 +392,11 @@ export function useAssignmentWorkspace({ classCode, assignmentId }: UseAssignmen
       }
       
       await fetchAssignmentDataInner()
-    } catch (err: any) {
-      setError(err.message || 'Submission failed')
+    } catch (err) {
+      if (uploadedUrls.length > 0) {
+        await rollbackStudentSubmissionFilesAction(classCode, uploadedUrls)
+      }
+      setError(getErrorMessage(err, 'Submission failed'))
     } finally {
       setSubmitting(false)
     }

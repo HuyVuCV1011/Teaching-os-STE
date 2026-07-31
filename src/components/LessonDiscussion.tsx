@@ -1,16 +1,28 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import { MessageSquare, Send, Trash2, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { formatDate, formatDateTime } from '@/lib/date'
 import { toast } from 'react-hot-toast'
+import {
+  createLessonDiscussionCommentAction,
+  deleteLessonDiscussionCommentAction,
+  fetchLessonDiscussionAction,
+} from '@/app/learn/[classCode]/assignments/[assignmentId]/actions'
 
 interface LessonDiscussionProps {
-  classId: string
+  classCode: string
   lessonId: string
   studentEmail: string
+}
+
+interface DiscussionComment {
+  id: string
+  student_email: string
+  comment_text: string
+  is_instructor?: boolean | null
+  created_at: string
 }
 
 /** Returns initials for an email address or display name */
@@ -49,11 +61,11 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function LessonDiscussion({
-  classId,
+  classCode,
   lessonId,
   studentEmail,
 }: LessonDiscussionProps) {
-  const [comments, setComments] = useState<any[]>([])
+  const [comments, setComments] = useState<DiscussionComment[]>([])
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -64,46 +76,26 @@ export default function LessonDiscussion({
   // double-click delete: track first click per comment id
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function checkAuthAndFetch() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (user) {
-          setIsInstructor(true)
-          setCurrentUserEmail(user.email || '')
-        } else {
-          setIsInstructor(false)
-          setCurrentUserEmail(studentEmail)
-        }
-      } catch (err) {
-        console.error('Error verifying auth session:', err)
-      }
-      await fetchComments()
-    }
-
-    checkAuthAndFetch()
-  }, [classId, lessonId, studentEmail])
-
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('discussion_comments')
-        .select('*')
-        .eq('class_id', classId)
-        .eq('lesson_id', lessonId)
-        .order('created_at', { ascending: true })
-
-      if (error) throw error
-      setComments(data || [])
+      const res = await fetchLessonDiscussionAction(classCode, lessonId)
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to fetch comments')
+      }
+      setComments(res.comments || [])
+      setCurrentUserEmail(res.email || studentEmail)
+      setIsInstructor(false)
     } catch (err) {
       console.error('Error fetching comments:', err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [classCode, lessonId, studentEmail])
+
+  useEffect(() => {
+    fetchComments()
+  }, [fetchComments])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,21 +109,15 @@ export default function LessonDiscussion({
 
     setSubmitting(true)
     try {
-      const { error } = await supabase.from('discussion_comments').insert([
-        {
-          class_id: classId,
-          lesson_id: lessonId,
-          student_email: emailToUse,
-          comment_text: newComment.trim(),
-          is_instructor: isInstructor,
-        },
-      ])
-
-      if (error) throw error
+      const res = await createLessonDiscussionCommentAction(classCode, lessonId, newComment)
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to send comment')
+      }
       setNewComment('')
       await fetchComments()
-    } catch (err: any) {
-      toast.error(`Không thể gửi bình luận: ${err.message}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Vui lòng thử lại.'
+      toast.error(`Không thể gửi bình luận: ${message}`)
     } finally {
       setSubmitting(false)
     }
@@ -145,15 +131,14 @@ export default function LessonDiscussion({
         setPendingDeleteId(null)
         setDeletingId(commentId)
         try {
-          const { error } = await supabase
-            .from('discussion_comments')
-            .delete()
-            .eq('id', commentId)
-
-          if (error) throw error
+          const res = await deleteLessonDiscussionCommentAction(classCode, commentId)
+          if (!res.success) {
+            throw new Error(res.error || 'Failed to delete comment')
+          }
           setComments((prev) => prev.filter((c) => c.id !== commentId))
-        } catch (err: any) {
-          toast.error(`Không thể xóa bình luận: ${err.message}`)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Vui lòng thử lại.'
+          toast.error(`Không thể xóa bình luận: ${message}`)
         } finally {
           setDeletingId(null)
         }
@@ -165,7 +150,7 @@ export default function LessonDiscussion({
         }, 3000)
       }
     },
-    [pendingDeleteId]
+    [classCode, pendingDeleteId]
   )
 
   return (
@@ -303,7 +288,7 @@ export default function LessonDiscussion({
                   <textarea
                     rows={2}
                     required
-                    placeholder="Type your question or comment here..."
+                    placeholder="Type your question or comment here…"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"

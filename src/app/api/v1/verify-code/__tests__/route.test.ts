@@ -38,6 +38,7 @@ function makeRequest(body: unknown): NextRequest {
 describe('POST /api/v1/verify-code', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('JWT_SECRET', 'test-only-jwt-secret-with-at-least-32-characters')
     mockSignJWT.mockResolvedValue('mocked.jwt.token')
   })
 
@@ -147,6 +148,7 @@ describe('POST /api/v1/verify-code', () => {
           role: 'student',
         }),
         expect.any(String),
+        { expiresInSeconds: 60 * 60 * 24 * 7 },
       )
 
       // Verify JWT cookie on the response

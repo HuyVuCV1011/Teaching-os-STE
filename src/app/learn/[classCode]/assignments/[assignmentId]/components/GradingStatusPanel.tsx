@@ -3,8 +3,25 @@
 import React from 'react'
 
 interface GradingStatusPanelProps {
-  gradingResult: any
-  assignment: any
+  gradingResult: GradingResult | null
+  assignment: {
+    max_score?: number | null
+  } | null
+}
+
+interface GradingResult {
+  total_score?: number | null
+  overall_feedback?: string | null
+  rubric_scores?: RubricScore[]
+}
+
+interface RubricScore {
+  id: string
+  score?: number | null
+  rubric_criteria?: {
+    name?: string | null
+    max_points?: number | null
+  } | null
 }
 
 export function GradingStatusPanel({ gradingResult, assignment }: GradingStatusPanelProps) {
@@ -35,7 +52,7 @@ export function GradingStatusPanel({ gradingResult, assignment }: GradingStatusP
               Criterion breakdown
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {gradingResult.rubric_scores.map((rs: any) => (
+              {gradingResult.rubric_scores.map((rs) => (
                 <div key={rs.id} className="p-3 bg-slate-950/40 rounded-xl border border-slate-800">
                   <span className="block text-[10px] font-semibold text-slate-400 truncate">
                     {rs.rubric_criteria?.name}

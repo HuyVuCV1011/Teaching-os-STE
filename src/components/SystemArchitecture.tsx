@@ -9,13 +9,21 @@ import ReactFlow, {
   MarkerType,
   ReactFlowProvider,
   Node,
-  Edge
+  Edge,
+  NodeProps
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Database, Cpu, Server, TrendingUp, Sparkles, Layout, Globe, FileCode, CheckCircle, ListFilter } from 'lucide-react'
+import { Database, Cpu, Server, TrendingUp, Sparkles, Layout, Globe, FileCode, ListFilter, type LucideIcon } from 'lucide-react'
+
+interface PipelineNodeData {
+  label: string
+  details: string
+  description: string
+  icon: LucideIcon
+}
 
 // Custom Node Component for the Pipeline
-const PipelineNode = ({ data }: { data: any }) => {
+const PipelineNode = ({ data }: NodeProps<PipelineNodeData>) => {
   const Icon = data.icon
   return (
     <div className="flex flex-col bg-slate-955 border border-slate-800/80 rounded-2xl shadow-md p-4 w-[230px] text-left relative hover:border-blue-500/50 hover:shadow-lg transition-all duration-300">
@@ -54,7 +62,7 @@ const nodeTypes = {
 }
 
 // 🌐 Siren Reads Polyglot Nodes & Edges
-const sirenNodes: Node[] = [
+const sirenNodes: Node<PipelineNodeData>[] = [
   {
     id: 's-client',
     type: 'pipelineNode',
@@ -189,7 +197,7 @@ const sirenEdges: Edge[] = [
 ]
 
 // 🚖 NYC Green Taxi DWH Nodes & Edges
-const taxiNodes: Node[] = [
+const taxiNodes: Node<PipelineNodeData>[] = [
   {
     id: 't-src-mysql',
     type: 'pipelineNode',

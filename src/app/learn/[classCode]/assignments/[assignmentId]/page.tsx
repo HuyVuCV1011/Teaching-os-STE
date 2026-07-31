@@ -2,7 +2,7 @@
 
 import React, { use } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Timer, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Timer, AlertTriangle } from 'lucide-react'
 import { useAssignmentWorkspace } from './hooks/useAssignmentWorkspace'
 import { AssignmentInstructions } from './components/AssignmentInstructions'
 import { SubmissionPanel } from './components/SubmissionPanel'

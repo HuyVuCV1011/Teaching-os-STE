@@ -86,7 +86,7 @@ export function PdfViewerSection({
   const canvasRefs = useRef<(HTMLCanvasElement | null)[][]>([[], []])
   const sliderRefs = useRef<(HTMLElement | null)[]>([])
 
-  const maxPages = Math.max(...numPages.filter(Boolean))
+  const maxPages = Math.max(0, ...numPages.filter(Boolean))
 
   // Synchronize slider value across all ImgComparisonSliders
   useEffect(() => {
@@ -95,7 +95,9 @@ export function PdfViewerSection({
       setSliderValue(Number(input.value))
     }
 
-    sliderRefs.current.forEach((slider) => {
+    const activeSliders = sliderRefs.current.filter(Boolean)
+
+    activeSliders.forEach((slider) => {
       if (slider) {
         const input = slider.querySelector('input[type="range"]')
         if (input) {
@@ -105,7 +107,7 @@ export function PdfViewerSection({
     })
 
     return () => {
-      sliderRefs.current.forEach((slider) => {
+      activeSliders.forEach((slider) => {
         if (slider) {
           const input = slider.querySelector('input[type="range"]')
           if (input) {
@@ -207,7 +209,7 @@ export function PdfViewerSection({
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-slate-500 text-xs py-10">
                     <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                    <span>Đang tải trang {pageIndex + 1}...</span>
+                    <span>Đang tải trang {pageIndex + 1}…</span>
                   </div>
                 )
               ) : pageImages.first[pageIndex] && pageImages.second[pageIndex] ? (
@@ -240,7 +242,7 @@ export function PdfViewerSection({
               ) : (
                 <div className="flex flex-col items-center gap-2 text-slate-500 text-xs py-10">
                   <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                  <span>Đang tải trang {pageIndex + 1}...</span>
+                  <span>Đang tải trang {pageIndex + 1}…</span>
                 </div>
               )}
             </LazyPlaceholder>

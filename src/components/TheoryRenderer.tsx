@@ -1,9 +1,23 @@
 'use client'
 
 import React, { useEffect } from 'react'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 interface TheoryRendererProps {
   content: string
+}
+
+interface MermaidApi {
+  initialize: (config: Record<string, unknown>) => void
+  run: () => Promise<void> | void
+}
+
+type MermaidWindow = Window & {
+  mermaid?: MermaidApi
+}
+
+type MermaidElement = Element & {
+  _originalText?: string | null
 }
 
 export default function TheoryRenderer({ content }: TheoryRendererProps) {
@@ -12,17 +26,21 @@ export default function TheoryRenderer({ content }: TheoryRendererProps) {
       const mermaidElements = document.querySelectorAll('.mermaid')
       if (mermaidElements.length === 0) return
 
-      if (!(window as any).mermaid) {
+      const mermaidWindow = window as MermaidWindow
+
+      if (!mermaidWindow.mermaid) {
         const script = document.createElement('script')
         script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js'
         script.async = true
         script.onload = () => {
-          const mermaid = (window as any).mermaid
+          const mermaid = mermaidWindow.mermaid
+          if (!mermaid) return
+
           mermaid.initialize({
             startOnLoad: false,
             theme: 'neutral',
-            securityLevel: 'loose',
-            flowchart: { useMaxWidth: true, htmlLabels: true }
+            securityLevel: 'strict',
+            flowchart: { useMaxWidth: true, htmlLabels: false }
           })
           mermaid.run()
         }
@@ -30,13 +48,14 @@ export default function TheoryRenderer({ content }: TheoryRendererProps) {
       } else {
         mermaidElements.forEach(el => {
           el.removeAttribute('data-processed')
-          const originalText = (el as any)._originalText || el.textContent
+          const mermaidElement = el as MermaidElement
+          const originalText = mermaidElement._originalText || el.textContent
           if (originalText) {
-            (el as any)._originalText = originalText
+            mermaidElement._originalText = originalText
             el.textContent = originalText
           }
         })
-        ;(window as any).mermaid.run()
+        mermaidWindow.mermaid.run()
       }
     }
 
@@ -47,7 +66,7 @@ export default function TheoryRenderer({ content }: TheoryRendererProps) {
   return (
     <article
       className="prose max-w-none text-slate-250 leading-relaxed text-sm md:text-base space-y-6"
-      dangerouslySetInnerHTML={{ __html: content }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
     />
   )
 }

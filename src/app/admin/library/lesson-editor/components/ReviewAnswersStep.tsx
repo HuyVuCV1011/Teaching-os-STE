@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { ClipboardList, CheckCircle, Sparkles, Loader2, Eye, FileCode, BookOpen, Brain, Paperclip, FileCheck, Trash2, FileUp } from 'lucide-react'
+import { ClipboardList, CheckCircle, Sparkles, Loader2, Eye, FileCode, BookOpen, Brain, Paperclip, FileCheck } from 'lucide-react'
 import { getSignedUrlAction } from '@/app/admin/library/actions/materials'
 import { cleanOptionText } from '../hooks/useLessonEditorState'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
@@ -27,7 +27,7 @@ interface QuestionItem {
   status: 'pending' | 'approved' | 'rejected'
   answerFormat?: 'text' | 'file' | 'both'
   answerSource?: 'ai_generated' | 'file_import' | 'teacher_edit'
-  data?: any
+  data?: unknown
   source: 'ai_generator' | 'file_import'
   source_file?: string | null
   points?: number
@@ -66,13 +66,30 @@ interface ReviewAnswersStepProps {
   referenceFiles: AssignmentFileItem[]
   simulatedAnswers: Record<number, string>
   setSimulatedAnswers: React.Dispatch<React.SetStateAction<Record<number, string>>>
-  assignmentForm: any
+  assignmentForm: AssignmentForm
   handleSuggestAnswer: (approvedQIndex: number) => Promise<void>
   handleSuggestAllMissingAnswers: () => Promise<void>
   handleSaveComposer: (mode: 'draft' | 'official') => Promise<void>
   updateQuestionInBatches: (qId: string | number, fields: Partial<QuestionItem>, batchId?: number) => void
-  pinnedChunks?: any[]
-  setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
+  pinnedChunks?: PinnedKnowledgeChunk[]
+  setPinnedChunks?: React.Dispatch<React.SetStateAction<PinnedKnowledgeChunk[]>>
+}
+
+interface AssignmentForm {
+  title: string
+  instructions: string
+  maxScore: number
+  maxFiles: number
+  maxTotalSizeMb: number
+}
+
+interface PinnedKnowledgeChunk {
+  chunk_id: string
+  content: string
+  score?: number | string | null
+  citation?: {
+    knowledge_source_title?: string | null
+  } | null
 }
 
 export function ReviewAnswersStep({
@@ -81,7 +98,6 @@ export function ReviewAnswersStep({
   setActiveReviewQsIdx,
   selectedModel,
   setSelectedModel,
-  suggestingAnsIdx,
   isSuggestingAll,
   saving,
   dataFiles,
@@ -89,7 +105,6 @@ export function ReviewAnswersStep({
   simulatedAnswers,
   setSimulatedAnswers,
   assignmentForm,
-  handleSuggestAnswer,
   handleSuggestAllMissingAnswers,
   handleSaveComposer,
   updateQuestionInBatches,

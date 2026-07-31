@@ -16,8 +16,8 @@ Teaching OS (STE) is a hybrid Next.js application that integrates:
 
 ## 2. Tech Stack
 
-- **Framework**: Next.js 15.1.7 App Router (React 19, TypeScript)
-- **Database & Storage**: Supabase (`@supabase/supabase-js`) with active Row-Level Security (RLS)
+- **Framework**: Next.js 15.5.22 App Router (React 19, TypeScript)
+- **Database, Auth & Storage**: Supabase (`@supabase/supabase-js`, `@supabase/ssr`) with active Row-Level Security (RLS), cookie-backed Admin SSR sessions, and private learner submission storage
 - **Python Engine**: FastAPI, Alembic (SQLite/PostgreSQL database migration support for local engine settings), and SQLAlchemy
 - **UI Components & Visuals**:
   - `reactflow` & `dagre` (Interactive process pipelines & roadmap graphs)

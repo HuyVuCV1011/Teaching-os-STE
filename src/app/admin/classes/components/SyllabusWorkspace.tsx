@@ -2,30 +2,88 @@
 
 import React from 'react'
 import { BookOpen, Plus, Trash2, Calendar, Clock, HelpCircle, AlertTriangle, Save, RefreshCw } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
+import { updateClassTimelineAdminAction } from '../actions'
 
 interface SyllabusWorkspaceProps {
-  selectedClass: any
-  classCourses: any[]
-  courses: any[]
+  selectedClass: ClassRow | null
+  classCourses: ClassCourseMapping[]
+  courses: CourseRow[]
   selectedCourseId: string
   setSelectedCourseId: (val: string) => void
   handleAssignCourse: (e: React.FormEvent) => void
   handleUnassignCourse: (mappingId: string) => void
-  lessons: any[]
-  schedules: any[]
+  lessons: LessonRow[]
+  schedules: ScheduleRow[]
   showScheduleForm: boolean
   setShowScheduleForm: (val: boolean) => void
   scheduleForm: { lesson_id: string; visible_after: string; due_date: string }
-  setScheduleForm: React.Dispatch<React.SetStateAction<any>>
+  setScheduleForm: React.Dispatch<React.SetStateAction<ScheduleFormState>>
   handleAddSchedule: (e: React.FormEvent) => void
   handleDeleteSchedule: (scheduleId: string) => void
   showBulkForm: boolean
   setShowBulkForm: (val: boolean) => void
   bulkForm: { start_date: string; interval_days: string; due_offset_days: string }
-  setBulkForm: React.Dispatch<React.SetStateAction<any>>
+  setBulkForm: React.Dispatch<React.SetStateAction<BulkFormState>>
   handleBulkSchedule: (e: React.FormEvent) => void
+}
+
+interface ClassRow {
+  id: string
+  course_id?: string | null
+}
+
+interface SubjectRow {
+  name?: string | null
+}
+
+interface CourseRow {
+  id: string
+  title?: string | null
+  slug?: string | null
+  subjects?: SubjectRow | null
+}
+
+interface ClassCourseMapping {
+  id: string
+  course_id?: string | null
+  courses?: CourseRow | null
+}
+
+interface LessonModuleRow {
+  title?: string | null
+  order_index?: number | null
+}
+
+interface LessonRow {
+  id: string
+  title?: string | null
+  order_index?: number | null
+  modules?: LessonModuleRow | null
+}
+
+interface ScheduleRow {
+  id: string
+  lesson_id?: string | null
+  visible_after?: string | null
+  due_date?: string | null
+  lessons?: LessonRow | null
+}
+
+interface ScheduleFormState {
+  lesson_id: string
+  visible_after: string
+  due_date: string
+}
+
+interface BulkFormState {
+  start_date: string
+  interval_days: string
+  due_offset_days: string
+}
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
 }
 
 export function SyllabusWorkspace({
@@ -52,7 +110,7 @@ export function SyllabusWorkspace({
 }: SyllabusWorkspaceProps) {
   // Group courses by subject taxonomy
   const availableCourses = courses.filter((co) => !classCourses.some((cc) => cc.course_id === co.id))
-  const coursesBySubject: Record<string, any[]> = {}
+  const coursesBySubject: Record<string, CourseRow[]> = {}
   availableCourses.forEach((course) => {
     const subjectName = course.subjects?.name || 'General Courses'
     if (!coursesBySubject[subjectName]) {
@@ -346,13 +404,13 @@ function formatForDateTimeLocal(isoString: string | null): string {
 }
 
 interface TimelineEditorProps {
-  schedules: any[]
+  schedules: ScheduleRow[]
   handleDeleteSchedule: (id: string) => void
 }
 
 function TimelineEditor({ schedules, handleDeleteSchedule }: TimelineEditorProps) {
   const [cascadeShift, setCascadeShift] = React.useState(true)
-  const [localSchedules, setLocalSchedules] = React.useState<any[]>([])
+  const [localSchedules, setLocalSchedules] = React.useState<ScheduleRow[]>([])
   const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
@@ -397,24 +455,19 @@ function TimelineEditor({ schedules, handleDeleteSchedule }: TimelineEditorProps
   const handleSaveTimeline = async () => {
     setSaving(true)
     try {
-      const promises = localSchedules.map((item) =>
-        supabase
-          .from('class_schedules')
-          .update({
-            visible_after: item.visible_after,
-            due_date: item.due_date,
-          })
-          .eq('id', item.id)
+      const result = await updateClassTimelineAdminAction(
+        localSchedules.map((item) => ({
+          id: item.id,
+          visible_after: item.visible_after || null,
+          due_date: item.due_date || null,
+        })),
       )
-
-      const results = await Promise.all(promises)
-      const firstError = results.find((r) => r.error)
-      if (firstError) throw firstError.error
+      if (!result.success) throw new Error(result.error)
 
       toast.success('Course timeline successfully updated!')
       window.location.reload()
-    } catch (err: any) {
-      toast.error(`Failed to save timeline: ${err.message}`)
+    } catch (err) {
+      toast.error(`Failed to save timeline: ${getErrorMessage(err, 'Unknown timeline save error')}`)
     } finally {
       setSaving(false)
     }
@@ -491,7 +544,7 @@ function TimelineEditor({ schedules, handleDeleteSchedule }: TimelineEditorProps
                     </label>
                     <input
                       type="datetime-local"
-                      value={formatForDateTimeLocal(item.visible_after)}
+                      value={formatForDateTimeLocal(item.visible_after || null)}
                       onChange={(e) => handleDateChange(idx, 'visible_after', e.target.value)}
                       className="w-full bg-slate-955 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono"
                     />
@@ -504,7 +557,7 @@ function TimelineEditor({ schedules, handleDeleteSchedule }: TimelineEditorProps
                     </label>
                     <input
                       type="datetime-local"
-                      value={formatForDateTimeLocal(item.due_date)}
+                      value={formatForDateTimeLocal(item.due_date || null)}
                       onChange={(e) => handleDateChange(idx, 'due_date', e.target.value)}
                       className="w-full bg-slate-955 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-all font-mono"
                     />

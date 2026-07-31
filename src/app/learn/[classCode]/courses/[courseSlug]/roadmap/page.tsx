@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Lock, Loader2, ArrowLeft, CheckCircle2, Clock, FileText, ChevronRight, ChevronDown, AlertCircle } from 'lucide-react'
+import { Lock, Loader2, ArrowLeft, Clock, FileText, ChevronRight, ChevronDown, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useLearner } from '../../../LearnerContext'
 import { formatDate } from '@/lib/date'
@@ -31,6 +31,40 @@ interface RoadmapProps {
     classCode: string
     courseSlug: string
   }>
+}
+
+interface ClassCourseRow {
+  course_id?: string | null
+}
+
+interface LessonRow {
+  id: string
+  title: string
+  order_index: number
+  metadata?: {
+    status?: string | null
+  } | null
+}
+
+interface ModuleRow {
+  id: string
+  title: string
+  order_index: number
+  lessons?: LessonRow[]
+}
+
+interface ScheduleRow {
+  lesson_id: string
+  visible_after?: string | null
+}
+
+interface AssignmentRow {
+  id: string
+  lesson_id: string
+}
+
+interface ProgressRow {
+  lesson_id: string
 }
 
 export default function CourseRoadmap({ params }: RoadmapProps) {
@@ -86,7 +120,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
 
         const allowedCourseIds = new Set([
           classData.course_id,
-          ...(mappedCourses || []).map((course) => course.course_id),
+          ...(((mappedCourses || []) as ClassCourseRow[]).map((course) => course.course_id)),
         ].filter(Boolean))
 
         if (!allowedCourseIds.has(courseData.id)) {
@@ -103,9 +137,10 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         if (modulesError) throw modulesError
 
         // Filter out draft lessons
-        modulesData?.forEach((mod: any) => {
-          mod.lessons = (mod.lessons || []).filter((l: any) => l.metadata?.status !== 'draft')
-        })
+        const activeModules = ((modulesData || []) as ModuleRow[]).map((mod) => ({
+          ...mod,
+          lessons: (mod.lessons || []).filter((lesson) => lesson.metadata?.status !== 'draft')
+        }))
 
         // 4. Fetch Class Schedules release times
         const { data: schedulesData, error: schedulesError } = await supabase
@@ -115,8 +150,8 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
 
         if (schedulesError) throw schedulesError
 
-        const scheduleMap = new Map<string, any>()
-        schedulesData?.forEach((sched) => {
+        const scheduleMap = new Map<string, ScheduleRow>()
+        ;((schedulesData || []) as ScheduleRow[]).forEach((sched) => {
           scheduleMap.set(sched.lesson_id, sched)
         })
 
@@ -130,13 +165,13 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
             .eq('student_email', studentEmail)
 
           if (progressError) throw progressError
-          progressData?.forEach(p => completedLessonIds.add(p.lesson_id))
+          ;((progressData || []) as ProgressRow[]).forEach(p => completedLessonIds.add(p.lesson_id))
         }
 
         // Fetch assignments indicators and map them by lesson ID
         const allLessonIds: string[] = []
-        modulesData?.forEach((mod: any) => {
-          mod.lessons?.forEach((l: any) => allLessonIds.push(l.id))
+        activeModules.forEach((mod) => {
+          mod.lessons?.forEach((lesson) => allLessonIds.push(lesson.id))
         })
 
         const lessonAssignmentMap = new Map<string, string>()
@@ -147,7 +182,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
             .in('lesson_id', allLessonIds)
 
           if (assignmentsError) throw assignmentsError
-          assignmentsData?.forEach(a => lessonAssignmentMap.set(a.lesson_id, a.id))
+          ;((assignmentsData || []) as AssignmentRow[]).forEach(a => lessonAssignmentMap.set(a.lesson_id, a.id))
         }
 
         const processedModules: ModuleWithLessons[] = []
@@ -155,13 +190,13 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
         let tCount = 0
         let cCount = 0
 
-        modulesData?.forEach((mod: any) => {
+        activeModules.forEach((mod) => {
           const lessons = mod.lessons || []
-          lessons.sort((a: any, b: any) => a.order_index - b.order_index)
+          lessons.sort((a, b) => a.order_index - b.order_index)
 
-          const processedLessons: LessonStatus[] = lessons.map((lesson: any) => {
+          const processedLessons: LessonStatus[] = lessons.map((lesson) => {
             const schedule = scheduleMap.get(lesson.id)
-            const visibleAfterStr = schedule?.visible_after
+            const visibleAfterStr = schedule?.visible_after || null
             
             // Release Gate: Lock if visible_after is in future OR is NULL
             let isLocked = true
@@ -372,7 +407,7 @@ export default function CourseRoadmap({ params }: RoadmapProps) {
                         {/* Timeline vertical line */}
                         <div className="absolute left-3.5 top-2 bottom-2 w-0.5 border-l-2 border-dashed border-slate-800 pointer-events-none" />
 
-                        {mod.lessons.map((lesson, lessonIdx) => {
+                        {mod.lessons.map((lesson) => {
                           const isLocked = lesson.isLocked
                           const isCompleted = lesson.isCompleted
                           const isActiveNode = lesson.id === activeLessonId

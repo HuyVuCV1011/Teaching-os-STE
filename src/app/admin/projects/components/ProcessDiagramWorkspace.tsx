@@ -7,6 +7,8 @@ import ReactFlow, {
   Edge,
   MarkerType,
   Connection,
+  OnNodesChange,
+  OnEdgesChange,
   addEdge,
   useReactFlow,
 } from 'reactflow'
@@ -50,13 +52,15 @@ const nodeTypeOptions = [
   { value: 'action', label: 'Action' },
 ]
 
+const nodeTypes = { customNode: CustomNode }
+
 interface ProcessDiagramWorkspaceProps {
   nodes: Node[]
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>
-  onNodesChange: any
+  onNodesChange: OnNodesChange
   edges: Edge[]
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>
-  onEdgesChange: any
+  onEdgesChange: OnEdgesChange
 }
 
 export function ProcessDiagramWorkspace({
@@ -186,7 +190,7 @@ export function ProcessDiagramWorkspace({
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onDoubleClick={onPaneDoubleClick}
-          nodeTypes={{ customNode: CustomNode }}
+          nodeTypes={nodeTypes}
           fitView
         >
           <Controls className="bg-slate-900 border-slate-700 text-slate-400" />

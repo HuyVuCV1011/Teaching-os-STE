@@ -5,10 +5,12 @@ import { FileText, FileDown } from 'lucide-react'
 
 interface UploadedDeliverablesProps {
   submittedFiles: string[] | null
+  signedFileUrls: Record<string, string>
 }
 
 export function UploadedDeliverables({
   submittedFiles,
+  signedFileUrls,
 }: UploadedDeliverablesProps) {
   return (
     <div className="border border-slate-700 bg-slate-900/10 rounded-2xl p-6 md:p-8 space-y-4 shadow-xl">
@@ -25,15 +27,19 @@ export function UploadedDeliverables({
               className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-slate-700 hover:border-slate-600 transition-all"
             >
               <span className="text-xs font-semibold text-slate-200 truncate pr-4">{fileName}</span>
-              <a
-                href={`${process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zuwsvvpzivukrfegqgsp.supabase.co'}/storage/v1/object/sign/student-submissions/${path}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-semibold text-blue-600 hover:text-blue-500 flex items-center gap-1 shrink-0"
-              >
-                <FileDown className="w-3.5 h-3.5" />
-                <span>Download</span>
-              </a>
+              {signedFileUrls[path] ? (
+                <a
+                  href={signedFileUrls[path]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-500 flex items-center gap-1 shrink-0"
+                >
+                  <FileDown className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Download</span>
+                </a>
+              ) : (
+                <span className="text-xs font-semibold text-amber-700">Link unavailable</span>
+              )}
             </div>
           )
         })}

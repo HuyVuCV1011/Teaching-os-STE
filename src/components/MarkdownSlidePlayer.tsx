@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useCallback, useState, useEffect, useRef } from 'react'
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -38,12 +38,12 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
     setCurrentSlide(0)
   }, [markdown])
 
-  const changeSlide = (offset: number) => {
+  const changeSlide = useCallback((offset: number) => {
     setCurrentSlide((prev) => {
       const next = prev + offset
       return Math.min(Math.max(next, 0), slides.length - 1)
     })
-  }
+  }, [slides.length])
 
   // Handle keyboard navigation and shortcut for sidebar
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [slides.length, currentSlide])
+  }, [changeSlide])
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return
@@ -259,4 +259,3 @@ export default function MarkdownSlidePlayer({ markdown, title }: MarkdownSlidePl
     </div>
   )
 }
-

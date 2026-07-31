@@ -8,9 +8,18 @@ import { toast } from 'react-hot-toast'
 interface SemanticSearchDrawerProps {
   isOpen: boolean
   onClose: () => void
-  onPinChunk?: (chunk: any) => void
-  pinnedChunks?: any[]
+  onPinChunk?: (chunk: KnowledgeSearchChunk) => void
+  pinnedChunks?: KnowledgeSearchChunk[]
   onUnpinChunk?: (chunkId: string) => void
+}
+
+interface KnowledgeSearchChunk {
+  chunk_id: string
+  content: string
+  score?: number | string | null
+  citation?: {
+    knowledge_source_title?: string | null
+  } | null
 }
 
 export function SemanticSearchDrawer({
@@ -22,7 +31,7 @@ export function SemanticSearchDrawer({
 }: SemanticSearchDrawerProps) {
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
-  const [results, setResults] = useState<any[]>([])
+  const [results, setResults] = useState<KnowledgeSearchChunk[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   if (!isOpen) return null
@@ -39,8 +48,9 @@ export function SemanticSearchDrawer({
       } else {
         throw new Error(res.error)
       }
-    } catch (err: any) {
-      toast.error(`Tìm kiếm thất bại: ${err.message}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Vui lòng thử lại.'
+      toast.error(`Tìm kiếm thất bại: ${message}`)
     } finally {
       setSearching(false)
     }

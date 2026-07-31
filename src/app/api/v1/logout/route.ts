@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     })
 
     return response
-  } catch (err: any) {
+  } catch (err) {
     console.error('Logout error:', err)
     return NextResponse.json(
       { error: 'Internal Server Error' },

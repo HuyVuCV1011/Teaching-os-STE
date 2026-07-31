@@ -2,7 +2,7 @@ import { Github, Twitter, Linkedin } from 'lucide-react'
 
 export const navItems = [
   { name: 'Về tôi', link: '#about' },
-  { name: 'Dự án', link: '#projects' },
+  { name: 'Dự án', link: '/projects' },
   { name: 'Liên hệ', link: '#contact' },
   { name: 'Classroom', link: 'learn' },
   { name: 'Admin Hub', link: 'admin' },

@@ -4,8 +4,7 @@ import React from 'react'
 import { Shield, Trash2 } from 'lucide-react'
 
 interface StudentWhitelistProps {
-  selectedClass: any
-  enrollments: any[]
+  enrollments: EnrollmentRow[]
   newEmail: string
   setNewEmail: (val: string) => void
   handleEnrollStudent: (e: React.FormEvent) => void
@@ -14,8 +13,12 @@ interface StudentWhitelistProps {
   setEmailFilter: (val: string) => void
 }
 
+interface EnrollmentRow {
+  id: string
+  student_email?: string | null
+}
+
 export function StudentWhitelist({
-  selectedClass,
   enrollments,
   newEmail,
   setNewEmail,
@@ -93,7 +96,7 @@ export function StudentWhitelist({
             ))}
             {filteredEnrollments.length === 0 && (
               <div className="text-slate-500 text-xs italic py-4 col-span-2">
-                No whitelisted student matched "{emailFilter}"
+                No whitelisted student matched &ldquo;{emailFilter}&rdquo;
               </div>
             )}
           </div>

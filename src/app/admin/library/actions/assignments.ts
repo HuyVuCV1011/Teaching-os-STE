@@ -5,11 +5,60 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
-import { cookies } from 'next/headers'
-import { verifyJWT } from '@/lib/jwt'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
+import { requireAdminUser } from '@/lib/admin-auth'
 
 const execAsync = promisify(exec)
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
+
+type ApiErrorResponse = {
+  detail?: string
+  error?: {
+    message?: string
+  }
+  message?: string
+}
+
+type ParserOutput = {
+  error?: string
+  extracted_text?: string
+}
+
+type NotebookCell = {
+  cell_type?: string
+  source?: string | string[]
+}
+
+type AssignmentPayload = {
+  lesson_id: string
+  title: string
+  instructions: string
+  rubric_id: string | null
+  max_score: number
+  max_files: number
+  max_total_size_mb: number
+  auto_publish_grades: boolean
+  rubric_snapshot_id: string | null
+  solution_storage_path: string | null
+  prompt_file_path: string | null
+  ai_model_used: string
+  late_policy: {
+    grace_period_hours: number
+    penalty_percent_per_day: number
+  }
+}
+
+type RubricCriterionInput = {
+  key?: string
+  label: string
+  description?: string
+  max_points: number
+  weight: number | string
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
 
 export interface AssignmentInput {
   id?: string
@@ -40,7 +89,39 @@ export interface AssignmentInput {
   }> | null
 }
 
+export async function listAssignmentsAdminAction() {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const { data, error } = await supabase
+      .from('assignments')
+      .select(`
+        *,
+        lesson:lessons (
+          id,
+          title,
+          module:modules (
+            id,
+            title,
+            course:courses (
+              id,
+              title,
+              subject:subjects ( name )
+            )
+          )
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return { success: true as const, data: data || [] }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
 export async function saveAssignmentAction(input: AssignmentInput) {
+  await requireAdminUser()
   const supabase = getSupabaseServer(true)
   if (
     input.maxScore < 0 ||
@@ -140,7 +221,7 @@ export async function saveAssignmentAction(input: AssignmentInput) {
     }
 
     // 3. Save Assignment
-    const payload: any = {
+    const payload: AssignmentPayload = {
       lesson_id: input.lessonId,
       title: input.title,
       instructions: input.instructions,
@@ -182,13 +263,14 @@ export async function saveAssignmentAction(input: AssignmentInput) {
       if (error) throw error
       return { success: true, data, rubricId: activeRubricId }
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to save assignment:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
 export async function deleteAssignmentAction(id: string) {
+  await requireAdminUser()
   const supabase = getSupabaseServer(true)
   try {
     const { error } = await supabase
@@ -198,15 +280,16 @@ export async function deleteAssignmentAction(id: string) {
 
     if (error) throw error
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to delete assignment:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
 // Proxies calling the Python RubriCore engine
 export async function generateSolutionAction(assignmentText: string, modelChoice: string = 'ollama') {
   try {
+    await requireAdminUser()
     const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-solution`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -217,15 +300,15 @@ export async function generateSolutionAction(assignmentText: string, modelChoice
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Solution generation endpoint failed')
     }
 
-    const data = await res.json()
+    const data = await res.json() as { solution_key?: string }
     return { success: true, solutionKey: data.solution_key }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to generate solution:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -237,6 +320,7 @@ export async function generateRubricAction(
   questionCount?: number
 ) {
   try {
+    await requireAdminUser()
     const res = await fetch(`${RUBICORE_API_URL}/pilot/generate-rubric`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -250,15 +334,15 @@ export async function generateRubricAction(
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Rubric generation endpoint failed')
     }
 
-    const data = await res.json()
+    const data = await res.json() as { criteria?: unknown[] }
     return { success: true, criteria: data.criteria }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to generate rubric:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -271,6 +355,7 @@ export async function generateAssignmentQuestionsAction(params: {
   lessonContent: string
 }) {
   try {
+    await requireAdminUser()
     const url = `${RUBICORE_API_URL}/pilot/generate-assignment`;
     const bodyStr = JSON.stringify({
       model_choice: params.modelChoice,
@@ -288,28 +373,28 @@ export async function generateAssignmentQuestionsAction(params: {
         headers: { 'Content-Type': 'application/json' },
         body: bodyStr,
       });
-    } catch (fetchErr: any) {
+    } catch (fetchErr) {
       console.error(`Fetch connection failed to ${url}:`, fetchErr);
-      throw new Error(`Failed to connect to AI engine at ${url}. Error: ${fetchErr.message}`);
+      throw new Error(`Failed to connect to AI engine at ${url}. Error: ${getErrorMessage(fetchErr)}`);
     }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
       let parsedDetail = '';
       try {
-        const errJson = JSON.parse(errText);
-        parsedDetail = errJson.detail;
+        const errJson = JSON.parse(errText) as ApiErrorResponse;
+        parsedDetail = errJson.detail || '';
       } catch {}
       
       const errMsg = parsedDetail || errText || `HTTP error ${res.status}`;
       throw new Error(`AI generation failed (status ${res.status} from ${url}): ${errMsg}`);
     }
 
-    const data = await res.json();
+    const data = await res.json() as { questions?: unknown[] };
     return { success: true, questions: data.questions };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to generate assignment:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -321,9 +406,9 @@ async function extractTextFromFile(file: File): Promise<string> {
   if (ext === 'ipynb') {
     try {
       const notebook = JSON.parse(buffer.toString('utf-8'))
-      const cells = notebook.cells || []
+      const cells = Array.isArray(notebook.cells) ? notebook.cells as NotebookCell[] : []
       let notebookText = ''
-      cells.forEach((cell: any, idx: number) => {
+      cells.forEach((cell, idx: number) => {
         const cellType = cell.cell_type || 'code'
         const source = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '')
         notebookText += `\n\n--- Cell #${idx + 1} (${cellType}) ---\n${source}`
@@ -361,7 +446,7 @@ async function extractTextFromFile(file: File): Promise<string> {
         console.warn(`Python parsing stderr: ${stderr}`)
       }
 
-      const parsedOutput = JSON.parse(stdout)
+      const parsedOutput = JSON.parse(stdout) as ParserOutput
       if (parsedOutput.error) {
         throw new Error(`Python script error: ${parsedOutput.error}`)
       }
@@ -383,6 +468,7 @@ async function extractTextFromFile(file: File): Promise<string> {
 
 export async function parseAssignmentFileAction(formData: FormData) {
   try {
+    await requireAdminUser()
     const file = formData.get('file') as File | null
     if (!file) throw new Error('No file provided')
 
@@ -408,35 +494,36 @@ export async function parseAssignmentFileAction(formData: FormData) {
           solution_content: extractedSolutionText || null,
         }),
       })
-    } catch (fetchErr: any) {
-      throw new Error(`Failed to connect to AI engine at ${url}. ${fetchErr.message}`)
+    } catch (fetchErr) {
+      throw new Error(`Failed to connect to AI engine at ${url}. ${getErrorMessage(fetchErr)}`)
     }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
       let parsedDetail = ''
       try {
-        const errJson = JSON.parse(errText)
+        const errJson = JSON.parse(errText) as ApiErrorResponse
         parsedDetail = errJson.detail || errJson.error?.message || errJson.message || ''
       } catch {}
       const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
       throw new Error(errMsg)
     }
 
-    const data = await res.json()
+    const data = await res.json() as { questions?: unknown[] }
     return { 
       success: true, 
       questions: data.questions || [],
       fileName: file.name,
       fileSize: file.size
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to parse uploaded assignment file:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
 export async function readMaterialsTextAction(materialUrls: string[]) {
+  await requireAdminUser()
   const supabase = getSupabaseServer(true)
   const tempDir = path.join(process.cwd(), 'scratch')
   if (!fs.existsSync(tempDir)) {
@@ -480,7 +567,7 @@ export async function readMaterialsTextAction(materialUrls: string[]) {
             console.warn(`Python parsing stderr for ${urlPath}: ${stderr}`)
           }
 
-          const parsedOutput = JSON.parse(stdout)
+          const parsedOutput = JSON.parse(stdout) as ParserOutput
           if (parsedOutput.extracted_text) {
             extractedTexts.push(`--- FILE: ${path.basename(urlPath)} ---\n${parsedOutput.extracted_text}`)
           }
@@ -488,21 +575,23 @@ export async function readMaterialsTextAction(materialUrls: string[]) {
           const text = await downloadData.text()
           extractedTexts.push(`--- FILE: ${path.basename(urlPath)} ---\n${text}`)
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(`Error parsing material ${urlPath}:`, err)
       } finally {
         if (tempFilePath && fs.existsSync(tempFilePath)) {
           try {
             fs.unlinkSync(tempFilePath)
-          } catch (e) {}
+          } catch {
+            // Best-effort cleanup only.
+          }
         }
       }
     }
 
     return { success: true, combinedText: extractedTexts.join('\n\n') }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to read selected materials:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -513,6 +602,7 @@ export async function suggestQuestionAnswerAction(params: {
   modelChoice?: string
 }) {
   try {
+    await requireAdminUser()
     const res = await fetch(`${RUBICORE_API_URL}/pilot/suggest-question-answer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -528,18 +618,18 @@ export async function suggestQuestionAnswerAction(params: {
       const errText = await res.text().catch(() => '')
       let parsedDetail = ''
       try {
-        const errJson = JSON.parse(errText)
-        parsedDetail = errJson.detail
+        const errJson = JSON.parse(errText) as ApiErrorResponse
+        parsedDetail = errJson.detail || ''
       } catch {}
       const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
       throw new Error(`AI suggest answer failed: ${errMsg}`)
     }
 
-    const data = await res.json()
+    const data = await res.json() as { answer?: string }
     return { success: true, answer: data.answer }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to suggest answer:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -550,6 +640,7 @@ export async function suggestBatchQuestionAnswersAction(params: {
   modelChoice?: string
 }) {
   try {
+    await requireAdminUser()
     const res = await fetch(`${RUBICORE_API_URL}/pilot/suggest-batch-question-answers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -565,63 +656,19 @@ export async function suggestBatchQuestionAnswersAction(params: {
       const errText = await res.text().catch(() => '')
       let parsedDetail = ''
       try {
-        const errJson = JSON.parse(errText)
-        parsedDetail = errJson.detail
+        const errJson = JSON.parse(errText) as ApiErrorResponse
+        parsedDetail = errJson.detail || ''
       } catch {}
       const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
       throw new Error(`AI batch suggest answers failed: ${errMsg}`)
     }
 
-    const data = await res.json()
+    const data = await res.json() as { answers?: unknown[] }
     return { success: true, answers: data.answers }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to suggest batch answers:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
-}
-
-async function checkAdminAuth() {
-  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_ADMIN_AUTH === 'true') {
-    return { userId: '00000000-0000-0000-0000-000000000000' }
-  }
-
-  const cookieStore = await cookies()
-  const sbToken = cookieStore.get('sb-access-token') || cookieStore.get('supabase-auth-token')
-
-  if (!sbToken) {
-    throw new Error('Unauthorized: No authentication token found')
-  }
-
-  const secret = process.env.SUPABASE_JWT_SECRET
-  let payload: any = null
-
-  if (secret) {
-    payload = await verifyJWT(sbToken.value, secret)
-  } else {
-    const parts = sbToken.value.split('.')
-    if (parts.length === 3) {
-      payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-    }
-  }
-
-  if (!payload) {
-    throw new Error('Unauthorized: Invalid token payload')
-  }
-
-  const role = payload.app_metadata?.role || payload.role
-  const isAuthorized = [
-    'admin',
-    'teacher',
-    'super-admin',
-    'content-admin',
-    'class-operator'
-  ].includes(role || '')
-
-  if (!isAuthorized) {
-    throw new Error('Unauthorized: Insufficient privileges')
-  }
-
-  return { userId: payload.sub }
 }
 
 async function resolveOrganizationId() {
@@ -633,26 +680,26 @@ async function resolveOrganizationId() {
     .single()
 
   if (error || !org) {
-    throw new Error(`Failed to resolve organization boundary: ${error?.message || 'Not found'}`)
+    throw new Error(getSupabaseFetchErrorMessage(error, 'Không thể xác định organization mặc định.'))
   }
 
-  return org.id
+  return org.id as string
 }
 
 export async function testGradeRubricAction(input: {
-  criteria: any[]
+  criteria: RubricCriterionInput[]
   studentAnswer: string
   assignmentInstructions: string
   modelAnswer: string
   modelChoice?: string
 }) {
   try {
-    const { userId } = await checkAdminAuth()
+    const { userId } = await requireAdminUser()
     const orgId = await resolveOrganizationId()
 
     const rubricSchema = {
       schema_version: '1.0',
-      criteria: input.criteria.map((c: any) => ({
+      criteria: input.criteria.map((c) => ({
         key: c.key,
         label: c.label,
         description: c.description || '',
@@ -690,15 +737,15 @@ export async function testGradeRubricAction(input: {
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || errData.error?.message || `Stateless grading API returned HTTP ${res.status}`)
     }
 
     const result = await res.json()
     return { success: true, grading: result }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Sandbox grading failed:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 

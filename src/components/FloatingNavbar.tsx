@@ -53,29 +53,30 @@ export const FloatingNav = ({
           opacity: visible ? 1 : 0,
         }}
         transition={{
-          duration: 0.2,
+          duration: 0.28,
+          ease: [0.22, 1, 0.36, 1],
         }}
         className={cn(
-          'flex max-w-fit fixed z-[5000] top-10 inset-x-0 mx-auto px-5 py-5 rounded-lg border border-black/.1 shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1),0px_1px_0px_0px_rgba(25,28,33,0.02),0px_0px_0px_1px_rgba(25,28,33,0.08)] items-center justify-center',
+          'fixed inset-x-3 top-5 z-40 mx-auto hidden max-w-fit items-center justify-center rounded-full border border-slate-800/70 bg-white/80 px-2 py-2 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/65 sm:px-3 md:flex',
           className
         )}
-        style={{
-          backdropFilter: 'blur(16px) saturate(180%)',
-          backgroundColor: 'rgba(255, 255, 255, 0.5)',
-          borderRadius: '12px',
-          border: '1px solid rgba(255, 255, 255, 0.125)',
-        }}
       >
         {navItems.map(
           (navItem: { name: string; link: string }, idx: number) => {
-            // Nếu đang ở route khác '/', thêm '/' vào trước link
-            const href = pathname === '/' ? navItem.link : `/${navItem.link}`
+            const isHashLink = navItem.link.startsWith('#')
+            const isAbsolutePath = navItem.link.startsWith('/')
+            const href =
+              pathname === '/' || isAbsolutePath
+                ? navItem.link
+                : isHashLink
+                  ? `/${navItem.link}`
+                  : `/${navItem.link}`
             return (
               <Link
                 key={`link=${idx}`}
                 href={href}
                 scroll={true} // Kích hoạt cuộn mượt
-                className="font-medium text-foreground [&:not(:last-child)]:border-r px-4 border-muted-foreground hover:text-primary"
+                className="rounded-full px-3 py-2 text-xs font-semibold text-slate-500 transition-colors duration-300 ease-premium hover:bg-slate-900 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:px-4 sm:text-sm"
               >
                 {navItem.name}
               </Link>

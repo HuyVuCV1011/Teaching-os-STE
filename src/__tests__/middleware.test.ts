@@ -28,6 +28,7 @@ function makeRequest(pathname: string, cookies: Record<string, string> = {}): Ne
 describe('middleware', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('JWT_SECRET', 'test-only-jwt-secret-with-at-least-32-characters')
   })
 
   describe('/learn/* route protection', () => {
@@ -94,13 +95,6 @@ describe('middleware', () => {
 
       // For admin bypass via supabase token, the middleware parses the token manually
       // when SUPABASE_JWT_SECRET is not set (fallback parsing)
-      const adminPayload = {
-        app_metadata: { role: 'admin' },
-        role: null,
-      }
-      const encodedPayload = btoa(JSON.stringify(adminPayload))
-        .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-
       // Mock the first verifyJWT call to return null (no valid class session)
       // The supabase token fallback parses the token differently
       // We need to handle this carefully
@@ -176,20 +170,27 @@ describe('middleware', () => {
       })
       const res = await middleware(req)
       expect(res.status).toBe(307) // redirect to /
-      expect(res.headers.get('Location')).toBe('http://localhost:3000/')
+      expect(res.headers.get('Location')).toBe('http://localhost:3000/admin/login?next=%2Fadmin%2Fdashboard')
     })
   })
 
   describe('/admin/* route protection', () => {
-    it('redirects unauthenticated users to /', async () => {
+    it('redirects unauthenticated users to the admin login page', async () => {
       const req = makeRequest('/admin/dashboard')
       const res = await middleware(req)
       expect(res.status).toBe(307)
-      expect(res.headers.get('Location')).toBe('http://localhost:3000/')
+      expect(res.headers.get('Location')).toBe('http://localhost:3000/admin/login?next=%2Fadmin%2Fdashboard')
+    })
+
+    it('allows unauthenticated users to open the admin login page', async () => {
+      const req = makeRequest('/admin/login')
+      const res = await middleware(req)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('X-Robots-Tag')).toBe('noindex, nofollow')
     })
 
     it('allows access if BYPASS_ADMIN_AUTH is set in dev mode', async () => {
-      (process.env as any).NODE_ENV = 'development'
+      vi.stubEnv('NODE_ENV', 'development')
       process.env.BYPASS_ADMIN_AUTH = 'true'
 
       const req = makeRequest('/admin/dashboard')
@@ -197,7 +198,7 @@ describe('middleware', () => {
       expect(res.status).toBe(200)
 
       delete process.env.BYPASS_ADMIN_AUTH;
-      (process.env as any).NODE_ENV = 'test'
+      vi.stubEnv('NODE_ENV', 'test')
     })
 
     it('allows super-admin role', async () => {

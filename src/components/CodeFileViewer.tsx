@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { Download, Copy, Check, Loader2, Play, Database, FileCode, X } from 'lucide-react'
 import { renderSimpleMarkdown } from '@/lib/markdown'
 
@@ -9,6 +10,25 @@ interface CodeFileViewerProps {
   title: string
   downloadAllowed?: boolean
   isSplit?: boolean
+}
+
+interface NotebookCell {
+  cell_type?: string
+  source?: string | string[]
+  execution_count?: number | null
+  outputs?: NotebookOutput[]
+}
+
+interface NotebookOutput {
+  output_type?: string
+  text?: string | string[]
+  data?: {
+    'image/png'?: string | string[]
+    'text/plain'?: string | string[]
+  }
+  ename?: string
+  evalue?: string
+  traceback?: string[]
 }
 
 // Inline SVG for the STE Wise company logo, with clean dark text for light headers
@@ -109,7 +129,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true, isS
           setContent(text)
           setLoading(false)
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to load code file:', err)
         if (active) {
           setError('Không thể tải trực tiếp nội dung file này do giới hạn mạng hoặc CORS. Anh hãy tải file xuống máy để xem.')
@@ -205,7 +225,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true, isS
   // Interactive Jupyter Notebook rendering (Google Colab Layout Clone)
   if (isNotebook) {
     try {
-      const notebookData = JSON.parse(content)
+      const notebookData = JSON.parse(content) as { cells?: NotebookCell[] }
       const cells = notebookData.cells || []
 
       return (
@@ -234,7 +254,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true, isS
 
           {/* Notebook Canvas */}
           <div className={`bg-[#f8f9fa] border border-slate-800 rounded-2xl p-4 md:p-6 space-y-5 ${isSplit ? 'flex-1 min-h-0 overflow-y-auto custom-scrollbar' : ''}`}>
-            {cells.map((cell: any, idx: number) => {
+            {cells.map((cell, idx) => {
               const cellSource = Array.isArray(cell.source) ? cell.source.join('') : cell.source || ''
               
               if (cell.cell_type === 'markdown') {
@@ -296,7 +316,7 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true, isS
                       {/* Outputs Panel (Colab Console style) */}
                       {cell.outputs && cell.outputs.length > 0 && (
                         <div className="border-t border-slate-800 bg-slate-900 p-4 font-mono text-[11px] text-slate-200 overflow-x-auto whitespace-pre-wrap max-h-60 custom-scrollbar border-dashed flex flex-col gap-2">
-                          {cell.outputs.map((out: any, oIdx: number) => {
+                          {cell.outputs.map((out, oIdx) => {
                             // 1. Text console output stream
                             if (out.output_type === 'stream' && out.text) {
                               return <div key={oIdx} className="text-slate-200">{Array.isArray(out.text) ? out.text.join('') : out.text}</div>
@@ -310,10 +330,13 @@ export default function CodeFileViewer({ url, title, downloadAllowed = true, isS
                                   : out.data['image/png']
                                 return (
                                   <div key={oIdx} className="my-2 bg-white p-2.5 rounded-lg border border-slate-800 inline-block self-start shadow-sm">
-                                    <img 
-                                      src={`data:image/png;base64,${base64Data.replace(/\n/g, '')}`} 
+                                    <Image
+                                      src={`data:image/png;base64,${base64Data.replace(/\n/g, '')}`}
                                       alt="Notebook Plot Output" 
                                       className="max-w-full h-auto"
+                                      width={720}
+                                      height={480}
+                                      unoptimized
                                     />
                                   </div>
                                 )

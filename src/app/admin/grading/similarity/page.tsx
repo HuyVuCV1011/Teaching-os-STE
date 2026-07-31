@@ -1,8 +1,12 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import LinkNext from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
+import {
+  listSimilarityAssignmentsAdminAction,
+  listSimilaritySubmissionsAdminAction,
+} from '../actions'
 import {
   ArrowLeft,
   Loader2,
@@ -51,11 +55,32 @@ function jaccardSimilarity(str1: string, str2: string) {
 }
 
 export default function SimilarityChecker() {
-  const [assignments, setAssignments] = useState<any[]>([])
+  type AssignmentRow = {
+    id: string
+    title?: string | null
+    lessons?: {
+      title?: string | null
+      modules?: {
+        title?: string | null
+      } | null
+    } | null
+  }
+
+  type SubmissionRow = {
+    id: string
+    student_identifier?: string | null
+    submitted_text?: string | null
+    submission_embeddings?: {
+      embedding?: number[] | null
+    }[] | null
+  }
+
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [selectedAssignmentId, setSelectedAssignmentId] = useState('')
-  const [submissions, setSubmissions] = useState<any[]>([])
+  const [submissions, setSubmissions] = useState<SubmissionRow[]>([])
   const [loadingAssignments, setLoadingAssignments] = useState(true)
   const [loadingSubmissions, setLoadingSubmissions] = useState(false)
+  const [assignmentsError, setAssignmentsError] = useState<string | null>(null)
   const [metricMode, setMetricMode] = useState<'semantic' | 'lexical'>('semantic')
 
   // Selected cell for side-by-side comparison modal
@@ -114,9 +139,43 @@ export default function SimilarityChecker() {
     }
   }, [selectedPair])
 
+  const fetchAssignments = useCallback(async () => {
+    setLoadingAssignments(true)
+    setAssignmentsError(null)
+    try {
+      const result = await listSimilarityAssignmentsAdminAction()
+      if (!result.success) throw new Error(result.error)
+      setAssignments(result.data as AssignmentRow[])
+      if (result.data.length > 0) {
+        setSelectedAssignmentId(result.data[0].id)
+      }
+    } catch (err) {
+      const message = getSupabaseFetchErrorMessage(err, 'Không thể tải danh sách bài tập.')
+      console.warn('Unable to fetch assignments for similarity auditor:', message)
+      setAssignmentsError(message)
+    } finally {
+      setLoadingAssignments(false)
+    }
+  }, [])
+
+  const fetchSubmissions = useCallback(async (assignmentId: string) => {
+    setLoadingSubmissions(true)
+    try {
+      const result = await listSimilaritySubmissionsAdminAction(assignmentId)
+      if (!result.success) throw new Error(result.error)
+      setSubmissions(result.data as SubmissionRow[])
+    } catch (err) {
+      const message = getSupabaseFetchErrorMessage(err, 'Không thể tải bài nộp.')
+      console.warn('Unable to fetch submissions for similarity auditor:', message)
+      toast.error(message)
+    } finally {
+      setLoadingSubmissions(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchAssignments()
-  }, [])
+  }, [fetchAssignments])
 
   useEffect(() => {
     if (selectedAssignmentId) {
@@ -124,44 +183,7 @@ export default function SimilarityChecker() {
     } else {
       setSubmissions([])
     }
-  }, [selectedAssignmentId])
-
-  async function fetchAssignments() {
-    setLoadingAssignments(true)
-    try {
-      const { data, error } = await supabase
-        .from('assignments')
-        .select('*, lessons(title, modules(title))')
-        .order('title')
-      setAssignments(data || [])
-      if (data && data.length > 0) {
-        setSelectedAssignmentId(data[0].id)
-      }
-    } catch (err) {
-      console.error('Failed to fetch assignments:', err)
-    } finally {
-      setLoadingAssignments(false)
-    }
-  }
-
-  async function fetchSubmissions(assignmentId: string) {
-    setLoadingSubmissions(true)
-    try {
-      // Fetch submissions along with their vectors
-      const { data, error } = await supabase
-        .from('submissions')
-        .select('*, submission_embeddings(*)')
-        .eq('assignment_id', assignmentId)
-
-      if (error) throw error
-      setSubmissions(data || [])
-    } catch (err) {
-      console.error('Failed to fetch submissions:', err)
-      toast.error('Error fetching submissions')
-    } finally {
-      setLoadingSubmissions(false)
-    }
-  }
+  }, [fetchSubmissions, selectedAssignmentId])
 
   // Calculate similarity matrix
   const matrixData: {
@@ -170,12 +192,12 @@ export default function SimilarityChecker() {
     semanticVal: number
     lexicalVal: number
     hasSemantic: boolean
-    subA: any
-    subB: any
+    subA: SubmissionRow | undefined
+    subB: SubmissionRow | undefined
   }[] = []
 
   // Unique list of student emails who have submitted
-  const students = Array.from(new Set(submissions.map((s) => s.student_identifier)))
+  const students = Array.from(new Set(submissions.map((s) => s.student_identifier).filter((email): email is string => Boolean(email))))
 
   for (let i = 0; i < students.length; i++) {
     for (let j = 0; j < students.length; j++) {
@@ -264,6 +286,11 @@ export default function SimilarityChecker() {
             <div className="flex items-center gap-2 text-slate-500">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Loading assignments...</span>
+            </div>
+          ) : assignmentsError ? (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-800">
+              <p className="font-semibold">Không thể tải bài tập</p>
+              <p className="mt-1 leading-relaxed text-amber-900/80">{assignmentsError}</p>
             </div>
           ) : (
             <select

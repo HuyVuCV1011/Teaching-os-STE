@@ -20,9 +20,6 @@ import {
   Code,
   List,
   ListOrdered,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
   Heading1,
   Heading2,
   Heading3,
@@ -201,9 +198,10 @@ export default function NovelRichTextEditor({
       } else {
         toast.error('AI generated empty response.', { id: toastId })
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('AI Autocomplete failed:', err)
-      toast.error(`AI writing failed: ${err.message}`, { id: toastId })
+      const message = err instanceof Error ? err.message : 'Please try again.'
+      toast.error(`AI writing failed: ${message}`, { id: toastId })
     } finally {
       setIsAiLoading(false)
     }

@@ -31,7 +31,7 @@ const ProjectCard = ({ classes, children }: FeatureCardProps) => {
       x.set(event.clientX - Number(rect?.left))
       y.set(event.clientY - Number(rect?.top))
     })
-  }, [])
+  }, [x, y])
 
   return (
     <motion.div

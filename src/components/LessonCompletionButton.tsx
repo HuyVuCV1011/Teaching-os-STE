@@ -1,11 +1,13 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { CheckCircle, Circle, Loader2 } from 'lucide-react'
 import { motion } from 'motion/react'
 import { toast } from 'react-hot-toast'
-import { toggleLessonProgressAction } from '@/app/learn/[classCode]/assignments/[assignmentId]/actions'
+import {
+  fetchLessonProgressAction,
+  toggleLessonProgressAction,
+} from '@/app/learn/[classCode]/assignments/[assignmentId]/actions'
 
 interface LessonCompletionButtonProps {
   classId: string
@@ -33,16 +35,9 @@ export default function LessonCompletionButton({
         return
       }
       try {
-        const { data, error } = await supabase
-          .from('student_lesson_progress')
-          .select('id')
-          .eq('class_id', classId)
-          .eq('lesson_id', lessonId)
-          .eq('student_email', studentEmail)
-          .maybeSingle()
-
-        if (data) {
-          setIsCompleted(true)
+        const res = await fetchLessonProgressAction(classCode, lessonId)
+        if (res.success) {
+          setIsCompleted(res.completed)
         }
       } catch (err) {
         console.error('Error checking lesson progress:', err)
@@ -52,7 +47,7 @@ export default function LessonCompletionButton({
     }
 
     checkCompletion()
-  }, [classId, lessonId, studentEmail])
+  }, [classCode, classId, lessonId, studentEmail])
 
   const handleToggle = async () => {
     if (!studentEmail || toggling) return
@@ -67,8 +62,9 @@ export default function LessonCompletionButton({
       if (!isCompleted) {
         onFirstComplete?.()
       }
-    } catch (err: any) {
-      toast.error(`Không thể cập nhật tiến độ: ${err.message}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Vui lòng thử lại.'
+      toast.error(`Không thể cập nhật tiến độ: ${message}`)
     } finally {
       setToggling(false)
     }
@@ -81,7 +77,7 @@ export default function LessonCompletionButton({
         className="px-4 py-2 rounded-xl border border-slate-800 bg-slate-900/30 text-slate-500 text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed"
       >
         <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-        <span>Loading...</span>
+        <span>Loading…</span>
       </button>
     )
   }

@@ -1,20 +1,157 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import {
+  addClassScheduleAdminAction,
+  assignCourseAdminAction,
+  createClassAnnouncementAdminAction,
+  deleteClassAdminAction,
+  deleteClassAnnouncementAdminAction,
+  deleteClassScheduleAdminAction,
+  enrollStudentsAdminAction,
+  getClassAnalyticsAdminAction,
+  getClassWorkspaceAdminAction,
+  listClassAnnouncementsAdminAction,
+  listClassesAdminAction,
+  removeEnrollmentAdminAction,
+  replaceClassSchedulesAdminAction,
+  saveClassAdminAction,
+  unassignCourseAdminAction,
+} from '../actions'
+
+type WorkspaceTab = 'syllabus' | 'notices' | 'analytics'
+
+interface SubjectRow {
+  id?: string
+  name?: string | null
+}
+
+interface CourseRow {
+  id: string
+  title?: string | null
+  slug?: string | null
+  subject_id?: string | null
+  status?: string | null
+  subjects?: SubjectRow | null
+}
+
+interface ClassRow {
+  id: string
+  name?: string | null
+  class_code?: string | null
+  status?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  course_id?: string | null
+  courses?: CourseRow | null
+}
+
+interface ClassCourseMapping {
+  id: string
+  class_id?: string | null
+  course_id?: string | null
+  courses?: CourseRow | null
+}
+
+interface LessonModuleRow {
+  title?: string | null
+  order_index?: number | null
+  course_id?: string | null
+}
+
+interface LessonRow {
+  id: string
+  title?: string | null
+  order_index?: number | null
+  modules?: LessonModuleRow | null
+}
+
+interface ScheduleRow {
+  id: string
+  lesson_id?: string | null
+  visible_after?: string | null
+  due_date?: string | null
+  lessons?: LessonRow | null
+}
+
+interface EnrollmentRow {
+  id: string
+  student_email?: string | null
+}
+
+interface AnnouncementRow {
+  id: string
+  title?: string | null
+  content?: string | null
+  created_at?: string | null
+}
+
+interface AnalyticsAssignment {
+  id: string
+  title?: string | null
+  lesson_id?: string | null
+}
+
+interface AnalyticsSubmission {
+  id: string
+  assignment_id?: string | null
+  student_identifier?: string | null
+  created_at?: string | null
+  status?: string | null
+  is_late?: boolean | null
+  grading_results?: {
+    status?: string | null
+    total_score?: string | number | null
+    rubric_scores?: {
+      score?: string | number | null
+      rubric_criteria?: {
+        name?: string | null
+        max_points?: number | null
+      } | null
+    }[] | null
+  } | null
+  assignments?: {
+    title?: string | null
+  } | null
+}
+
+interface ClassFormState {
+  name: string
+  class_code: string
+  status: string
+  start_date: string
+  end_date: string
+  course_id: string
+}
+
+interface ScheduleFormState {
+  lesson_id: string
+  visible_after: string
+  due_date: string
+}
+
+interface BulkFormState {
+  start_date: string
+  interval_days: string
+  due_offset_days: string
+}
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
 
 export function useClassesManager(initialAction: string | null) {
   const router = useRouter()
 
-  const [classes, setClasses] = useState<any[]>([])
-  const [courses, setCourses] = useState<any[]>([])
+  const [classes, setClasses] = useState<ClassRow[]>([])
+  const [courses, setCourses] = useState<CourseRow[]>([])
   const [loading, setLoading] = useState(true)
   const [errorState, setErrorState] = useState<string | null>(null)
 
   // Class Form State
-  const [classForm, setClassForm] = useState({
+  const [classForm, setClassForm] = useState<ClassFormState>({
     name: '',
     class_code: '',
     status: 'upcoming',
@@ -26,14 +163,14 @@ export function useClassesManager(initialAction: string | null) {
   const [editingClassId, setEditingClassId] = useState<string | null>(null)
 
   // Cohort Mapping / Course Mapping State
-  const [selectedClass, setSelectedClass] = useState<any | null>(null)
-  const [classCourses, setClassCourses] = useState<any[]>([])
+  const [selectedClass, setSelectedClass] = useState<ClassRow | null>(null)
+  const [classCourses, setClassCourses] = useState<ClassCourseMapping[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState('')
   
   // Schedules State
-  const [lessons, setLessons] = useState<any[]>([])
-  const [schedules, setSchedules] = useState<any[]>([])
-  const [scheduleForm, setScheduleForm] = useState({
+  const [lessons, setLessons] = useState<LessonRow[]>([])
+  const [schedules, setSchedules] = useState<ScheduleRow[]>([])
+  const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>({
     lesson_id: '',
     visible_after: '',
     due_date: '',
@@ -41,7 +178,7 @@ export function useClassesManager(initialAction: string | null) {
   const [showScheduleForm, setShowScheduleForm] = useState(false)
 
   // Bulk Scheduling State
-  const [bulkForm, setBulkForm] = useState({
+  const [bulkForm, setBulkForm] = useState<BulkFormState>({
     start_date: '',
     interval_days: '7',
     due_offset_days: '5',
@@ -49,28 +186,79 @@ export function useClassesManager(initialAction: string | null) {
   const [showBulkForm, setShowBulkForm] = useState(false)
 
   // Whitelist State
-  const [enrollments, setEnrollments] = useState<any[]>([])
+  const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([])
   const [newEmail, setNewEmail] = useState('')
   const [emailFilter, setEmailFilter] = useState('')
 
   // Workspace Active Tab
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'syllabus' | 'notices' | 'analytics'>('syllabus')
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('syllabus')
 
   // Notices State
-  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([])
   const [noticeTitle, setNoticeTitle] = useState('')
   const [noticeContent, setNoticeContent] = useState('')
   const [noticeSubmitting, setNoticeSubmitting] = useState(false)
   const [noticeLoading, setNoticeLoading] = useState(false)
 
   // Analytics State
-  const [analyticsSubmissions, setAnalyticsSubmissions] = useState<any[]>([])
-  const [analyticsAssignments, setAnalyticsAssignments] = useState<any[]>([])
+  const [analyticsSubmissions, setAnalyticsSubmissions] = useState<AnalyticsSubmission[]>([])
+  const [analyticsAssignments, setAnalyticsAssignments] = useState<AnalyticsAssignment[]>([])
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+
+  const fetchAnnouncements = useCallback(async () => {
+    if (!selectedClass) return
+    setNoticeLoading(true)
+    try {
+      const result = await listClassAnnouncementsAdminAction(selectedClass.id)
+      if (!result.success) throw new Error(result.error)
+      setAnnouncements(result.data as AnnouncementRow[])
+    } catch (err) {
+      console.error('Error fetching announcements:', err)
+      toast.error('Không thể tải bảng thông báo của lớp.')
+    } finally {
+      setNoticeLoading(false)
+    }
+  }, [selectedClass])
+
+  const fetchAnalytics = useCallback(async () => {
+    if (!selectedClass) return
+    setAnalyticsLoading(true)
+    try {
+      const result = await getClassAnalyticsAdminAction(
+        selectedClass.id,
+        lessons.map((lesson) => lesson.id),
+      )
+      if (!result.success) throw new Error(result.error)
+      setAnalyticsSubmissions(result.data.submissions as AnalyticsSubmission[])
+      setAnalyticsAssignments(result.data.assignments as AnalyticsAssignment[])
+    } catch (err) {
+      console.error('Error fetching analytics:', err)
+      toast.error('Không thể tải dữ liệu phân tích của lớp.')
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }, [lessons, selectedClass])
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setErrorState(null)
+
+    try {
+      const result = await listClassesAdminAction()
+      if (!result.success) throw new Error(result.error)
+      setClasses(result.data.classes as ClassRow[])
+      setCourses(result.data.courses as CourseRow[])
+    } catch (error) {
+      console.error('Error fetching classes metadata:', error)
+      setErrorState(getErrorMessage(error, 'Không thể tải dữ liệu lớp học.'))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   // Auto-fetch notices/analytics on tab switch
   useEffect(() => {
@@ -81,80 +269,24 @@ export function useClassesManager(initialAction: string | null) {
         fetchAnalytics()
       }
     }
-  }, [selectedClass?.id, activeWorkspaceTab, lessons])
-
-  const fetchAnnouncements = async () => {
-    if (!selectedClass) return
-    setNoticeLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('class_announcements')
-        .select('*')
-        .eq('class_id', selectedClass.id)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setAnnouncements(data || [])
-    } catch (err) {
-      console.error('Error fetching announcements:', err)
-      toast.error('Không thể tải bảng thông báo của lớp.')
-    } finally {
-      setNoticeLoading(false)
-    }
-  }
-
-  const fetchAnalytics = async () => {
-    if (!selectedClass) return
-    setAnalyticsLoading(true)
-    try {
-      const { data: subsData, error: subsError } = await supabase
-        .from('submissions')
-        .select('*, grading_results(*, rubric_scores(*, rubric_criteria(*))), assignments(title)')
-        .eq('class_id', selectedClass.id)
-
-      if (subsError) throw subsError
-      setAnalyticsSubmissions(subsData || [])
-
-      if (lessons.length > 0) {
-        const { data: assignData, error: assignError } = await supabase
-          .from('assignments')
-          .select('id, title, lesson_id')
-          .in('lesson_id', lessons.map((l) => l.id))
-
-        if (assignError) throw assignError
-        setAnalyticsAssignments(assignData || [])
-      } else {
-        setAnalyticsAssignments([])
-      }
-    } catch (err) {
-      console.error('Error fetching analytics:', err)
-      toast.error('Không thể tải dữ liệu phân tích của lớp.')
-    } finally {
-      setAnalyticsLoading(false)
-    }
-  }
+  }, [activeWorkspaceTab, fetchAnalytics, fetchAnnouncements, selectedClass])
 
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedClass || !noticeTitle.trim() || !noticeContent.trim() || noticeSubmitting) return
     setNoticeSubmitting(true)
     try {
-      const { error } = await supabase
-        .from('class_announcements')
-        .insert([
-          {
-            class_id: selectedClass.id,
-            title: noticeTitle.trim(),
-            content: noticeContent.trim()
-          }
-        ])
-
-      if (error) throw error
+      const result = await createClassAnnouncementAdminAction(
+        selectedClass.id,
+        noticeTitle,
+        noticeContent,
+      )
+      if (!result.success) throw new Error(result.error)
       setNoticeTitle('')
       setNoticeContent('')
-      fetchAnnouncements()
-    } catch (err: any) {
-      toast.error(`Failed to create announcement: ${err.message}`)
+      await fetchAnnouncements()
+    } catch (err) {
+      toast.error(`Failed to create announcement: ${getErrorMessage(err, 'Unknown announcement error')}`)
     } finally {
       setNoticeSubmitting(false)
     }
@@ -163,38 +295,11 @@ export function useClassesManager(initialAction: string | null) {
   const handleDeleteAnnouncement = async (id: string) => {
     if (!confirm('Are you sure you want to delete this announcement?')) return
     try {
-      const { error } = await supabase
-        .from('class_announcements')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
+      const result = await deleteClassAnnouncementAdminAction(id)
+      if (!result.success) throw new Error(result.error)
       setAnnouncements((prev) => prev.filter((a) => a.id !== id))
-    } catch (err: any) {
-      toast.error(`Failed to delete announcement: ${err.message}`)
-    }
-  }
-
-  async function fetchData() {
-    setLoading(true)
-    setErrorState(null)
-
-    try {
-      const [classesResult, coursesResult] = await Promise.all([
-        supabase.from('classes').select('*, courses(id, title, subjects(id, name))').order('created_at', { ascending: false }),
-        supabase.from('courses').select('*, subjects(id, name)').neq('status', 'archived').order('title'),
-      ])
-
-      if (classesResult.error) throw classesResult.error
-      if (coursesResult.error) throw coursesResult.error
-
-      setClasses(classesResult.data || [])
-      setCourses(coursesResult.data || [])
-    } catch (error) {
-      console.error('Error fetching classes metadata:', error)
-      setErrorState(error instanceof Error ? error.message : 'Không thể tải dữ liệu lớp học.')
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      toast.error(`Failed to delete announcement: ${getErrorMessage(err, 'Unknown delete error')}`)
     }
   }
 
@@ -203,7 +308,6 @@ export function useClassesManager(initialAction: string | null) {
     if (!classForm.name || !classForm.class_code || !classForm.start_date || !classForm.end_date) return
 
     try {
-      let classId = editingClassId
       const cohortPayload = {
         name: classForm.name,
         class_code: classForm.class_code,
@@ -212,42 +316,9 @@ export function useClassesManager(initialAction: string | null) {
         end_date: classForm.end_date,
         course_id: classForm.course_id || null,
       }
-
-      if (editingClassId) {
-        const { error } = await supabase
-          .from('classes')
-          .update(cohortPayload)
-          .eq('id', editingClassId)
-        if (error) throw error
-      } else {
-        const { data, error } = await supabase
-          .from('classes')
-          .insert([cohortPayload])
-          .select()
-          .single()
-        if (error) throw error
-        classId = data.id
-      }
-
-      // Automatically map primary course to class_courses join table
-      if (classForm.course_id && classId) {
-        const { data: existingMap } = await supabase
-          .from('class_courses')
-          .select('id')
-          .eq('class_id', classId)
-          .eq('course_id', classForm.course_id)
-          .maybeSingle()
-
-        if (!existingMap) {
-          const { error: mapError } = await supabase.from('class_courses').insert([
-            {
-              class_id: classId,
-              course_id: classForm.course_id,
-            },
-          ])
-          if (mapError) console.error('Failed to auto-map course:', mapError)
-        }
-      }
+      const result = await saveClassAdminAction(editingClassId, cohortPayload)
+      if (!result.success) throw new Error(result.error)
+      const classId = result.data.id
 
       setClassForm({
         name: '',
@@ -265,25 +336,18 @@ export function useClassesManager(initialAction: string | null) {
 
       // Refresh selected class view if we edited it
       if (classId && selectedClass?.id === classId) {
-        const { data: updatedClass } = await supabase
-          .from('classes')
-          .select('*, courses(id, title, subjects(id, name))')
-          .eq('id', classId)
-          .single()
-        if (updatedClass) {
-          setSelectedClass(updatedClass)
-          // Refetch lesson schedule layout since primary course might have changed
-          await handleSelectClass(updatedClass)
-        }
+        const updatedClass = result.data as ClassRow
+        setSelectedClass(updatedClass)
+        await handleSelectClass(updatedClass)
       }
 
       router.replace('/admin/classes')
-    } catch (err: any) {
-      toast.error(`Failed to save class cohort: ${err.message}`)
+    } catch (err) {
+      toast.error(`Failed to save class cohort: ${getErrorMessage(err, 'Unknown cohort save error')}`)
     }
   }
 
-  const triggerEditClass = (cohort: any) => {
+  const triggerEditClass = (cohort: ClassRow) => {
     setEditingClassId(cohort.id)
     setClassForm({
       name: cohort.name || '',
@@ -315,18 +379,19 @@ export function useClassesManager(initialAction: string | null) {
   const handleDeleteClass = async (classId: string) => {
     if (!confirm('Are you sure you want to delete this cohort? All student submissions and scheduling will be removed.')) return
     try {
-      const { error } = await supabase.from('classes').delete().eq('id', classId)
-      if (error) throw error
+      const result = await deleteClassAdminAction(classId)
+      if (!result.success) throw new Error(result.error)
       if (selectedClass?.id === classId) {
         setSelectedClass(null)
       }
-      fetchData()
-    } catch (err: any) {
-      toast.error(`Deletion failed: ${err.message}`)
+      await fetchData()
+    } catch (err) {
+      toast.error(`Deletion failed: ${getErrorMessage(err, 'Unknown deletion error')}`)
     }
   }
 
-  const handleSelectClass = async (cohort: any) => {
+  const handleSelectClass = async (cohort: ClassRow | null) => {
+    if (!cohort) return
     setSelectedClass(cohort)
     setBulkForm((prev) => ({
       ...prev,
@@ -334,39 +399,12 @@ export function useClassesManager(initialAction: string | null) {
     }))
     setLoading(true)
     try {
-      const { data: mappedCourses } = await supabase
-        .from('class_courses')
-        .select('*, courses(id, title, slug, subject_id, subjects(id, name))')
-        .eq('class_id', cohort.id)
-
-      setClassCourses(mappedCourses || [])
-
-      const { data: schedulesData } = await supabase
-        .from('class_schedules')
-        .select('*, lessons(id, title, module_id, modules(title))')
-        .eq('class_id', cohort.id)
-
-      setSchedules(schedulesData || [])
-
-      if (mappedCourses && mappedCourses.length > 0) {
-        const courseIds = mappedCourses.map((c: any) => c.course_id)
-        const { data: lessonsData } = await supabase
-          .from('lessons')
-          .select('*, modules(*)')
-          .in('modules.course_id', courseIds)
-
-        setLessons((lessonsData || []).filter((l: any) => l.modules))
-      } else {
-        setLessons([])
-      }
-
-      const { data: enrollmentsData } = await supabase
-        .from('class_enrollments')
-        .select('*')
-        .eq('class_id', cohort.id)
-        .order('student_email')
-
-      setEnrollments(enrollmentsData || [])
+      const result = await getClassWorkspaceAdminAction(cohort.id)
+      if (!result.success) throw new Error(result.error)
+      setClassCourses(result.data.classCourses as ClassCourseMapping[])
+      setSchedules(result.data.schedules as ScheduleRow[])
+      setLessons(result.data.lessons as unknown as LessonRow[])
+      setEnrollments(result.data.enrollments as EnrollmentRow[])
     } catch (error) {
       console.error('Error fetching cohort mapping:', error)
     } finally {
@@ -389,32 +427,23 @@ export function useClassesManager(initialAction: string | null) {
     }
 
     try {
-      const insertData = emails.map((email) => ({
-        class_id: selectedClass.id,
-        student_email: email,
-      }))
-
-      const { error } = await supabase.from('class_enrollments').upsert(insertData, {
-        onConflict: 'class_id,student_email',
-      })
-
-      if (error) throw error
-
+      const result = await enrollStudentsAdminAction(selectedClass.id, emails)
+      if (!result.success) throw new Error(result.error)
       setNewEmail('')
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Enrollment failed: ${err.message}`)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Enrollment failed: ${getErrorMessage(err, 'Unknown enrollment error')}`)
     }
   }
 
   const handleRemoveEnrollment = async (enrollmentId: string) => {
     if (!confirm('Are you sure you want to remove this student from the whitelist?')) return
     try {
-      const { error } = await supabase.from('class_enrollments').delete().eq('id', enrollmentId)
-      if (error) throw error
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Failed to remove enrollment: ${err.message}`)
+      const result = await removeEnrollmentAdminAction(enrollmentId)
+      if (!result.success) throw new Error(result.error)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Failed to remove enrollment: ${getErrorMessage(err, 'Unknown enrollment removal error')}`)
     }
   }
 
@@ -423,29 +452,23 @@ export function useClassesManager(initialAction: string | null) {
     if (!selectedClass || !selectedCourseId) return
 
     try {
-      const { error } = await supabase.from('class_courses').insert([
-        {
-          class_id: selectedClass.id,
-          course_id: selectedCourseId,
-        },
-      ])
-
-      if (error) throw error
+      const result = await assignCourseAdminAction(selectedClass.id, selectedCourseId)
+      if (!result.success) throw new Error(result.error)
       setSelectedCourseId('')
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Failed to map course: ${err.message}`)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Failed to map course: ${getErrorMessage(err, 'Unknown course mapping error')}`)
     }
   }
 
   const handleUnassignCourse = async (mappingId: string) => {
     if (!confirm('Unmap this course from the cohort?')) return
     try {
-      const { error } = await supabase.from('class_courses').delete().eq('id', mappingId)
-      if (error) throw error
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Unmapping failed: ${err.message}`)
+      const result = await unassignCourseAdminAction(mappingId)
+      if (!result.success) throw new Error(result.error)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Unmapping failed: ${getErrorMessage(err, 'Unknown course unmapping error')}`)
     }
   }
 
@@ -454,32 +477,28 @@ export function useClassesManager(initialAction: string | null) {
     if (!selectedClass || !scheduleForm.lesson_id) return
 
     try {
-      const { error } = await supabase.from('class_schedules').insert([
-        {
-          class_id: selectedClass.id,
-          lesson_id: scheduleForm.lesson_id,
-          visible_after: scheduleForm.visible_after || null,
-          due_date: scheduleForm.due_date || null,
-        },
-      ])
-
-      if (error) throw error
+      const result = await addClassScheduleAdminAction(selectedClass.id, {
+        lesson_id: scheduleForm.lesson_id,
+        visible_after: scheduleForm.visible_after || null,
+        due_date: scheduleForm.due_date || null,
+      })
+      if (!result.success) throw new Error(result.error)
       setScheduleForm({ lesson_id: '', visible_after: '', due_date: '' })
       setShowScheduleForm(false)
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Failed to set schedule: ${err.message}`)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Failed to set schedule: ${getErrorMessage(err, 'Unknown schedule error')}`)
     }
   }
 
   const handleDeleteSchedule = async (scheduleId: string) => {
     if (!confirm('Remove this schedule config?')) return
     try {
-      const { error } = await supabase.from('class_schedules').delete().eq('id', scheduleId)
-      if (error) throw error
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Failed to delete schedule: ${err.message}`)
+      const result = await deleteClassScheduleAdminAction(scheduleId)
+      if (!result.success) throw new Error(result.error)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Failed to delete schedule: ${getErrorMessage(err, 'Unknown schedule deletion error')}`)
     }
   }
 
@@ -499,7 +518,9 @@ export function useClassesManager(initialAction: string | null) {
         return (a.order_index ?? 0) - (b.order_index ?? 0)
       })
 
-      const baseDate = bulkForm.start_date ? new Date(bulkForm.start_date) : new Date(selectedClass.start_date)
+      const baseDate = bulkForm.start_date
+        ? new Date(bulkForm.start_date)
+        : new Date(selectedClass.start_date || Date.now())
       const interval = parseInt(bulkForm.interval_days) || 7
       const offset = parseInt(bulkForm.due_offset_days) || 5
 
@@ -511,33 +532,19 @@ export function useClassesManager(initialAction: string | null) {
         dueDate.setDate(dueDate.getDate() + offset)
 
         return {
-          class_id: selectedClass.id,
           lesson_id: l.id,
           visible_after: releaseDate.toISOString(),
           due_date: dueDate.toISOString(),
         }
       })
-
-      const lessonIds = sortedLessons.map((l) => l.id)
-      const { error: deleteError } = await supabase
-        .from('class_schedules')
-        .delete()
-        .eq('class_id', selectedClass.id)
-        .in('lesson_id', lessonIds)
-
-      if (deleteError) throw deleteError
-
-      const { error: insertError } = await supabase
-        .from('class_schedules')
-        .insert(scheduleInserts)
-
-      if (insertError) throw insertError
+      const result = await replaceClassSchedulesAdminAction(selectedClass.id, scheduleInserts)
+      if (!result.success) throw new Error(result.error)
 
       toast.success(`Successfully generated release schedule for ${sortedLessons.length} lessons!`)
       setShowBulkForm(false)
-      handleSelectClass(selectedClass)
-    } catch (err: any) {
-      toast.error(`Bulk scheduling failed: ${err.message}`)
+      await handleSelectClass(selectedClass)
+    } catch (err) {
+      toast.error(`Bulk scheduling failed: ${getErrorMessage(err, 'Unknown bulk scheduling error')}`)
     }
   }
 

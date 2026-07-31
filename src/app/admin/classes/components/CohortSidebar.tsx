@@ -4,19 +4,46 @@ import React from 'react'
 import { Shield, Plus, Trash2, Calendar, Edit, BookOpen } from 'lucide-react'
 
 interface CohortSidebarProps {
-  classes: any[]
-  courses: any[]
-  selectedClass: any | null
+  classes: ClassRow[]
+  courses: CourseRow[]
+  selectedClass: ClassRow | null
   showClassForm: boolean
   setShowClassForm: (val: boolean) => void
   classForm: { name: string; class_code: string; status: string; start_date: string; end_date: string; course_id: string }
-  setClassForm: React.Dispatch<React.SetStateAction<any>>
+  setClassForm: React.Dispatch<React.SetStateAction<CohortFormState>>
   handleCreateClass: (e: React.FormEvent) => void
   handleDeleteClass: (classId: string) => void
-  handleSelectClass: (cohort: any) => void
+  handleSelectClass: (cohort: ClassRow) => void
   editingClassId: string | null
-  triggerEditClass: (cohort: any) => void
+  triggerEditClass: (cohort: ClassRow) => void
   cancelEditClass: () => void
+}
+
+interface CohortFormState {
+  name: string
+  class_code: string
+  status: string
+  start_date: string
+  end_date: string
+  course_id: string
+}
+
+interface CourseRow {
+  id: string
+  title?: string | null
+  subjects?: {
+    name?: string | null
+  } | null
+}
+
+interface ClassRow {
+  id: string
+  name?: string | null
+  class_code?: string | null
+  status?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  courses?: CourseRow | null
 }
 
 export function CohortSidebar({
@@ -35,7 +62,7 @@ export function CohortSidebar({
   cancelEditClass,
 }: CohortSidebarProps) {
   // Group courses by subject taxonomy
-  const coursesBySubject: Record<string, any[]> = {}
+  const coursesBySubject: Record<string, CourseRow[]> = {}
   courses.forEach((course) => {
     const subjectName = course.subjects?.name || 'General Courses'
     if (!coursesBySubject[subjectName]) {

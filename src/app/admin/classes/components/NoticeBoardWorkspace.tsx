@@ -11,9 +11,16 @@ interface NoticeBoardWorkspaceProps {
   setNoticeContent: (val: string) => void
   noticeSubmitting: boolean
   noticeLoading: boolean
-  announcements: any[]
+  announcements: AnnouncementRow[]
   handleCreateAnnouncement: (e: React.FormEvent) => void
   handleDeleteAnnouncement: (id: string) => void
+}
+
+interface AnnouncementRow {
+  id: string
+  title?: string | null
+  content?: string | null
+  created_at?: string | null
 }
 
 export function NoticeBoardWorkspace({

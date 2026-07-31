@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { formatDate, formatTime } from '@/lib/date'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
 import React from 'react'
 import {
   GraduationCap,
@@ -19,11 +19,29 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
-import { triggerAIGradingAction } from './actions'
+import { listGradingQueueAdminAction, triggerAIGradingAction } from './actions'
 
 export default function GradingQueue() {
-  const [submissions, setSubmissions] = useState<any[]>([])
-  const [cohorts, setCohorts] = useState<any[]>([])
+  type CohortRow = {
+    id: string
+    name?: string | null
+    class_code?: string | null
+  }
+
+  type SubmissionQueueRow = {
+    id: string
+    class_id?: string | null
+    student_identifier?: string | null
+    submitted_at?: string | null
+    status?: string | null
+    classes?: CohortRow | null
+    assignments?: {
+      title?: string | null
+    } | null
+  }
+
+  const [submissions, setSubmissions] = useState<SubmissionQueueRow[]>([])
+  const [cohorts, setCohorts] = useState<CohortRow[]>([])
   const [loading, setLoading] = useState(true)
   const [queueError, setQueueError] = useState<string | null>(null)
   const [selectedSubmissions, setSelectedSubmissions] = useState<string[]>([])
@@ -73,46 +91,26 @@ export default function GradingQueue() {
     }
   }, [searchQuery, selectedCohort, selectedStatus, currentPage, urlStateHydrated])
 
-  async function fetchCohorts() {
-    try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('id, name, class_code')
-        .order('name')
-
-      if (error) throw error
-      if (data) {
-        setCohorts(data)
-      }
-    } catch (err) {
-      console.error('Failed to load cohorts:', err)
-      toast.error('Không thể tải danh sách lớp học.')
-    }
-  }
-
-  async function fetchSubmissions() {
+  const fetchSubmissions = useCallback(async () => {
     setLoading(true)
     setQueueError(null)
     try {
-      const { data, error } = await supabase
-        .from('submissions')
-        .select('*, classes(name, class_code), assignments(title)')
-        .order('submitted_at', { ascending: false })
-
-      if (error) throw error
-      setSubmissions(data || [])
-    } catch (err: any) {
-      console.error('Failed to load submissions queue:', err)
-      setQueueError(err.message || 'Không thể tải hàng đợi chấm bài.')
+      const result = await listGradingQueueAdminAction()
+      if (!result.success) throw new Error(result.error)
+      setSubmissions(result.data.submissions as SubmissionQueueRow[])
+      setCohorts(result.data.cohorts as CohortRow[])
+    } catch (err) {
+      const message = getSupabaseFetchErrorMessage(err, 'Không thể tải hàng đợi chấm bài.')
+      console.warn('Unable to load submissions queue:', message)
+      setQueueError(message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchSubmissions()
-    fetchCohorts()
-  }, [])
+  }, [fetchSubmissions])
 
   const handleSingleAIGrade = async (submissionId: string) => {
     setGradingStatus((prev) => ({ ...prev, [submissionId]: 'running' }))
@@ -121,10 +119,10 @@ export default function GradingQueue() {
       setGradingStatus((prev) => ({ ...prev, [submissionId]: 'success' }))
       toast.success('AI grading run successfully completed!')
       fetchSubmissions()
-    } catch (err: any) {
+    } catch (err) {
       console.error(err)
       setGradingStatus((prev) => ({ ...prev, [submissionId]: 'failed' }))
-      toast.error(`AI grading failed: ${err.message}`)
+      toast.error(`AI grading failed: ${err instanceof Error ? err.message : 'Unknown grading error'}`)
     }
   }
 
@@ -190,8 +188,8 @@ export default function GradingQueue() {
         return aWeight - bWeight
       }
 
-      const aTime = new Date(a.submitted_at).getTime()
-      const bTime = new Date(b.submitted_at).getTime()
+      const aTime = a.submitted_at ? new Date(a.submitted_at).getTime() : 0
+      const bTime = b.submitted_at ? new Date(b.submitted_at).getTime() : 0
 
       if (aWeight === 0) {
         return aTime - bTime // Oldest pending first
@@ -274,7 +272,7 @@ export default function GradingQueue() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string | null) => {
     switch (status) {
       case 'submitted':
         return (

@@ -1,7 +1,6 @@
-import { FileText, FileDown, Code as CodeIcon, Network, Link as LinkIcon, FileJson } from 'lucide-react'
-import { ComponentType } from 'react'
+import { FileText, FileDown, Code as CodeIcon, Link as LinkIcon, FileJson, type LucideIcon } from 'lucide-react'
 
-export const getMaterialIcon = (type: string): ComponentType<any> => {
+export const getMaterialIcon = (type: string): LucideIcon => {
   switch (type) {
     case 'pdf':
     case 'docx':

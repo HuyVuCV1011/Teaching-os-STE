@@ -1,53 +1,25 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { getSupabaseServer } from '@/lib/supabase'
-import { verifyJWT } from '@/lib/jwt'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
+import { requireAdminUser } from '@/lib/admin-auth'
 
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
 
+type ApiErrorResponse = {
+  detail?: string
+}
+
+type PromptResponse = {
+  prompt_text?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
+
 async function checkAdminAuth() {
-  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_ADMIN_AUTH === 'true') {
-    return { userId: '00000000-0000-0000-0000-000000000000' }
-  }
-
-  const cookieStore = await cookies()
-  const sbToken = cookieStore.get('sb-access-token') || cookieStore.get('supabase-auth-token')
-
-  if (!sbToken) {
-    throw new Error('Unauthorized: No authentication token found')
-  }
-
-  const secret = process.env.SUPABASE_JWT_SECRET
-  let payload: any = null
-
-  if (secret) {
-    payload = await verifyJWT(sbToken.value, secret)
-  } else {
-    const parts = sbToken.value.split('.')
-    if (parts.length === 3) {
-      payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-    }
-  }
-
-  if (!payload) {
-    throw new Error('Unauthorized: Invalid token payload')
-  }
-
-  const role = payload.app_metadata?.role || payload.role
-  const isAuthorized = [
-    'admin',
-    'teacher',
-    'super-admin',
-    'content-admin',
-    'class-operator'
-  ].includes(role)
-
-  if (!isAuthorized) {
-    throw new Error('Unauthorized: Insufficient privileges')
-  }
-
-  return { userId: payload.sub }
+  return requireAdminUser()
 }
 
 async function resolveOrganizationId() {
@@ -59,10 +31,10 @@ async function resolveOrganizationId() {
     .single()
 
   if (error || !org) {
-    throw new Error(`Failed to resolve organization boundary: ${error?.message || 'Not found'}`)
+    throw new Error(getSupabaseFetchErrorMessage(error, 'Không thể xác định organization mặc định.'))
   }
 
-  return org.id
+  return org.id as string
 }
 
 /**
@@ -83,15 +55,15 @@ export async function getPromptAction(key: string) {
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Failed to get prompt configuration')
     }
 
-    const data = await res.json()
+    const data = await res.json() as PromptResponse
     return { success: true, promptText: data.prompt_text }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to get prompt configuration:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -115,14 +87,14 @@ export async function savePromptAction(key: string, text: string) {
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
+      const errData = await res.json().catch(() => ({})) as ApiErrorResponse
       throw new Error(errData.detail || 'Failed to save prompt configuration')
     }
 
-    const data = await res.json()
+    const data = await res.json() as PromptResponse
     return { success: true, promptText: data.prompt_text }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to save prompt configuration:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }

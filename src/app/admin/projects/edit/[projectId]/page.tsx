@@ -1,11 +1,16 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { ReactFlowProvider, useNodesState, useEdgesState, MarkerType } from 'reactflow'
 import { Save, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import {
+  deleteProjectMediaAction,
+  getAdminProjectAction,
+  updateProjectAction,
+  uploadProjectMediaAction,
+} from '../../actions'
 
 // Import shared helpers and components
 import { hasCycle, getLayoutedElements } from '../../utils/projectUtils'
@@ -31,6 +36,10 @@ interface FlowEdge {
   label?: string
 }
 
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
+
 function EditProjectPageContent() {
   const router = useRouter()
   const params = useParams()
@@ -52,103 +61,89 @@ function EditProjectPageContent() {
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    const fetchProject = async () => {
-      setLoading(true)
-      try {
-        const { data, error } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('id', projectId)
-          .single()
-
-        if (error) {
-          toast.error('Không thể tải dự án')
-          router.push('/admin/projects')
-          return
-        }
-
-        if (data) {
-          setTitle(data.title || '')
-          setDescription(data.description || '')
-          setExistingThumbnails(Array.isArray(data.thumbnails) ? data.thumbnails : [])
-          setExistingFiles(Array.isArray(data.files) ? data.files : [])
-          setIcons(Array.isArray(data.icons) ? data.icons : [])
-          setProductOption(data.product_option || null)
-          setIframeLink(data.iframe_link || null)
-          setYoutubeLink(data.youtube_link || null)
-
-          if (data.flow_diagram) {
-            const fetchedNodes = (data.flow_diagram.nodes || []).map((node: FlowNode) => ({
-              id: node.id,
-              type: 'customNode',
-              data: {
-                type: node.type,
-                label: node.label,
-                description: node.description,
-                icon: nodeIconOptions.find((opt) => opt.value === node.icon)?.icon,
-              },
-              position: node.position || { x: 0, y: 0 },
-            }))
-            const fetchedEdges = (data.flow_diagram.edges || []).map((edge: FlowEdge) => ({
-              ...edge,
-              style: { strokeWidth: 2 },
-              markerEnd: { type: MarkerType.ArrowClosed },
-            }))
-            const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-              fetchedNodes,
-              fetchedEdges
-            )
-            setNodes(layoutedNodes)
-            setEdges(layoutedEdges)
-          }
-        }
-      } catch (error) {
-        console.error('Fetch error:', error)
-        toast.error('Lỗi khi tải dự án')
+  const fetchProject = useCallback(async () => {
+    setLoading(true)
+    try {
+      const result = await getAdminProjectAction(projectId)
+      if (!result.success || !result.project) {
+        toast.error('Không thể tải dự án')
         router.push('/admin/projects')
-      } finally {
-        setLoading(false)
+        return
       }
+
+      const data = result.project
+      if (data) {
+        setTitle(data.title || '')
+        setDescription(data.description || '')
+        setExistingThumbnails(Array.isArray(data.thumbnails) ? data.thumbnails : [])
+        setExistingFiles(Array.isArray(data.files) ? data.files : [])
+        setIcons(Array.isArray(data.icons) ? data.icons : [])
+        setProductOption(data.product_option || null)
+        setIframeLink(data.iframe_link || null)
+        setYoutubeLink(data.youtube_link || null)
+
+        if (data.flow_diagram) {
+          const fetchedNodes = (data.flow_diagram.nodes || []).map((node: FlowNode) => ({
+            id: node.id,
+            type: 'customNode',
+            data: {
+              type: node.type,
+              label: node.label,
+              description: node.description,
+              icon: nodeIconOptions.find((opt) => opt.value === node.icon)?.icon,
+            },
+            position: node.position || { x: 0, y: 0 },
+          }))
+          const fetchedEdges = (data.flow_diagram.edges || []).map((edge: FlowEdge) => ({
+            ...edge,
+            style: { strokeWidth: 2 },
+            markerEnd: { type: MarkerType.ArrowClosed },
+          }))
+          const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+            fetchedNodes,
+            fetchedEdges
+          )
+          setNodes(layoutedNodes)
+          setEdges(layoutedEdges)
+        }
+      }
+    } catch (error) {
+      console.error('Fetch error:', error)
+      toast.error('Lỗi khi tải dự án')
+      router.push('/admin/projects')
+    } finally {
+      setLoading(false)
     }
+  }, [projectId, router, setEdges, setNodes])
+
+  useEffect(() => {
     fetchProject()
-  }, [projectId])
+  }, [fetchProject])
 
   const uploadFilesToStorage = async (
     filesList: File[],
     projId: string,
     bucket: string
   ): Promise<string[]> => {
-    const urls: string[] = []
-    for (const file of filesList) {
-      const fileName = `${projId}/${Date.now()}-${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, { upsert: false })
-      if (uploadError) {
-        throw new Error(`Failed to upload to ${bucket}: ${uploadError.message}`)
-      }
-      const { data: publicUrlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName)
-      urls.push(publicUrlData.publicUrl)
+    const formData = new FormData()
+    filesList.forEach((file) => formData.append('files', file))
+
+    const result = await uploadProjectMediaAction(bucket, projId, formData)
+    if (!result.success) {
+      throw new Error(result.error)
     }
-    return urls
+
+    return result.urls
   }
 
   const deleteFilesFromStorage = async (urls: string[], bucket: string) => {
-    const paths = urls
-      .map((url) => {
-        try {
-          const urlObj = new URL(url)
-          return urlObj.pathname.split('/').slice(4).join('/')
-        } catch {
-          return ''
-        }
-      })
-      .filter(Boolean)
-    if (paths.length > 0) {
-      await supabase.storage.from(bucket).remove(paths)
+    if (urls.length === 0) {
+      return
+    }
+
+    const result = await deleteProjectMediaAction(bucket, urls)
+    if (!result.success) {
+      throw new Error(result.error)
     }
   }
 
@@ -188,27 +183,26 @@ function EditProjectPageContent() {
         position: node.position,
       }))
 
-      const { error } = await supabase
-        .from('projects')
-        .update({
-          title,
-          description,
-          thumbnails: thumbnailUrls,
-          files: fileUrls,
-          icons,
-          flow_diagram: { nodes: simplifiedNodes, edges },
-          product_option: productOption,
-          iframe_link: iframeLink,
-          youtube_link: youtubeLink,
-        })
-        .eq('id', projectId)
+      const result = await updateProjectAction(projectId, {
+        title,
+        description,
+        thumbnails: thumbnailUrls,
+        files: fileUrls,
+        icons,
+        flow_diagram: { nodes: simplifiedNodes, edges },
+        product_option: productOption,
+        iframe_link: iframeLink,
+        youtube_link: youtubeLink,
+      })
 
-      if (error) throw error
+      if (!result.success) {
+        throw new Error(result.error)
+      }
 
       toast.success('Đã cập nhật dự án Showcase.')
       router.push('/admin/projects')
-    } catch (err: any) {
-      toast.error(`Cập nhật thất bại: ${err.message}`)
+    } catch (err) {
+      toast.error(`Cập nhật thất bại: ${getErrorMessage(err, 'Unknown update error')}`)
     } finally {
       setIsSubmitting(false)
     }

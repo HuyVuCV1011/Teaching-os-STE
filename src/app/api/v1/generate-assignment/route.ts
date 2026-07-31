@@ -1,10 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdminUser } from '@/lib/admin-auth'
 
 const RUBICORE_API_URL = process.env.RUBICORE_API_URL || 'http://localhost:8080'
 
+type GenerateAssignmentParams = {
+  modelChoice?: unknown
+  assignmentType?: unknown
+  category?: unknown
+  questionCount?: unknown
+  generateSampleData?: unknown
+  lessonContent?: unknown
+}
+
+type BackendErrorResponse = {
+  detail?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Internal Server Error'
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const params = await request.json()
+    await requireAdminUser()
+    const params = await request.json() as GenerateAssignmentParams
+    const questionCount = Number(params.questionCount)
+    if (
+      typeof params.lessonContent !== 'string' ||
+      params.lessonContent.trim().length === 0 ||
+      params.lessonContent.length > 50_000 ||
+      !Number.isInteger(questionCount) ||
+      questionCount < 1 ||
+      questionCount > 30
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid lesson content or question count.' },
+        { status: 400 },
+      )
+    }
     const url = `${RUBICORE_API_URL}/pilot/generate-assignment`
     
     console.log(`[API Route] Forwarding request to FastAPI: ${url}`)
@@ -18,15 +51,15 @@ export async function POST(request: NextRequest) {
           model_choice: params.modelChoice,
           assignment_type: params.assignmentType,
           category: params.category,
-          question_count: params.questionCount,
+          question_count: questionCount,
           generate_sample_data: params.generateSampleData,
           lesson_content: params.lessonContent,
         }),
       })
-    } catch (fetchErr: any) {
+    } catch (fetchErr) {
       console.error(`[API Route] Connection failed to backend ${url}:`, fetchErr)
       return NextResponse.json(
-        { error: `Could not connect to AI engine at ${url}. ${fetchErr.message}` },
+        { error: `Could not connect to AI engine at ${url}. ${getErrorMessage(fetchErr)}` },
         { status: 502 }
       )
     }
@@ -35,8 +68,8 @@ export async function POST(request: NextRequest) {
       const errText = await res.text().catch(() => '')
       let parsedDetail = ''
       try {
-        const errJson = JSON.parse(errText)
-        parsedDetail = errJson.detail
+        const errJson = JSON.parse(errText) as BackendErrorResponse
+        parsedDetail = errJson.detail || ''
       } catch {}
       const errMsg = parsedDetail || errText || `HTTP error ${res.status}`
       console.error(`[API Route] Backend returned status ${res.status}: ${errMsg}`)
@@ -46,12 +79,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await res.json()
+    const data = await res.json() as { questions?: unknown }
     return NextResponse.json({ success: true, questions: data.questions })
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API Route] Unhandled exception:', error)
+    const message = getErrorMessage(error)
+    if (message.startsWith('Unauthorized:')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
+      { error: message },
       { status: 500 }
     )
   }

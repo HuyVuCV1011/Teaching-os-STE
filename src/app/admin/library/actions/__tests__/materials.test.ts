@@ -33,6 +33,10 @@ vi.mock('@/lib/supabase', () => ({
   getSupabaseServer: vi.fn(() => mockSupabase),
 }))
 
+vi.mock('@/lib/admin-auth', () => ({
+  requireAdminUser: vi.fn().mockResolvedValue({ userId: 'admin-user', role: 'admin' }),
+}))
+
 
 import {
   checkMaterialDeduplication,
@@ -42,6 +46,14 @@ import {
   updateLessonLayoutAction,
 } from '../materials'
 import { supabase } from '@/lib/supabase'
+
+type SupabaseFromReturn = ReturnType<typeof supabase.from>
+type SupabaseRpcReturn = Awaited<ReturnType<typeof supabase.rpc>>
+type InsertedMaterial = {
+  metadata: {
+    file_hash?: string
+  }
+}
 
 // ---------- Tests ----------
 describe('checkMaterialDeduplication', () => {
@@ -59,7 +71,7 @@ describe('checkMaterialDeduplication', () => {
     // Mock the chain: supabase.from('canonical_materials').select('...').eq('...', fileHash).limit(1)
     const mockEq = vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [existing], error: null }) })
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
-    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as unknown as SupabaseFromReturn)
 
     const result = await checkMaterialDeduplication('abc123hash')
     expect(result).toEqual(existing)
@@ -70,7 +82,7 @@ describe('checkMaterialDeduplication', () => {
   it('returns null if no matching material exists', async () => {
     const mockEq = vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) })
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
-    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as unknown as SupabaseFromReturn)
 
     const result = await checkMaterialDeduplication('nonexistent-hash')
     expect(result).toBeNull()
@@ -79,7 +91,7 @@ describe('checkMaterialDeduplication', () => {
   it('returns null on database error', async () => {
     const mockEq = vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }) })
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
-    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as unknown as SupabaseFromReturn)
 
     const result = await checkMaterialDeduplication('hash-with-error')
     expect(result).toBeNull()
@@ -110,7 +122,7 @@ describe('registerCanonicalMaterial', () => {
   it('inserts a new canonical_material record', async () => {
     const mockSelectChain = vi.fn().mockResolvedValue({ data: [{ id: 'mat-1' }], error: null })
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelectChain })
-    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
+    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as unknown as SupabaseFromReturn)
 
     const result = await registerCanonicalMaterial(input)
 
@@ -132,18 +144,18 @@ describe('registerCanonicalMaterial', () => {
   it('merges file_hash into metadata', async () => {
     const mockSelectChain = vi.fn().mockResolvedValue({ data: [], error: null })
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelectChain })
-    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
+    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as unknown as SupabaseFromReturn)
 
     await registerCanonicalMaterial(input)
 
-    const insertArg = mockInsert.mock.calls[0][0][0]
+    const insertArg = mockInsert.mock.calls[0][0][0] as InsertedMaterial
     expect(insertArg.metadata.file_hash).toBe('abc123hash')
   })
 
   it('returns success: false and error message on DB failure', async () => {
     const mockSelectChain = vi.fn().mockResolvedValue({ data: null, error: null })
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelectChain })
-    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
+    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as unknown as SupabaseFromReturn)
 
     mockSelectChain.mockRejectedValue(new Error('DB insert failed'))
 
@@ -162,7 +174,7 @@ describe('registerCanonicalMaterial', () => {
 
     const mockSelectChain = vi.fn().mockResolvedValue({ data: [{ id: 'mat-2' }], error: null })
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelectChain })
-    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
+    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as unknown as SupabaseFromReturn)
 
     const result = await registerCanonicalMaterial(minimalInput)
     expect(result.success).toBe(true)
@@ -178,7 +190,7 @@ describe('registerCanonicalMaterial', () => {
 
     const mockSelectChain = vi.fn().mockResolvedValue({ data: [{ id: 'mat-3' }], error: null })
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelectChain })
-    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as any)
+    vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert } as unknown as SupabaseFromReturn)
 
     const result = await registerCanonicalMaterial(repoInput)
     expect(result.success).toBe(true)
@@ -191,7 +203,7 @@ describe('reorderMaterialsAction', () => {
   })
 
   it('calls rpc for reordering canonical materials successfully', async () => {
-    vi.mocked(supabase.rpc).mockResolvedValue({ error: null } as any)
+    vi.mocked(supabase.rpc).mockResolvedValue({ error: null } as SupabaseRpcReturn)
 
     const updates = [{ id: '1', display_order: 1 }, { id: '2', display_order: 2 }]
     const result = await reorderMaterialsAction(updates)
@@ -201,7 +213,7 @@ describe('reorderMaterialsAction', () => {
   })
 
   it('returns success: false on rpc error', async () => {
-    vi.mocked(supabase.rpc).mockResolvedValue({ error: { message: 'RPC Error' } } as any)
+    vi.mocked(supabase.rpc).mockResolvedValue({ error: { message: 'RPC Error' } } as SupabaseRpcReturn)
 
     const result = await reorderMaterialsAction([])
     expect(result.success).toBe(false)
@@ -231,9 +243,9 @@ describe('updateLessonLayoutAction', () => {
         return {
           select: mockSelect,
           update: mockUpdate,
-        } as any
+        } as unknown as SupabaseFromReturn
       }
-      return { select: vi.fn(), update: vi.fn() } as any
+      return { select: vi.fn(), update: vi.fn() } as unknown as SupabaseFromReturn
     })
 
     const result = await updateLessonLayoutAction('l1', '2-cols', { 1: ['mat-1'] })
@@ -259,9 +271,9 @@ describe('updateLessonLayoutAction', () => {
       if (table === 'lessons') {
         return {
           select: mockSelect,
-        } as any
+        } as unknown as SupabaseFromReturn
       }
-      return {} as any
+      return {} as unknown as SupabaseFromReturn
     })
 
     const result = await updateLessonLayoutAction('l1', '2-cols', {})

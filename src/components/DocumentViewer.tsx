@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import {
   ChevronLeft,
@@ -31,6 +31,13 @@ interface DocumentViewerProps {
   className?: string
 }
 
+interface PdfPageProxy {
+  getViewport: (options: { scale: number }) => {
+    width: number
+    height: number
+  }
+}
+
 export default function DocumentViewer({ url, title, className }: DocumentViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null)
   const [pageNumber, setPageNumber] = useState<number>(1)
@@ -55,17 +62,17 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
     setLoading(false)
   }
 
-  function onPageLoadSuccess(page: any) {
+  function onPageLoadSuccess(page: PdfPageProxy) {
     const { width, height } = page.getViewport({ scale: 1.0 })
     setIsLandscape(width > height)
   }
 
-  const changePage = (offset: number) => {
+  const changePage = useCallback((offset: number) => {
     setPageNumber((prevPageNumber) => {
       const nextPage = prevPageNumber + offset
       return Math.min(Math.max(nextPage, 1), numPages || 1)
     })
-  }
+  }, [numPages])
 
   // Handle keyboard navigation and shortcut for sidebar
   useEffect(() => {
@@ -93,7 +100,7 @@ export default function DocumentViewer({ url, title, className }: DocumentViewer
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [numPages, pageNumber])
+  }, [changePage])
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return

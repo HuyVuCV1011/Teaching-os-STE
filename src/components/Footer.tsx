@@ -2,36 +2,31 @@
 import { Navigation } from 'lucide-react'
 
 import { socialMedia } from '@/data'
-import MagicButton from '@/components/ui/MagicButton'
 
 const Footer = () => {
   return (
     <footer className="section relative" id="contact">
       <div className="container">
         {/* background grid */}
-        <div className="w-full h-full absolute left-0 bottom-0">
-          <img
-            src="/images/footer-grid.svg"
-            alt="grid"
-            className="w-full h-full"
-          />
-        </div>
+        <div
+          className="absolute bottom-0 left-0 h-full w-full bg-[url('/images/footer-grid.svg')] bg-cover bg-center opacity-70"
+          aria-hidden="true"
+        />
 
-        <div className="flex flex-col items-center">
-          <h1 className="text-6xl font-bold text-center lg:max-w-[45vw]">
-            Sẵn sàng nâng cấp <span className="text-primary">thương hiệu</span>{' '}
-            của bạn?
-          </h1>
-          <p className="text-muted-foreground md:mt-10 my-5 text-center">
-            Liên hệ ngay để thảo luận về cách tôi có thể giúp bạn đạt được mục
-            tiêu!
+        <div className="relative z-10 flex flex-col items-center">
+          <h2 className="max-w-3xl text-balance text-center text-4xl font-extrabold tracking-tight text-slate-100 md:text-6xl">
+            Cần một hệ thống học tập hoặc dashboard dữ liệu đáng tin cậy?
+          </h2>
+          <p className="my-5 max-w-[62ch] text-center text-sm leading-7 text-muted-foreground md:mt-8 md:text-base">
+            Gửi brief để cùng rà quy trình, dữ liệu và cách biến bài toán thành
+            sản phẩm có thể vận hành.
           </p>
-          <a href="mailto:huyvu.antng@gmail.com">
-            <MagicButton
-              title="Kết nối ngay"
-              icon={<Navigation />}
-              position="right"
-            />
+          <a
+            href="mailto:huyvu.antng@gmail.com"
+            className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-7 text-sm font-semibold text-white shadow-sm transition-colors duration-300 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-[0.98]"
+          >
+            Gửi email trao đổi
+            <Navigation className="h-4 w-4" aria-hidden="true" />
           </a>
         </div>
         <div className="flex mt-16 md:flex-row flex-col justify-between items-center">
@@ -39,24 +34,18 @@ const Footer = () => {
             {/* Copyright © 2025 */}
           </p>
 
-          <div className="flex items-center md:gap-3 gap-6">
+          <div className="relative z-10 flex items-center gap-4 md:gap-3">
             {socialMedia.filter((info) => info.link).map((info) => (
-              <div
+              <a
                 key={info.id}
-                className="w-10 h-10 cursor-pointer flex justify-center items-center backdrop-filter backdrop-blur-lg saturate-180 bg-opacity-75 bg-black-200 rounded-lg border border-black-300"
+                href={info.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={info.label}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-500 transition-colors duration-300 hover:border-slate-600 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
-                <a
-                  href={info.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={info.label}
-                >
-                  <info.icon
-                    className="text-white-200 hover:text-purple transition-all duration-300"
-                    size={20}
-                  />
-                </a>
-              </div>
+                <info.icon aria-hidden="true" size={20} />
+              </a>
             ))}
           </div>
         </div>

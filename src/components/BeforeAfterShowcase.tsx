@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
 import { ImgComparisonSlider } from '@img-comparison-slider/react'
-import { ArrowRight, CheckCircle2, TrendingUp, Sparkles, Clock, AlertTriangle, Cpu } from 'lucide-react'
+import { ArrowRight, CheckCircle2, TrendingUp, Sparkles, AlertTriangle, Cpu } from 'lucide-react'
 
 const BeforeAfterShowcase = () => {
   const [activeTab, setActiveTab] = useState<'retail' | 'stock'>('retail')
@@ -101,13 +103,13 @@ const BeforeAfterShowcase = () => {
             )}
 
             <div className="pt-4 border-t border-slate-800/80">
-              <a
-                href="#projects"
+              <Link
+                href="/projects"
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors"
               >
                 <span>Xem chi tiết danh sách dự án</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-              </a>
+              </Link>
             </div>
           </div>
 
@@ -126,31 +128,43 @@ const BeforeAfterShowcase = () => {
 
                 {activeTab === 'retail' ? (
                   <ImgComparisonSlider hover={true} className="w-full h-full cursor-ew-resize">
-                    <img
+                    <Image
                       slot="first"
                       src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80"
                       alt="Trước tối ưu: Bảng Excel thủ công rời rạc"
+                      width={800}
+                      height={500}
+                      sizes="(max-width: 1024px) 100vw, 58vw"
                       className="w-full h-full object-cover aspect-[16/10] filter grayscale contrast-125 opacity-70"
                     />
-                    <img
+                    <Image
                       slot="second"
                       src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80"
                       alt="Sau tối ưu: Dashboard Power BI chuyên nghiệp"
+                      width={800}
+                      height={500}
+                      sizes="(max-width: 1024px) 100vw, 58vw"
                       className="w-full h-full object-cover aspect-[16/10]"
                     />
                   </ImgComparisonSlider>
                 ) : (
                   <ImgComparisonSlider hover={true} className="w-full h-full cursor-ew-resize">
-                    <img
+                    <Image
                       slot="first"
                       src="https://images.unsplash.com/photo-1543286386-7a3950385cc9?auto=format&fit=crop&w=800&q=80"
                       alt="Trước tối ưu: Tổng hợp dữ liệu tay"
+                      width={800}
+                      height={500}
+                      sizes="(max-width: 1024px) 100vw, 58vw"
                       className="w-full h-full object-cover aspect-[16/10] filter grayscale contrast-125 opacity-70"
                     />
-                    <img
+                    <Image
                       slot="second"
                       src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80"
                       alt="Sau tối ưu: Pipeline dữ liệu tự động"
+                      width={800}
+                      height={500}
+                      sizes="(max-width: 1024px) 100vw, 58vw"
                       className="w-full h-full object-cover aspect-[16/10]"
                     />
                   </ImgComparisonSlider>

@@ -104,9 +104,15 @@ export default async function LessonPage({ params }: PageProps) {
 
           if (error) throw error
 
+          const signedUrlData = data as {
+            signedUrl?: string
+            signedURL?: string
+            publicUrl?: string
+          } | null
+
           return {
             ...m,
-            signedUrl: data?.signedUrl || (data as any)?.signedURL || (data as any)?.publicUrl || m.storage_url,
+            signedUrl: signedUrlData?.signedUrl || signedUrlData?.signedURL || signedUrlData?.publicUrl || m.storage_url,
           }
         } catch (err) {
           console.error(`Failed to generate signed URL for material ${m.id}:`, err)
@@ -120,7 +126,6 @@ export default async function LessonPage({ params }: PageProps) {
     })
   )
 
-  const downloadAllowed = lessonData.download_allowed !== false
   const previewableTypes = ['pdf', 'docx', 'csv', 'xlsx', 'markdown', 'json', 'code_repo']
   const links = preparedMaterials.filter((m) => !previewableTypes.includes(m.type))
 

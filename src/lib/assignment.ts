@@ -2,7 +2,42 @@
  * Safely parses assignment instructions which might be raw JSON or HTML-wrapped JSON.
  * Returns the parsed object if successful, or null otherwise.
  */
-export function parseAssignmentInstructions(instructions: string | null | undefined): any {
+export interface ParsedAssignmentQuestion {
+  id?: string
+  content?: string
+  options?: string[]
+  answer?: string
+  status?: 'approved' | 'rejected' | 'draft' | string
+  answerFormat?: 'text' | 'file' | 'both' | string
+  answerSource?: string
+  data?: unknown
+  source?: 'ai_generator' | 'manual' | string
+  source_file?: string | null
+  points?: number
+  [key: string]: unknown
+}
+
+export interface ParsedAssignmentFile {
+  name: string
+  size: number
+  storage_path?: string
+  file?: File | null
+  downloadable: boolean
+  previewable: boolean
+}
+
+export type ParsedAssignmentInstructions =
+  | ParsedAssignmentQuestion[]
+  | {
+      questions?: ParsedAssignmentQuestion[]
+      data_files?: ParsedAssignmentFile[]
+      reference_files?: ParsedAssignmentFile[]
+      mcqWeightPercent?: number
+      essayWeightPercent?: number
+      [key: string]: unknown
+    }
+
+export function parseAssignmentInstructions(instructions: string | null | undefined): ParsedAssignmentInstructions | null {
   if (!instructions) return null;
   
   const trimmed = instructions.trim();
@@ -13,7 +48,7 @@ export function parseAssignmentInstructions(instructions: string | null | undefi
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       return JSON.parse(trimmed);
     }
-  } catch (e) {
+  } catch {
     // Ignore and proceed to extraction
   }
 
@@ -38,7 +73,7 @@ export function parseAssignmentInstructions(instructions: string | null | undefi
     if ((decoded.startsWith('{') && decoded.endsWith('}')) || (decoded.startsWith('[') && decoded.endsWith(']'))) {
       return JSON.parse(decoded);
     }
-  } catch (e) {
+  } catch {
     // Ignore and try substring extraction
   }
 
@@ -50,7 +85,7 @@ export function parseAssignmentInstructions(instructions: string | null | undefi
       const potentialJson = decoded.substring(firstCurly, lastCurly + 1);
       return JSON.parse(potentialJson);
     }
-  } catch (e) {
+  } catch {
     // Ignore
   }
 
@@ -61,7 +96,7 @@ export function parseAssignmentInstructions(instructions: string | null | undefi
       const potentialJson = decoded.substring(firstBracket, lastBracket + 1);
       return JSON.parse(potentialJson);
     }
-  } catch (e) {
+  } catch {
     // Ignore
   }
 

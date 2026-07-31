@@ -4,7 +4,7 @@ import dagre from 'dagre'
 /**
  * Checks for circular reference loops in process flow diagrams.
  */
-export function hasCycle(nodes: any[], edges: any[]): boolean {
+export function hasCycle(nodes: Pick<Node, 'id'>[], edges: Pick<Edge, 'source' | 'target'>[]): boolean {
   const adj: Record<string, string[]> = {}
   for (const node of nodes) {
     adj[node.id] = []

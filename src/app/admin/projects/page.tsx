@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseFetchErrorMessage } from '@/lib/error-messages'
 import Link from 'next/link'
 import { Trash2, Edit, Plus, Briefcase, HelpCircle, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { deleteProjectAction, listAdminProjectsAction } from './actions'
 
 interface FlowNode {
   id: string
@@ -45,14 +46,15 @@ export default function AdminProjectsPage() {
   const fetchProjects = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase.from('projects').select('*')
-      if (error) {
-        throw new Error(error.message)
+      const result = await listAdminProjectsAction()
+      if (!result.success) {
+        throw new Error(result.error)
       }
-      setProjects(data || [])
-    } catch (err: any) {
-      console.error('Fetch error:', err.message)
-      setError(err.message)
+      setProjects(result.projects as Project[])
+    } catch (err) {
+      const message = getSupabaseFetchErrorMessage(err, 'Không thể tải danh sách dự án.')
+      console.warn('Unable to fetch projects:', message)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -66,35 +68,16 @@ export default function AdminProjectsPage() {
     if (!confirm('Are you sure you want to delete this project? All associated media files will be removed.')) return
 
     try {
-      const deleteStorageFiles = async (bucket: string, paths: string[]) => {
-        if (paths && paths.length > 0) {
-          const fileNames = paths.map((url) => {
-            const parts = url.split('/')
-            return parts.slice(-2).join('/')
-          })
-          const { error } = await supabase.storage
-            .from(bucket)
-            .remove(fileNames)
-          if (error) {
-            console.error(`Storage delete error (${bucket}):`, error)
-          }
-        }
+      const result = await deleteProjectAction(projectId, thumbnails, files)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-
-      await deleteStorageFiles('thumbnails', thumbnails || [])
-      await deleteStorageFiles('files', files || [])
-
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId)
-
-      if (error) throw error
 
       setProjects(projects.filter((p) => p.id !== projectId))
       toast.success('Đã xóa dự án.')
-    } catch (err: any) {
-      toast.error(`Không thể xóa dự án: ${err.message}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown delete error'
+      toast.error(`Không thể xóa dự án: ${message}`)
     }
   }
 
@@ -128,7 +111,7 @@ export default function AdminProjectsPage() {
       ) : projects.length === 0 ? (
         <div className="h-full border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center py-24 text-slate-500 text-sm gap-2">
           <HelpCircle className="w-8 h-8 text-slate-600" />
-          <span>No projects found. Click "Create Project" to publish your first showcase item.</span>
+          <span>No projects found. Click &ldquo;Create Project&rdquo; to publish your first showcase item.</span>
         </div>
       ) : (
         <div className="border border-slate-800 bg-slate-900/10 rounded-2xl overflow-hidden shadow-xl">

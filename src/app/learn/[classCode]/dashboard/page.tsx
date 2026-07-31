@@ -19,9 +19,94 @@ import { CertificateModal } from './components/CertificateModal'
 
 import { useLearner } from '../LearnerContext'
 import { checkCertificateEligibility } from '@/lib/certificate'
+import {
+  fetchStudentGradesAction,
+  upsertStudentCertificateAction,
+} from '@/app/learn/[classCode]/assignments/[assignmentId]/actions'
 
 interface DashboardProps {
   params: Promise<{ classCode: string }>
+}
+
+interface CourseRow {
+  id: string
+  title: string
+  slug: string
+  description?: string | null
+  status?: string | null
+  version?: number | null
+}
+
+interface ClassRow {
+  id: string
+  class_code: string
+  course_id?: string | null
+  name?: string | null
+}
+
+interface AnnouncementRow {
+  id: string
+  title: string
+  content?: string | null
+  created_at: string
+}
+
+interface LessonRow {
+  id: string
+  title: string
+  order_index?: number | null
+  metadata?: {
+    status?: string | null
+  } | null
+  modules?: LessonModule | LessonModule[] | null
+}
+
+interface LessonModule {
+  id?: string
+  title?: string | null
+  order_index?: number | null
+  course_id?: string | null
+  courses?: CourseRow | CourseRow[] | null
+}
+
+interface ScheduleRow {
+  lesson_id: string
+  visible_after?: string | null
+  due_date?: string | null
+}
+
+interface AssignmentRow {
+  id: string
+  title: string
+  lesson_id: string
+  max_score?: number | null
+}
+
+interface SubmissionRow {
+  id: string
+  assignment_id: string
+  status?: string | null
+  grading_results?: GradingResultRow | null
+}
+
+interface GradingResultRow {
+  id: string
+  status?: string | null
+  total_score?: string | number | null
+}
+
+interface SuggestedLesson {
+  id: string
+  title: string
+  courseName: string
+  courseSlug: string
+}
+
+interface DueAssignment {
+  id: string
+  title: string
+  dueDate: Date
+  daysRemaining: number
 }
 
 export default function LearnerDashboard({ params }: DashboardProps) {
@@ -32,9 +117,9 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
   const [loading, setLoading] = useState(true)
   const [errorState, setErrorState] = useState<string | null>(null)
-  const [courses, setCourses] = useState<any[]>([])
-  const [classInfo, setClassInfo] = useState<any>(null)
-  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [courses, setCourses] = useState<CourseRow[]>([])
+  const [classInfo, setClassInfo] = useState<ClassRow | null>(null)
+  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([])
 
   // Progress & Grades State
   const [courseProgress, setCourseProgress] = useState<Record<string, { completed: number; total: number }>>({})
@@ -44,8 +129,8 @@ export default function LearnerDashboard({ params }: DashboardProps) {
   const [certificateId, setCertificateId] = useState<string | null>(null)
   const [showCertificateModal, setShowCertificateModal] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
-  const [suggestedLesson, setSuggestedLesson] = useState<any | null>(null)
-  const [dueAssignments, setDueAssignments] = useState<any[]>([])
+  const [suggestedLesson, setSuggestedLesson] = useState<SuggestedLesson | null>(null)
+  const [dueAssignments, setDueAssignments] = useState<DueAssignment[]>([])
 
   const loadCohortDashboard = useCallback(async () => {
     if (!identityVerified) return
@@ -84,10 +169,10 @@ export default function LearnerDashboard({ params }: DashboardProps) {
       if (juncError) throw juncError
 
       const mappedCourses = (junctionData || [])
-        .map((item: any) => item.courses)
-        .filter((course: any) => course && course.status !== 'archived')
+        .map((item: { courses?: CourseRow | null }) => item.courses)
+        .filter((course): course is CourseRow => Boolean(course && course.status !== 'archived'))
 
-      if (classData.course_id && !mappedCourses.some((course: any) => course.id === classData.course_id)) {
+      if (classData.course_id && !mappedCourses.some((course) => course.id === classData.course_id)) {
         const { data: primaryCourse, error: primaryCourseError } = await supabase
           .from('courses')
           .select('*')
@@ -113,7 +198,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
         if (lessonsError) throw lessonsError
 
-        const activeLessons = (lessonsList || []).filter((l: any) => l.modules && l.metadata?.status !== 'draft')
+        const activeLessons = ((lessonsList || []) as LessonRow[]).filter((l) => l.modules && l.metadata?.status !== 'draft')
         const activeLessonIds = activeLessons.map(l => l.id)
 
         // Fetch all schedules for this class
@@ -123,17 +208,17 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           .eq('class_id', classData.id)
 
         if (schedulesError) throw schedulesError
-        const scheduleMap = new Map(schedulesList?.map(s => [s.lesson_id, s]) || [])
+        const scheduleMap = new Map(((schedulesList || []) as ScheduleRow[]).map(s => [s.lesson_id, s]))
 
         // Fetch assignments for the active lessons
-        let assignmentsList: any[] = []
+        let assignmentsList: AssignmentRow[] = []
         if (activeLessonIds.length > 0) {
           const { data: assignData, error: assignError } = await supabase
             .from('assignments')
             .select('id, title, lesson_id, max_score')
             .in('lesson_id', activeLessonIds)
           if (assignError) throw assignError
-          assignmentsList = assignData || []
+          assignmentsList = (assignData || []) as AssignmentRow[]
         }
 
         // If it is an Admin/Teacher Preview, we stop here and set default empty student data
@@ -149,32 +234,23 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           return
         }
 
-        const activeEmail = studentEmail || ''
-
-        // 5. Fetch Completed Lesson Progress
-        let progressList: Array<{ lesson_id: string }> = []
-        if (activeLessonIds.length > 0) {
-          const { data, error: progressError } = await supabase
-            .from('student_lesson_progress')
-            .select('lesson_id')
-            .eq('class_id', classData.id)
-            .eq('student_email', activeEmail)
-            .in('lesson_id', activeLessonIds)
-
-          if (progressError) throw progressError
-          progressList = data || []
+        // 5. Fetch student-private progress, submissions and certificate state through
+        // a verified server action. This keeps RLS closed to direct anon writes/reads.
+        const studentGradesResult = await fetchStudentGradesAction(classCode)
+        if (!studentGradesResult.success) {
+          throw new Error(studentGradesResult.error || 'Failed to load private student progress')
         }
 
-        const completedSet = new Set(progressList?.map(p => p.lesson_id) || [])
+        const completedSet = new Set(studentGradesResult.completedLessonIds || [])
 
         // Compute course progress mapping
         const progressMap: Record<string, { completed: number; total: number }> = {}
         mappedCourses.forEach(course => {
-          const courseLessons = activeLessons.filter((l: any) => {
+          const courseLessons = activeLessons.filter((l) => {
             const m = Array.isArray(l.modules) ? l.modules[0] : l.modules
             return m?.course_id === course.id
           })
-          const completedCount = courseLessons.filter((l: any) => completedSet.has(l.id)).length
+          const completedCount = courseLessons.filter((l) => completedSet.has(l.id)).length
           progressMap[course.id] = {
             completed: completedCount,
             total: courseLessons.length
@@ -182,38 +258,36 @@ export default function LearnerDashboard({ params }: DashboardProps) {
         })
         setCourseProgress(progressMap)
 
-        // 6. Query Submissions & Published Grades for Certificate Eligibility
-        const { data: subsData, error: subsError } = await supabase
-          .from('submissions')
-          .select('*, grading_results(*)')
-          .eq('class_id', classData.id)
-          .eq('student_identifier', activeEmail)
+        // 6. Map published grades into the certificate eligibility helper format.
+        const formattedSubmissions = (studentGradesResult.grades || [])
+          .filter((grade) => grade.submission)
+          .map((grade) => {
+          const sub = grade.submission as SubmissionRow
+          const gradingResult = grade.grade
+            ? {
+                id: grade.grade.id,
+                status: grade.grade.status || 'published',
+                client_total_score: parseFloat(String(grade.grade.total_score || '0')),
+              }
+            : null
 
-        if (subsError) throw subsError
-
-        // Map submissions into correct format for helper
-        const formattedSubmissions = (subsData || []).map((sub: any) => {
-          let gradingResult = null
-          if (sub.grading_results && sub.grading_results.status === 'published') {
-            gradingResult = {
-              id: sub.grading_results.id,
-              status: sub.grading_results.status,
-              client_total_score: parseFloat(sub.grading_results.total_score || '0')
-            }
-          }
           return {
             id: sub.id,
             assignment_id: sub.assignment_id,
-            status: sub.status,
+            status: sub.status || 'submitted',
             grading_results: gradingResult
           }
         })
 
         const completedLessonIds = Array.from(completedSet)
+        const certificateAssignments = assignmentsList.map((assignment) => ({
+          ...assignment,
+          max_score: assignment.max_score ?? 0,
+        }))
         const certResult = checkCertificateEligibility(
           activeLessonIds,
           completedLessonIds,
-          assignmentsList,
+          certificateAssignments,
           formattedSubmissions
         )
 
@@ -222,45 +296,21 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           setHasIssuedCertificate(true)
           setCertificateGrade(certResult.averageGrade)
 
-          // Register certificate in database and retrieve unique UUID ID
-          const { data: certData, error: certError } = await supabase
-            .from('certificates')
-            .upsert(
-              {
-                class_id: classData.id,
-                student_email: activeEmail,
-                grade_average: certResult.averageGrade
-              },
-              {
-                onConflict: 'class_id,student_email'
-              }
-            )
-            .select('id, grade_average')
-            .single()
-
-          if (certError) {
-            console.error('Failed to persist certificate record:', certError)
-          } else if (certData) {
-            setCertificateId(certData.id)
+          // Register certificate in database and retrieve unique UUID ID via server action.
+          const certPersistResult = await upsertStudentCertificateAction(classCode)
+          if (!certPersistResult.success) {
+            console.error('Failed to persist certificate record:', certPersistResult.error)
+          } else if (certPersistResult.certificate) {
+            setCertificateId(certPersistResult.certificate.id)
           }
         } else {
           setIsEligibleForCertificate(false)
           setCertificateGrade(0)
 
-          // Fetch pre-existing certificate if any (already issued)
-          const { data: existingCert, error: existingCertificateError } = await supabase
-            .from('certificates')
-            .select('id, grade_average')
-            .eq('class_id', classData.id)
-            .eq('student_email', activeEmail)
-            .maybeSingle()
-
-          if (existingCertificateError) throw existingCertificateError
-
-          if (existingCert) {
-            setCertificateId(existingCert.id)
+          if (studentGradesResult.issuedCertificate) {
+            setCertificateId(studentGradesResult.issuedCertificate.id)
             setHasIssuedCertificate(true)
-            setCertificateGrade(Number(existingCert.grade_average) || 0)
+            setCertificateGrade(Number(studentGradesResult.issuedCertificate.grade_average) || 0)
           } else {
             setCertificateId(null)
             setHasIssuedCertificate(false)
@@ -269,7 +319,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
 
         // Calculate suggested lesson (first unlocked, uncompleted)
         const sortedLessons = [...activeLessons]
-          .sort((a: any, b: any) => {
+          .sort((a, b) => {
             const aModule = Array.isArray(a.modules) ? a.modules[0] : a.modules
             const bModule = Array.isArray(b.modules) ? b.modules[0] : b.modules
             const modDiff = (aModule?.order_index || 0) - (bModule?.order_index || 0)
@@ -278,7 +328,7 @@ export default function LearnerDashboard({ params }: DashboardProps) {
           })
 
         const now = new Date()
-        let foundSuggested: any = null
+        let foundSuggested: SuggestedLesson | null = null
         for (const l of sortedLessons) {
           if (completedSet.has(l.id)) continue
           const sched = scheduleMap.get(l.id)
@@ -305,8 +355,12 @@ export default function LearnerDashboard({ params }: DashboardProps) {
         setSuggestedLesson(foundSuggested)
 
         // Calculate due assignments
-        const submittedAssignmentIds = new Set(subsData?.map(s => s.assignment_id) || [])
-        const dueSoonList: any[] = []
+        const submittedAssignmentIds = new Set(
+          (studentGradesResult.grades || [])
+            .filter((grade) => grade.submission)
+            .map((grade) => grade.id)
+        )
+        const dueSoonList: DueAssignment[] = []
         const sevenDaysFromNow = new Date()
         sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
@@ -330,13 +384,14 @@ export default function LearnerDashboard({ params }: DashboardProps) {
         dueSoonList.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
         setDueAssignments(dueSoonList.slice(0, 3))
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load student courses:', err)
-      setErrorState(err.message || 'Unknown database retrieval error')
+      const message = err instanceof Error ? err.message : 'Unknown database retrieval error'
+      setErrorState(message)
     } finally {
       setLoading(false)
     }
-  }, [classCode, studentEmail, identityVerified, isAdminPreview])
+  }, [classCode, identityVerified, isAdminPreview])
 
   useEffect(() => {
     loadCohortDashboard()

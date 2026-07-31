@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow'
 import { Plus, ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { createProjectAction, uploadProjectMediaAction } from '../actions'
 
 // Import shared helpers and components
 import { hasCycle } from '../utils/projectUtils'
@@ -13,6 +13,10 @@ import { ProjectDetailsForm } from '../components/ProjectDetailsForm'
 import { ProcessDiagramWorkspace, nodeIconOptions } from '../components/ProcessDiagramWorkspace'
 import { MediaAttachments } from '../components/MediaAttachments'
 import { LinksTaxonomy } from '../components/LinksTaxonomy'
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
 
 function CreateProjectPageContent() {
   const router = useRouter()
@@ -34,21 +38,15 @@ function CreateProjectPageContent() {
     projectId: string,
     bucket: string
   ): Promise<string[]> => {
-    const urls: string[] = []
-    for (const file of filesList) {
-      const fileName = `${projectId}/${Date.now()}-${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, { upsert: false })
-      if (uploadError) {
-        throw new Error(`Failed to upload to ${bucket}: ${uploadError.message}`)
-      }
-      const { data: publicUrlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName)
-      urls.push(publicUrlData.publicUrl)
+    const formData = new FormData()
+    filesList.forEach((file) => formData.append('files', file))
+
+    const result = await uploadProjectMediaAction(bucket, projectId, formData)
+    if (!result.success) {
+      throw new Error(result.error)
     }
-    return urls
+
+    return result.urls
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,27 +79,27 @@ function CreateProjectPageContent() {
         position: node.position,
       }))
 
-      const { error } = await supabase.from('projects').insert([
-        {
-          id: projectId,
-          title,
-          description,
-          thumbnails: thumbnailUrls,
-          files: fileUrls,
-          icons,
-          flow_diagram: { nodes: simplifiedNodes, edges },
-          product_option: productOption,
-          iframe_link: iframeLink,
-          youtube_link: youtubeLink,
-        },
-      ])
+      const result = await createProjectAction({
+        id: projectId,
+        title,
+        description,
+        thumbnails: thumbnailUrls,
+        files: fileUrls,
+        icons,
+        flow_diagram: { nodes: simplifiedNodes, edges },
+        product_option: productOption,
+        iframe_link: iframeLink,
+        youtube_link: youtubeLink,
+      })
 
-      if (error) throw error
+      if (!result.success) {
+        throw new Error(result.error)
+      }
 
       toast.success('Đã đăng dự án lên Showcase.')
       router.push('/admin/projects')
-    } catch (err: any) {
-      toast.error(`Không thể đăng dự án: ${err.message}`)
+    } catch (err) {
+      toast.error(`Không thể đăng dự án: ${getErrorMessage(err, 'Unknown publish error')}`)
     } finally {
       setIsSubmitting(false)
     }

@@ -50,7 +50,6 @@ function LessonEditorInner() {
     setSolutionFile,
     solutionStoragePath,
     setSolutionStoragePath,
-    solutionMode,
     setSolutionMode,
     batches,
     setBatches,
@@ -435,4 +434,3 @@ export default function LessonEditor() {
     </Suspense>
   )
 }
-

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ChevronRight, PanelLeft, Minimize, Maximize2, FileText, Lock, ChevronDown, Clock, PartyPopper } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Clock, PartyPopper } from 'lucide-react'
 import TheoryRenderer from '@/components/TheoryRenderer'
 import LessonCompletionButton from '@/components/LessonCompletionButton'
 import LessonDiscussion from '@/components/LessonDiscussion'
@@ -16,11 +16,80 @@ interface LessonViewWorkspaceProps {
   courseSlug: string
   lessonId: string
   studentEmail: string
-  classData: any
-  lessonData: any
-  preparedMaterials: any[]
-  assignmentsData: any[] | null
-  links: any[]
+  classData: LessonClassData
+  lessonData: LessonData
+  preparedMaterials: LessonMaterial[]
+  assignmentsData: LessonAssignment[] | null
+  links: LessonResourceLink[]
+}
+
+interface LessonClassData {
+  id: string
+  name?: string | null
+}
+
+interface LessonData {
+  id: string
+  title: string
+  content?: string | null
+  download_allowed?: boolean | null
+  grid_layout?: string | null
+  metadata?: {
+    grid_cell_mapping?: Record<string | number, LessonMaterial | LessonMaterial[] | null>
+  } | null
+  modules?: {
+    title?: string | null
+    courses?: {
+      title?: string | null
+    } | null
+    lessons?: ModuleLesson[]
+  } | null
+}
+
+interface ModuleLesson {
+  id: string
+  title: string
+  order_index?: number | null
+  order?: number | null
+  metadata?: {
+    status?: string | null
+  } | null
+}
+
+interface LessonMaterial {
+  id: string
+  title: string
+  type: string
+  storage_url?: string | null
+  signedUrl?: string | null
+  metadata?: {
+    viewer_artifact?: ViewerArtifact
+    display_mode?: string
+  } | null
+}
+
+interface ViewerArtifact {
+  headers?: string[]
+  rows?: unknown[][]
+  row_count?: number
+  col_count?: number
+  viewer_html?: string
+  viewer_markdown?: string
+  viewer_json?: unknown
+  raw_text?: unknown
+}
+
+interface LessonResourceLink {
+  id: string
+  title: string
+  type: string
+  storage_url: string
+}
+
+interface LessonAssignment {
+  id: string
+  title: string
+  instructions?: string | null
 }
 
 export function LessonViewWorkspace({
@@ -73,11 +142,11 @@ export function LessonViewWorkspace({
 
   // 2.C Progress context: lesson index within the module
   const { moduleLesson, nextLesson } = React.useMemo(() => {
-    const lessons: any[] = lessonData.modules?.lessons ?? []
+    const lessons = lessonData.modules?.lessons ?? []
     // Filter out draft lessons
-    const activeLessons = lessons.filter((l: any) => l.metadata?.status !== 'draft')
-    const sorted = [...activeLessons].sort((a: any, b: any) => (a.order_index ?? a.order ?? 0) - (b.order_index ?? b.order ?? 0))
-    const idx = sorted.findIndex((l: any) => l.id === lessonId)
+    const activeLessons = lessons.filter((lesson) => lesson.metadata?.status !== 'draft')
+    const sorted = [...activeLessons].sort((a, b) => (a.order_index ?? a.order ?? 0) - (b.order_index ?? b.order ?? 0))
+    const idx = sorted.findIndex((lesson) => lesson.id === lessonId)
     const progress = idx >= 0 ? { current: idx + 1, total: sorted.length } : null
     const next = idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null
     return { moduleLesson: progress, nextLesson: next }
@@ -382,12 +451,12 @@ export function LessonViewWorkspace({
               const gridLayout = lessonData.grid_layout || '1-col'
               const rawCellMapping = lessonData.metadata?.grid_cell_mapping || {}
 
-              const cellMaterials: Record<number, any[]> = {}
+              const cellMaterials: Record<number, LessonMaterial[]> = {}
               const maxCols = gridLayout === '3-cols' ? 3 : gridLayout === '2-cols' ? 2 : 1
               for (let i = 0; i < maxCols; i++) {
                 const rawList = rawCellMapping[i] || []
                 const list = Array.isArray(rawList) ? rawList : (rawList && rawList.id ? [rawList] : [])
-                cellMaterials[i] = list.map((rawM: any) => {
+                cellMaterials[i] = list.map((rawM) => {
                   const freshM = preparedMaterials.find((m) => m.id === rawM.id)
                   return freshM || rawM
                 })
@@ -395,8 +464,8 @@ export function LessonViewWorkspace({
 
               const unplaced = preparedMaterials.filter((m) =>
                 previewableTypes.includes(m.type) &&
-                !Object.values(cellMaterials).some((colList: any) =>
-                  Array.isArray(colList) && colList.some((item: any) => item?.id === m.id)
+                !Object.values(cellMaterials).some((colList) =>
+                  Array.isArray(colList) && colList.some((item) => item?.id === m.id)
                 )
               )
 
@@ -410,7 +479,7 @@ export function LessonViewWorkspace({
 
                         return (
                           <div key={colIdx} className="space-y-6 flex flex-col">
-                            {list.map((material: any) => (
+                            {list.map((material) => (
                               <div key={material.id}>
                                 <StudentMaterialPreviewCard m={material} downloadAllowed={downloadAllowed} />
                               </div>
@@ -446,7 +515,7 @@ export function LessonViewWorkspace({
 
             {/* Discussion */}
             <LessonDiscussion
-              classId={classData.id}
+              classCode={classCode}
               lessonId={lessonId}
               studentEmail={studentEmail}
             />
@@ -468,7 +537,7 @@ export function LessonViewWorkspace({
         <div className="grid grid-cols-1 gap-8 items-start mt-6">
           <div className="lg:col-span-2">
             <LessonDiscussion
-              classId={classData.id}
+              classCode={classCode}
               lessonId={lessonId}
               studentEmail={studentEmail}
             />

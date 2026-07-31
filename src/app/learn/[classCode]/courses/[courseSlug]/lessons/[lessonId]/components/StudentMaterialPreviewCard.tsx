@@ -4,13 +4,36 @@ import React, { useState } from 'react'
 import DocumentViewer from '@/components/DocumentViewer'
 import CodeFileViewer from '@/components/CodeFileViewer'
 import { getMaterialIcon, getMaterialTypeStyles } from '@/lib/material'
-import { FileText, Code, X } from 'lucide-react'
+import { FileText, X } from 'lucide-react'
 import { renderSimpleMarkdown } from '@/lib/markdown'
 
 interface StudentMaterialPreviewCardProps {
-  m: any
+  m: StudentMaterial
   downloadAllowed: boolean
   isSplit?: boolean
+}
+
+interface ViewerArtifact {
+  headers?: string[]
+  rows?: unknown[][]
+  row_count?: number
+  col_count?: number
+  viewer_html?: string
+  viewer_markdown?: string
+  viewer_json?: unknown
+  raw_text?: unknown
+}
+
+interface StudentMaterial {
+  id?: string
+  title: string
+  type: string
+  storage_url?: string | null
+  signedUrl?: string | null
+  metadata?: {
+    display_mode?: string
+    viewer_artifact?: ViewerArtifact
+  } | null
 }
 
 export function StudentMaterialPreviewCard({
@@ -21,6 +44,8 @@ export function StudentMaterialPreviewCard({
   const [showModal, setShowModal] = useState(false)
   const styles = getMaterialTypeStyles(m.type)
   const Icon = getMaterialIcon(m.type)
+  const signedUrl = m.signedUrl ?? undefined
+  const storageUrl = m.storage_url ?? undefined
 
   const renderViewer = (forceSplit: boolean) => {
     const activeIsSplit = forceSplit || isSplit
@@ -37,11 +62,11 @@ export function StudentMaterialPreviewCard({
         {/* PDF Preview: OS-style Viewport Frame */}
         {m.type === 'pdf' && (() => {
           const displayMode = m.metadata?.display_mode || 'both';
-          const hasValidUrl = m.signedUrl && (
-            m.signedUrl.startsWith('http://') || 
-            m.signedUrl.startsWith('https://') || 
-            m.signedUrl.startsWith('blob:') || 
-            m.signedUrl.startsWith('data:')
+          const hasValidUrl = signedUrl && (
+            signedUrl.startsWith('http://') ||
+            signedUrl.startsWith('https://') ||
+            signedUrl.startsWith('blob:') ||
+            signedUrl.startsWith('data:')
           );
 
           return (
@@ -63,9 +88,9 @@ export function StudentMaterialPreviewCard({
                           {m.title}
                         </h3>
                       </div>
-                      {downloadAllowed && (
+                      {downloadAllowed && signedUrl && (
                         <a
-                          href={m.signedUrl}
+                          href={signedUrl}
                           download
                           target="_blank"
                           rel="noopener noreferrer"
@@ -76,7 +101,7 @@ export function StudentMaterialPreviewCard({
                       )}
                     </div>
                     <div className="flex-1 min-h-0 bg-slate-900">
-                      <DocumentViewer url={m.signedUrl} title={m.title} className="h-full" />
+                      <DocumentViewer url={signedUrl} title={m.title} className="h-full" />
                     </div>
                   </div>
                 ) : (
@@ -96,7 +121,7 @@ export function StudentMaterialPreviewCard({
                   </h3>
                   {downloadAllowed && hasValidUrl ? (
                     <a
-                      href={m.signedUrl}
+                      href={signedUrl}
                       download
                       target="_blank"
                       rel="noopener noreferrer"
@@ -134,9 +159,9 @@ export function StudentMaterialPreviewCard({
                     {m.title}
                   </h3>
                 </div>
-                {downloadAllowed && (
+                {downloadAllowed && signedUrl && (
                   <a
-                    href={m.signedUrl}
+                    href={signedUrl}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
@@ -190,9 +215,9 @@ export function StudentMaterialPreviewCard({
                     {m.title}
                   </h3>
                 </div>
-                {downloadAllowed && (
+                {downloadAllowed && signedUrl && (
                   <a
-                    href={m.signedUrl}
+                    href={signedUrl}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
@@ -218,11 +243,11 @@ export function StudentMaterialPreviewCard({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800 bg-slate-950">
-                          {rows.slice(0, 20).map((row: any[], i: number) => (
+                          {rows.slice(0, 20).map((row: unknown[], i: number) => (
                             <tr key={i} className="hover:bg-slate-900/40 transition-colors">
-                              {row.map((cell: any, j: number) => (
+                              {row.map((cell: unknown, j: number) => (
                                 <td key={j} className="px-3.5 py-2.5 text-slate-600 border-r border-slate-800 last:border-0 truncate max-w-[120px]">
-                                  {cell}
+                                  {String(cell ?? '')}
                                 </td>
                               ))}
                             </tr>
@@ -324,9 +349,9 @@ export function StudentMaterialPreviewCard({
         )}
 
         {/* Code / Notebook Preview */}
-        {(m.type === 'code_repo' || m.storage_url?.endsWith('.ipynb') || m.storage_url?.endsWith('.py') || m.storage_url?.endsWith('.sql')) && (
+        {(m.type === 'code_repo' || storageUrl?.endsWith('.ipynb') || storageUrl?.endsWith('.py') || storageUrl?.endsWith('.sql')) && (
           <div className={`w-full ${activeIsSplit ? 'h-full min-h-0' : ''}`}>
-            <CodeFileViewer url={m.signedUrl || m.storage_url} title={m.title} downloadAllowed={downloadAllowed} isSplit={activeIsSplit} />
+            <CodeFileViewer url={signedUrl || storageUrl || ''} title={m.title} downloadAllowed={downloadAllowed} isSplit={activeIsSplit} />
           </div>
         )}
       </div>

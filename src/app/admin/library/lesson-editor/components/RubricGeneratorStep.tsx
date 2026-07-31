@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Loader2, Brain, Plus, Trash2, Code as CodeIcon, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertCircle, Sparkles } from 'lucide-react'
 import { SemanticSearchDrawer } from '@/components/knowledge/SemanticSearchDrawer'
 import { testGradeRubricAction } from '../../actions/assignments'
@@ -26,7 +26,7 @@ interface QuestionItem {
   status: 'pending' | 'approved' | 'rejected'
   answerFormat?: 'text' | 'file' | 'both'
   answerSource?: 'ai_generated' | 'file_import' | 'teacher_edit'
-  data?: any
+  data?: unknown
   source: 'ai_generator' | 'file_import'
   source_file?: string | null
   points?: number
@@ -55,9 +55,40 @@ interface RubricGeneratorStepProps {
   setSelectedModel: (val: string) => void
   batches: BatchItem[]
   setBatches: React.Dispatch<React.SetStateAction<BatchItem[]>>
-  assignmentForm: any
-  pinnedChunks?: any[]
-  setPinnedChunks?: React.Dispatch<React.SetStateAction<any[]>>
+  assignmentForm: AssignmentForm
+  pinnedChunks?: PinnedKnowledgeChunk[]
+  setPinnedChunks?: React.Dispatch<React.SetStateAction<PinnedKnowledgeChunk[]>>
+}
+
+interface AssignmentForm {
+  maxScore: number
+  mcqWeightPercent?: number
+  essayWeightPercent?: number
+}
+
+interface PinnedKnowledgeChunk {
+  chunk_id: string
+  content: string
+  score?: number | string | null
+  citation?: {
+    knowledge_source_title?: string | null
+  } | null
+}
+
+type GradingCriterionSuggestion = {
+  criterion_key?: string
+  score?: number | string
+  explanation?: string
+}
+
+type GradingSimulationResult = {
+  total_score?: number | string
+  overall_feedback?: string
+  criterion_suggestions?: GradingCriterionSuggestion[]
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'An error occurred during test grading'
 }
 
 // 📋 Reusable Inline Regex Match Sandbox for each Essay Card
@@ -69,7 +100,7 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
   if (ruleCriteria.length === 0) {
     return (
       <div className="p-3.5 rounded-xl border border-slate-750 bg-slate-950/20 text-[10px] text-slate-500 font-mono leading-relaxed select-text">
-        💡 Tip: All evaluation metrics for this question are currently graded by standard AI reasoning. To configure deterministic keyword matching, change an Evaluation Rule below to "Exact Text Match" or "Regex Match".
+        💡 Tip: All evaluation metrics for this question are currently graded by standard AI reasoning. To configure deterministic keyword matching, change an Evaluation Rule below to &ldquo;Exact Text Match&rdquo; or &ldquo;Regex Match&rdquo;.
       </div>
     )
   }
@@ -153,7 +184,7 @@ function InlineRegexSandbox({ criteria }: { criteria: Criteria[] }) {
 function AIGradingSandbox({ question, criteria, selectedModel }: { question: QuestionItem; criteria: Criteria[]; selectedModel?: string }) {
   const [studentAnswer, setStudentAnswer] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<GradingSimulationResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleTestGrade = async () => {
@@ -174,8 +205,8 @@ function AIGradingSandbox({ question, criteria, selectedModel }: { question: Que
       } else {
         setError(res.error || 'Stateless grading failed')
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during test grading')
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -187,7 +218,7 @@ function AIGradingSandbox({ question, criteria, selectedModel }: { question: Que
         <Brain className="w-3.5 h-3.5" /> AI Rubric Grading Simulator
       </h5>
       <p className="text-[10px] text-slate-500 font-medium leading-relaxed select-none">
-        Simulate how the AI will grade a student's answer using the qualitative rubric criteria defined above.
+        Simulate how the AI will grade a student&apos;s answer using the qualitative rubric criteria defined above.
       </p>
 
       <div className="space-y-3">
@@ -239,7 +270,7 @@ function AIGradingSandbox({ question, criteria, selectedModel }: { question: Que
             <div className="space-y-2">
               <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest font-mono">Criteria Breakdown</span>
               <div className="space-y-2">
-                {result.criterion_suggestions.map((s: any, idx: number) => {
+                {result.criterion_suggestions.map((s, idx: number) => {
                   const crit = criteria.find(c => c.key === s.criterion_key);
                   return (
                     <div key={idx} className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-xs space-y-1">
@@ -326,29 +357,33 @@ export function RubricGeneratorStep({
   const [expandedCards, setExpandedCards] = useState<Record<string | number, boolean>>({})
   const [currentStageIdx, setCurrentStageIdx] = useState(0)
 
-  const stages = [
+  const stages = useMemo(() => [
     { label: 'Analyzing assignment questions & model answers', icon: '🔍' },
     { label: 'Calibrating scoring weights and point distributions', icon: '⚖️' },
     { label: 'Formulating qualitative evaluation guidelines', icon: '🧠' },
     { label: 'Constructing automated regex match patterns', icon: '⚙️' },
     { label: 'Verifying rubric schema structures', icon: '✨' }
-  ]
+  ], [])
 
   // Gather approved questions grouped by section
-  const approvedEssayQs: QuestionItem[] = []
-  const approvedMCQs: QuestionItem[] = []
+  const { approvedEssayQs, approvedMCQs } = useMemo(() => {
+    const essayQs: QuestionItem[] = []
+    const mcQs: QuestionItem[] = []
 
-  batches.forEach(b => {
-    b.questions.forEach(q => {
-      if (q.status === 'approved') {
-        if (b.type === 'essay') {
-          approvedEssayQs.push({ ...q, batchType: b.type })
-        } else {
-          approvedMCQs.push({ ...q, batchType: b.type })
+    batches.forEach(b => {
+      b.questions.forEach(q => {
+        if (q.status === 'approved') {
+          if (b.type === 'essay') {
+            essayQs.push({ ...q, batchType: b.type })
+          } else {
+            mcQs.push({ ...q, batchType: b.type })
+          }
         }
-      }
+      })
     })
-  })
+
+    return { approvedEssayQs: essayQs, approvedMCQs: mcQs }
+  }, [batches])
 
   // Expand all essay question cards by default on load
   useEffect(() => {
@@ -357,7 +392,7 @@ export function RubricGeneratorStep({
       initial[q.id] = true
     })
     setExpandedCards(initial)
-  }, [approvedEssayQs.length])
+  }, [approvedEssayQs])
 
   // Progress timer for AI generator
   useEffect(() => {
@@ -369,7 +404,7 @@ export function RubricGeneratorStep({
       setCurrentStageIdx((prev) => (prev < stages.length - 1 ? prev + 1 : prev))
     }, 3200)
     return () => clearInterval(interval)
-  }, [generatingRubric])
+  }, [generatingRubric, stages.length])
 
   const toggleCard = (qId: string | number) => {
     setExpandedCards(prev => ({ ...prev, [qId]: !prev[qId] }))
@@ -746,7 +781,7 @@ export function RubricGeneratorStep({
             {/* 📋 3. Essay & Code Section Contextual Question Cards */}
             {approvedEssayQs.length === 0 ? (
               <div className="text-center py-16 text-slate-500 text-xs select-none">
-                Rubric is empty. Build or approve essay questions, then click "Generate Rubric Matrix" at the top.
+                Rubric is empty. Build or approve essay questions, then click &ldquo;Generate Rubric Matrix&rdquo; at the top.
               </div>
             ) : (
               <div className="space-y-6">
@@ -832,7 +867,7 @@ export function RubricGeneratorStep({
 
                             {qCriteria.length === 0 ? (
                               <div className="text-center py-6 text-slate-500 text-xs italic select-none">
-                                No custom criteria metric is defined for this question yet. Click "Add Metric" or "Generate Rubric Matrix" at the top.
+                                No custom criteria metric is defined for this question yet. Click &ldquo;Add Metric&rdquo; or &ldquo;Generate Rubric Matrix&rdquo; at the top.
                               </div>
                             ) : (
                               <div className="space-y-4">
@@ -982,4 +1017,3 @@ export function RubricGeneratorStep({
     </div>
   )
 }
-

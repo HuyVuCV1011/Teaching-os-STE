@@ -1,51 +1,18 @@
 'use server'
 
 import { getSupabaseServer } from '@/lib/supabase'
-import { cookies } from 'next/headers'
-import { verifyJWT } from '@/lib/jwt'
+import { requireAdminUser } from '@/lib/admin-auth'
 
-async function checkAdminAuth() {
-  if (process.env.NODE_ENV === 'development' && process.env.BYPASS_ADMIN_AUTH === 'true') {
-    return { userId: '00000000-0000-0000-0000-000000000000' }
+type LessonWithModule = {
+  modules?: { course_id?: string } | { course_id?: string }[] | null
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message
   }
-
-  const cookieStore = await cookies()
-  const sbToken = cookieStore.get('sb-access-token') || cookieStore.get('supabase-auth-token')
-
-  if (!sbToken) {
-    throw new Error('Unauthorized: No authentication token found')
-  }
-
-  const secret = process.env.SUPABASE_JWT_SECRET
-  let payload: any = null
-
-  if (secret) {
-    payload = await verifyJWT(sbToken.value, secret)
-  } else {
-    const parts = sbToken.value.split('.')
-    if (parts.length === 3) {
-      payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-    }
-  }
-
-  if (!payload) {
-    throw new Error('Unauthorized: Invalid token payload')
-  }
-
-  const role = payload.app_metadata?.role || payload.role
-  const isAuthorized = [
-    'admin',
-    'teacher',
-    'super-admin',
-    'content-admin',
-    'class-operator'
-  ].includes(role || '')
-
-  if (!isAuthorized) {
-    throw new Error('Unauthorized: Insufficient privileges')
-  }
-
-  return { userId: payload.sub }
+  return 'Unknown error'
 }
 
 /**
@@ -53,7 +20,7 @@ async function checkAdminAuth() {
  */
 export async function duplicateCourseAction(courseId: string) {
   try {
-    await checkAdminAuth()
+    await requireAdminUser()
     const supabase = getSupabaseServer(true)
 
     // 1. Fetch source course
@@ -178,9 +145,9 @@ export async function duplicateCourseAction(courseId: string) {
     }
 
     return { success: true, courseId: newCourse.id }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to duplicate course:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -192,7 +159,7 @@ export async function saveSyllabusStructureAction(
   structure: { moduleId: string; orderIndex: number; lessonIds: string[] }[]
 ) {
   try {
-    await checkAdminAuth()
+    await requireAdminUser()
     const supabase = getSupabaseServer(true)
 
     // 1. Move all affected lessons to a temporary negative order_index first 
@@ -240,9 +207,9 @@ export async function saveSyllabusStructureAction(
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to save syllabus structure:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -251,7 +218,7 @@ export async function saveSyllabusStructureAction(
  */
 export async function deleteLessonAction(lessonId: string) {
   try {
-    await checkAdminAuth()
+    await requireAdminUser()
     const supabase = getSupabaseServer(true)
 
     // 1. Fetch lesson info to find its module and course
@@ -265,9 +232,10 @@ export async function deleteLessonAction(lessonId: string) {
       throw new Error(`Lesson not found: ${fetchErr?.message || 'Unknown'}`)
     }
 
-    const courseId = Array.isArray(lesson.modules)
-      ? lesson.modules[0]?.course_id
-      : (lesson.modules as any)?.course_id
+    const modules = (lesson as LessonWithModule).modules
+    const courseId = Array.isArray(modules)
+      ? modules[0]?.course_id
+      : modules?.course_id
 
     // 2. Delete the lesson
     const { error: delErr } = await supabase
@@ -296,9 +264,9 @@ export async function deleteLessonAction(lessonId: string) {
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to delete lesson:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -307,7 +275,7 @@ export async function deleteLessonAction(lessonId: string) {
  */
 export async function deleteModuleAction(moduleId: string) {
   try {
-    await checkAdminAuth()
+    await requireAdminUser()
     const supabase = getSupabaseServer(true)
 
     // 1. Fetch module info to find its course
@@ -350,10 +318,260 @@ export async function deleteModuleAction(moduleId: string) {
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to delete module:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
+type SubjectInput = {
+  name: string
+  slug: string
+  description: string
+}
 
+type CourseInput = {
+  title: string
+  slug: string
+  subject_id: string
+  description: string
+  status: string
+}
+
+function requireText(value: string, field: string, maxLength = 255): string {
+  const normalized = value.trim()
+  if (!normalized) {
+    throw new Error(`${field} is required`)
+  }
+  if (normalized.length > maxLength) {
+    throw new Error(`${field} must be at most ${maxLength} characters`)
+  }
+  return normalized
+}
+
+export async function listLibraryAdminAction() {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const [subjectsResult, coursesResult] = await Promise.all([
+      supabase.from('subjects').select('*').order('name'),
+      supabase
+        .from('courses')
+        .select('*, subjects(name)')
+        .neq('status', 'archived')
+        .order('created_at', { ascending: false }),
+    ])
+
+    if (subjectsResult.error) throw subjectsResult.error
+    if (coursesResult.error) throw coursesResult.error
+
+    return {
+      success: true as const,
+      data: {
+        subjects: subjectsResult.data || [],
+        courses: coursesResult.data || [],
+      },
+    }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function getCourseSyllabusAdminAction(courseId: string) {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const { data, error } = await supabase
+      .from('modules')
+      .select('*, lessons(*)')
+      .eq('course_id', requireText(courseId, 'Course id'))
+      .order('order_index')
+      .order('order_index', { foreignTable: 'lessons', ascending: true })
+
+    if (error) throw error
+    return { success: true as const, data: data || [] }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function createSubjectAdminAction(input: SubjectInput) {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const { data, error } = await supabase
+      .from('subjects')
+      .insert({
+        name: requireText(input.name, 'Subject name'),
+        slug: requireText(input.slug, 'Subject slug', 150),
+        description: input.description.trim(),
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return { success: true as const, data }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function createCourseAdminAction(input: CourseInput) {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const { data, error } = await supabase
+      .from('courses')
+      .insert({
+        title: requireText(input.title, 'Course title'),
+        slug: requireText(input.slug, 'Course slug', 150),
+        subject_id: requireText(input.subject_id, 'Subject id'),
+        description: input.description.trim(),
+        status: requireText(input.status, 'Course status', 50),
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return { success: true as const, data }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function createModuleAdminAction(
+  courseId: string,
+  title: string,
+  orderIndex: number,
+) {
+  try {
+    await requireAdminUser()
+    if (!Number.isInteger(orderIndex) || orderIndex < 1) {
+      throw new Error('Module order must be a positive integer')
+    }
+
+    const supabase = getSupabaseServer(true)
+    const { data, error } = await supabase
+      .from('modules')
+      .insert({
+        course_id: requireText(courseId, 'Course id'),
+        title: requireText(title, 'Module title'),
+        order_index: orderIndex,
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return { success: true as const, data }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function createLessonAdminAction(
+  moduleId: string,
+  title: string,
+  orderIndex: number,
+) {
+  try {
+    await requireAdminUser()
+    if (!Number.isInteger(orderIndex) || orderIndex < 1) {
+      throw new Error('Lesson order must be a positive integer')
+    }
+
+    const supabase = getSupabaseServer(true)
+    const { data, error } = await supabase
+      .from('lessons')
+      .insert({
+        module_id: requireText(moduleId, 'Module id'),
+        title: requireText(title, 'Lesson title'),
+        order_index: orderIndex,
+        content: '{"type":"doc","content":[]}',
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return { success: true as const, data }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function swapModuleOrderAdminAction(
+  courseId: string,
+  first: { id: string; orderIndex: number },
+  second: { id: string; orderIndex: number },
+) {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const normalizedCourseId = requireText(courseId, 'Course id')
+    const firstId = requireText(first.id, 'First module id')
+    const secondId = requireText(second.id, 'Second module id')
+
+    const { error: temporaryError } = await supabase
+      .from('modules')
+      .update({ order_index: -1 })
+      .eq('id', firstId)
+      .eq('course_id', normalizedCourseId)
+    if (temporaryError) throw temporaryError
+
+    const { error: secondError } = await supabase
+      .from('modules')
+      .update({ order_index: first.orderIndex })
+      .eq('id', secondId)
+      .eq('course_id', normalizedCourseId)
+    if (secondError) throw secondError
+
+    const { error: firstError } = await supabase
+      .from('modules')
+      .update({ order_index: second.orderIndex })
+      .eq('id', firstId)
+      .eq('course_id', normalizedCourseId)
+    if (firstError) throw firstError
+
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function swapLessonOrderAdminAction(
+  moduleId: string,
+  first: { id: string; orderIndex: number },
+  second: { id: string; orderIndex: number },
+) {
+  try {
+    await requireAdminUser()
+    const supabase = getSupabaseServer(true)
+    const normalizedModuleId = requireText(moduleId, 'Module id')
+    const firstId = requireText(first.id, 'First lesson id')
+    const secondId = requireText(second.id, 'Second lesson id')
+
+    const { error: temporaryError } = await supabase
+      .from('lessons')
+      .update({ order_index: -1 })
+      .eq('id', firstId)
+      .eq('module_id', normalizedModuleId)
+    if (temporaryError) throw temporaryError
+
+    const { error: secondError } = await supabase
+      .from('lessons')
+      .update({ order_index: first.orderIndex })
+      .eq('id', secondId)
+      .eq('module_id', normalizedModuleId)
+    if (secondError) throw secondError
+
+    const { error: firstError } = await supabase
+      .from('lessons')
+      .update({ order_index: second.orderIndex })
+      .eq('id', firstId)
+      .eq('module_id', normalizedModuleId)
+    if (firstError) throw firstError
+
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}

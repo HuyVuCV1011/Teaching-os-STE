@@ -7,7 +7,7 @@ import ScrollToTopButton from '@/components/ui/ScrollToTopButton'
 export function ConditionalPublicChrome() {
   const pathname = usePathname()
   const isAdminSurface = pathname.startsWith('/admin')
-  const isClassroomSurface = /^\/learn\/[^/]+/.test(pathname)
+  const isClassroomSurface = pathname.startsWith('/learn')
 
   if (isAdminSurface || isClassroomSurface) return null
 

@@ -56,6 +56,18 @@ describe('verifyJWT', () => {
     expect(await verifyJWT('a.b.c.d', SECRET)).toBeNull()
   })
 
+  it('returns null for expired tokens', async () => {
+    const token = await signJWT({ role: 'student' }, SECRET, { expiresInSeconds: -60 })
+    const result = await verifyJWT(token, SECRET)
+    expect(result).toBeNull()
+  })
+
+  it('accepts tokens before their exp claim', async () => {
+    const token = await signJWT({ role: 'student' }, SECRET, { expiresInSeconds: 60 })
+    const result = await verifyJWT(token, SECRET)
+    expect(result).toMatchObject({ role: 'student' })
+  })
+
   it('handles numeric and boolean payload values', async () => {
     const payload = { count: 42, active: true, score: 95.5 }
     const token = await signJWT(payload, SECRET)

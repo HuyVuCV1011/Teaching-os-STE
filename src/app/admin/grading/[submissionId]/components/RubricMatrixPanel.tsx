@@ -4,7 +4,7 @@ import React from 'react'
 import { Sparkles } from 'lucide-react'
 
 interface RubricMatrixPanelProps {
-  criteria: any[]
+  criteria: RubricCriterion[]
   scores: Record<string, number>
   setScores: React.Dispatch<React.SetStateAction<Record<string, number>>>
   feedbacks: Record<string, string>
@@ -13,10 +13,34 @@ interface RubricMatrixPanelProps {
   setOverrideReasons: React.Dispatch<React.SetStateAction<Record<string, string>>>
   overallFeedback: string
   setOverallFeedback: (val: string) => void
-  suggestions: any[]
-  lateInfo: any
+  suggestions: RubricSuggestion[]
+  lateInfo: LateInfo | null
   applyLatePenalty: boolean
   clientTotalScore: number
+}
+
+interface RubricCriterion {
+  id: string
+  name?: string | null
+  description?: string | null
+  max_points?: number | null
+  weight?: string | number | null
+}
+
+interface RubricSuggestion {
+  rubric_criterion_id?: string | null
+  suggested_score?: string | number | null
+  suggested_feedback?: string | null
+  confidence?: string | number | null
+}
+
+interface LateInfo {
+  deductionPercent: number
+}
+
+function toNumber(value: string | number | null | undefined) {
+  const parsed = Number.parseFloat(String(value ?? 0))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 export function RubricMatrixPanel({
@@ -72,7 +96,7 @@ export function RubricMatrixPanel({
             const suggestion = suggestions.find((s) => s.rubric_criterion_id === c.id)
             const isOverridden =
               suggestion &&
-              ((scores[c.id] !== undefined && scores[c.id] !== parseFloat(suggestion.suggested_score)) ||
+              ((scores[c.id] !== undefined && scores[c.id] !== toNumber(suggestion.suggested_score)) ||
                 (feedbacks[c.id] !== undefined && feedbacks[c.id] !== (suggestion.suggested_feedback || '')))
 
             return (
@@ -97,21 +121,21 @@ export function RubricMatrixPanel({
                   <div className="p-3 bg-blue-600/5 border border-blue-500/20 rounded-xl space-y-1.5 text-xs">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-blue-700">
-                        AI Suggested Score: {parseFloat(suggestion.suggested_score).toFixed(1)} pts
+                        AI Suggested Score: {toNumber(suggestion.suggested_score).toFixed(1)} pts
                       </span>
                       {suggestion.confidence !== undefined && (
                         <span className="text-[10px] bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-                          Confidence: {Math.round(parseFloat(suggestion.confidence) * 100)}%
+                          Confidence: {Math.round(toNumber(suggestion.confidence) * 100)}%
                         </span>
                       )}
                     </div>
                     {suggestion.suggested_feedback && (
-                      <p className="text-[11px] text-slate-500 italic">"{suggestion.suggested_feedback}"</p>
+                      <p className="text-[11px] text-slate-500 italic">&ldquo;{suggestion.suggested_feedback}&rdquo;</p>
                     )}
                     <button
                       type="button"
                       onClick={() => {
-                        setScores((prev) => ({ ...prev, [c.id]: parseFloat(suggestion.suggested_score) }))
+                        setScores((prev) => ({ ...prev, [c.id]: toNumber(suggestion.suggested_score) }))
                         setFeedbacks((prev) => ({ ...prev, [c.id]: suggestion.suggested_feedback || '' }))
                       }}
                       className="text-[10px] font-bold text-blue-700 hover:text-blue-500 flex items-center gap-1 mt-1 cursor-pointer bg-transparent border-0 p-0"
@@ -126,7 +150,7 @@ export function RubricMatrixPanel({
                   <input
                     type="range"
                     min="0"
-                    max={c.max_points}
+                    max={c.max_points ?? 0}
                     step="0.5"
                     value={scores[c.id] || 0}
                     onChange={(e) => setScores({ ...scores, [c.id]: parseFloat(e.target.value) })}
@@ -135,13 +159,13 @@ export function RubricMatrixPanel({
                   <input
                     type="number"
                     min="0"
-                    max={c.max_points}
+                    max={c.max_points ?? 0}
                     step="0.5"
                     value={scores[c.id] || 0}
                     onChange={(e) =>
                       setScores({
                         ...scores,
-                        [c.id]: Math.min(c.max_points, Math.max(0, parseFloat(e.target.value) || 0)),
+                        [c.id]: Math.min(c.max_points ?? 0, Math.max(0, parseFloat(e.target.value) || 0)),
                       })
                     }
                     className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center text-xs font-mono font-semibold focus:outline-none text-slate-100"

@@ -99,12 +99,7 @@ export function renderSimpleMarkdown(md: string): string {
             <div class="code-block-wrapper my-6 border border-slate-805 rounded-xl bg-slate-900 overflow-hidden shadow-md font-mono">
               <div class="flex items-center justify-between px-4 py-2 bg-slate-955/20 border-b border-slate-805 text-xs text-slate-400">
                 <span class="text-[10px] uppercase font-bold tracking-widest text-slate-300">${codeLanguage || 'code'}</span>
-                <button 
-                  class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-750 hover:text-white transition-colors text-[10px]"
-                  onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.querySelector('code').innerText); const self=this; self.innerText='Copied!'; setTimeout(() => self.innerText='Copy', 2000)"
-                >
-                  Copy
-                </button>
+                <span class="text-[10px] text-slate-500">Code</span>
               </div>
               <pre class="p-4 overflow-x-auto text-xs text-slate-100 leading-relaxed bg-slate-900"><code>${escapedCode}</code></pre>
             </div>
@@ -243,6 +238,17 @@ function parseInline(text: string): string {
     // Inline code
     .replace(/`(.*?)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-900/10 border border-slate-805 font-mono text-[11.5px] text-blue-600 font-semibold">$1</code>')
     // Links [Text](URL)
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-500 hover:underline transition-colors font-medium">$1</a>')
+    .replace(/\[(.*?)\]\((.*?)\)/g, (_match, label: string, rawUrl: string) => {
+      const url = rawUrl.trim()
+      const safeUrl = /^(https?:\/\/|mailto:|#|\/(?!\/))/i.test(url) &&
+        !/[\s"'<>]/.test(url)
+        ? url
+        : '#'
+      const escapedUrl = safeUrl
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+      return `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-500 hover:underline transition-colors font-medium">${label}</a>`
+    })
   return html
 }

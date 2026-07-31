@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import { 
   ArrowLeft, 
@@ -61,8 +60,18 @@ interface RetrievedChunk {
   }
 }
 
+interface PreviewChunk {
+  id?: string
+  position?: number
+  heading_path?: string[]
+  content?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'An unexpected error occurred'
+}
+
 export default function KnowledgeHubPage() {
-  const router = useRouter()
   const [sources, setSources] = useState<KnowledgeSource[]>([])
   const [loading, setLoading] = useState(true)
   
@@ -102,7 +111,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
   // Preview Modal State
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [previewingSource, setPreviewingSource] = useState<KnowledgeSource | null>(null)
-  const [previewChunks, setPreviewChunks] = useState<any[]>([])
+  const [previewChunks, setPreviewChunks] = useState<PreviewChunk[]>([])
   const [loadingChunks, setLoadingChunks] = useState(false)
   const [targetChunkId, setTargetChunkId] = useState<string | null>(null)
 
@@ -135,7 +144,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
         toast.error(res.error || 'Failed to fetch document contents')
         setPreviewChunks([])
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred loading document chunks')
       setPreviewChunks([])
     } finally {
@@ -153,7 +162,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
       } else {
         toast.error(res.error || 'Failed to load knowledge sources')
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred loading knowledge library')
     } finally {
       setLoading(false)
@@ -170,7 +179,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
       } else {
         toast.error(res.error || 'Failed to load custom prompt template')
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred loading prompt settings')
     } finally {
       setLoadingPrompt(false)
@@ -191,7 +200,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
       } else {
         toast.error(res.error || 'Failed to save prompt configuration')
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred saving prompt settings')
     } finally {
       setSavingPrompt(false)
@@ -231,8 +240,8 @@ Make sure the criteria sum up logically (total max_points * weights should match
       } else {
         toast.error(res.error || 'Failed to upload document')
       }
-    } catch (err: any) {
-      toast.error(err.message || 'An error occurred during file upload')
+    } catch (err) {
+      toast.error(getErrorMessage(err) || 'An error occurred during file upload')
     } finally {
       setUploading(false)
     }
@@ -252,7 +261,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
       } else {
         toast.error(res.error || 'Failed to delete knowledge source')
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred during deletion')
     }
   }
@@ -273,7 +282,7 @@ Make sure the criteria sum up logically (total max_points * weights should match
       } else {
         toast.error(res.error || 'Search failed')
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred during semantic search')
     } finally {
       setSearching(false)

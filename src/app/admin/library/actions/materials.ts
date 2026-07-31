@@ -1,12 +1,19 @@
 'use server'
 
-import { supabase, getSupabaseServer } from '@/lib/supabase'
+import { getSupabaseServer } from '@/lib/supabase'
+import { requireAdminUser } from '@/lib/admin-auth'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
 
 const execAsync = promisify(exec)
+const ALLOWED_ADMIN_BUCKETS = new Set([
+  'teaching-materials',
+  'assignment-prompts',
+  'assignment-solutions',
+])
+const MAX_ADMIN_UPLOAD_BYTES = 100 * 1024 * 1024
 
 export interface MaterialInput {
   lessonId: string
@@ -14,7 +21,53 @@ export interface MaterialInput {
   type: 'pdf' | 'docx' | 'csv' | 'xlsx' | 'code_repo' | 'flow_diagram' | 'link' | 'markdown' | 'json'
   storageUrl: string
   fileHash?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
+}
+
+type MaterialMetadata = Record<string, unknown> & {
+  file_hash?: string
+  viewer_artifact?: unknown
+  extracted_text?: string
+}
+
+type ParserOutput = {
+  error?: string
+  viewer_artifact?: unknown
+  extracted_text?: string
+}
+
+type SignedUrlResponse = {
+  signedUrl?: string
+  signedURL?: string
+  publicUrl?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return 'Unknown error'
+}
+
+function getSafeAdminBucket(bucket: string): string {
+  if (!ALLOWED_ADMIN_BUCKETS.has(bucket)) {
+    throw new Error('Unsupported storage bucket')
+  }
+  return bucket
+}
+
+function getSafeStoragePath(storagePath: string): string {
+  const normalized = storagePath.replace(/\\/g, '/').replace(/^\/+/, '')
+  if (!normalized || normalized.includes('../') || normalized.includes('/..')) {
+    throw new Error('Invalid storage path')
+  }
+  return normalized
+}
+
+async function getAdminClient() {
+  await requireAdminUser()
+  return getSupabaseServer(true)
 }
 
 /**
@@ -22,6 +75,7 @@ export interface MaterialInput {
  */
 export async function checkMaterialDeduplication(fileHash: string) {
   try {
+    const supabase = await getAdminClient()
     const { data, error } = await supabase
       .from('canonical_materials')
       .select('storage_url, title, type')
@@ -49,7 +103,8 @@ export async function checkMaterialDeduplication(fileHash: string) {
 export async function registerCanonicalMaterial(input: MaterialInput) {
   let tempFilePath: string | null = null
   try {
-    let dbMetadata: Record<string, any> = {
+    const supabase = await getAdminClient()
+    let dbMetadata: MaterialMetadata = {
       ...(input.metadata || {}),
       file_hash: input.fileHash,
     }
@@ -58,8 +113,7 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
     if (['docx', 'csv', 'xlsx', 'markdown', 'json'].includes(input.type)) {
       try {
         console.log(`Processing file parsing/reading for ${input.type}: ${input.storageUrl}`)
-        const client = getSupabaseServer(true)
-        const { data, error: downloadError } = await client.storage
+        const { data, error: downloadError } = await supabase.storage
           .from('teaching-materials')
           .download(input.storageUrl)
  
@@ -85,7 +139,7 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
             }
           } else {
             try {
-              const parsedJson = JSON.parse(text)
+              const parsedJson = JSON.parse(text) as unknown
               dbMetadata = {
                 ...dbMetadata,
                 viewer_artifact: {
@@ -134,7 +188,7 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
             console.warn(`Python parsing warnings/stderr: ${stderr}`)
           }
  
-          const parsedOutput = JSON.parse(stdout)
+          const parsedOutput = JSON.parse(stdout) as ParserOutput
           if (parsedOutput.error) {
             throw new Error(`Python script error: ${parsedOutput.error}`)
           }
@@ -148,9 +202,9 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
         }
         console.log(`Successfully parsed/read file ${input.storageUrl} and updated metadata.`)
 
-      } catch (err: any) {
+      } catch (err) {
         console.error(`Error in material extraction pipeline for type ${input.type}:`, err)
-        throw new Error(`Material extraction pipeline failed: ${err.message}`)
+        throw new Error(`Material extraction pipeline failed: ${getErrorMessage(err)}`)
       } finally {
         // Clean up temp file
         if (tempFilePath && fs.existsSync(tempFilePath)) {
@@ -181,9 +235,9 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
     }
 
     return { success: true, data }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to register material:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -192,8 +246,8 @@ export async function registerCanonicalMaterial(input: MaterialInput) {
  */
 export async function uploadFileToStorageAction(formData: FormData) {
   try {
-    const bucket = formData.get('bucket') as string
-    const filePath = formData.get('path') as string
+    const bucket = getSafeAdminBucket(formData.get('bucket') as string)
+    const filePath = getSafeStoragePath(formData.get('path') as string)
     const file = formData.get('file') as File
     const upsertStr = formData.get('upsert') as string
     const upsert = upsertStr === 'true'
@@ -201,8 +255,11 @@ export async function uploadFileToStorageAction(formData: FormData) {
     if (!bucket || !filePath || !file) {
       return { success: false, error: 'Missing bucket, path, or file in upload request' }
     }
+    if (file.size <= 0 || file.size > MAX_ADMIN_UPLOAD_BYTES) {
+      return { success: false, error: 'File must be between 1 byte and 100 MB' }
+    }
 
-    const supabaseAdmin = getSupabaseServer(true)
+    const supabaseAdmin = await getAdminClient()
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
@@ -218,9 +275,9 @@ export async function uploadFileToStorageAction(formData: FormData) {
     }
 
     return { success: true, data }
-  } catch (error: any) {
+  } catch (error) {
     console.error(`Server storage upload to bucket failed:`, error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -229,15 +286,20 @@ export async function uploadFileToStorageAction(formData: FormData) {
  */
 export async function deleteFileFromStorageAction(bucket: string, paths: string[]) {
   try {
-    const supabaseAdmin = getSupabaseServer(true)
-    const { data, error } = await supabaseAdmin.storage.from(bucket).remove(paths)
+    const safeBucket = getSafeAdminBucket(bucket)
+    const safePaths = paths.map(getSafeStoragePath)
+    if (safePaths.length === 0 || safePaths.length > 100) {
+      throw new Error('Storage deletion requires between 1 and 100 paths')
+    }
+    const supabaseAdmin = await getAdminClient()
+    const { data, error } = await supabaseAdmin.storage.from(safeBucket).remove(safePaths)
     if (error) {
       throw error
     }
     return { success: true, data }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Server storage deletion failed:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -249,7 +311,7 @@ export async function updateMaterialDisplayModeAction(
   displayMode: 'both' | 'web' | 'original'
 ) {
   try {
-    const supabaseAdmin = getSupabaseServer(true)
+    const supabaseAdmin = await getAdminClient()
     
     // 1. Fetch current metadata
     const { data: material, error: fetchErr } = await supabaseAdmin
@@ -278,9 +340,9 @@ export async function updateMaterialDisplayModeAction(
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to update material display mode:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -293,19 +355,20 @@ export async function getSignedUrlAction(
   expiresIn: number = 300
 ) {
   try {
-    const supabaseAdmin = getSupabaseServer(true)
+    const supabaseAdmin = await getAdminClient()
     const { data, error } = await supabaseAdmin.storage
-      .from(bucket)
-      .createSignedUrl(storageUrl, expiresIn)
+      .from(getSafeAdminBucket(bucket))
+      .createSignedUrl(getSafeStoragePath(storageUrl), Math.min(Math.max(expiresIn, 30), 3600))
 
     if (error) {
       throw error
     }
 
-    return { success: true, signedUrl: data?.signedUrl || (data as any)?.signedURL || (data as any)?.publicUrl || null }
-  } catch (error: any) {
+    const signedData = data as SignedUrlResponse | null
+    return { success: true, signedUrl: signedData?.signedUrl || signedData?.signedURL || signedData?.publicUrl || null }
+  } catch (error) {
     console.error('Failed to generate signed URL:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -316,7 +379,7 @@ export async function reorderMaterialsAction(
   updates: { id: string; display_order: number }[]
 ) {
   try {
-    const supabaseAdmin = getSupabaseServer(true)
+    const supabaseAdmin = await getAdminClient()
     const { error } = await supabaseAdmin.rpc('reorder_canonical_materials', {
       updates
     })
@@ -326,9 +389,9 @@ export async function reorderMaterialsAction(
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to reorder materials:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
   }
 }
 
@@ -338,10 +401,10 @@ export async function reorderMaterialsAction(
 export async function updateLessonLayoutAction(
   lessonId: string,
   layout: string,
-  mapping: Record<number, any>
+  mapping: Record<number, unknown>
 ) {
   try {
-    const supabaseAdmin = getSupabaseServer(true)
+    const supabaseAdmin = await getAdminClient()
     
     // 1. Fetch current metadata
     const { data: lesson, error: fetchErr } = await supabaseAdmin
@@ -371,8 +434,115 @@ export async function updateLessonLayoutAction(
     if (updateErr) throw updateErr
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to update lesson grid layout:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: getErrorMessage(error) }
+  }
+}
+
+export async function getLessonEditorDataAction(lessonId: string) {
+  try {
+    const supabaseAdmin = await getAdminClient()
+    const normalizedLessonId = lessonId.trim()
+    if (!normalizedLessonId) throw new Error('Lesson id is required')
+
+    const [lessonResult, materialsResult, assignmentsResult] = await Promise.all([
+      supabaseAdmin
+        .from('lessons')
+        .select('*, modules(*, courses(*, subjects(*)))')
+        .eq('id', normalizedLessonId)
+        .single(),
+      supabaseAdmin
+        .from('canonical_materials')
+        .select('*')
+        .eq('lesson_id', normalizedLessonId)
+        .order('display_order', { ascending: true }),
+      supabaseAdmin
+        .from('assignments')
+        .select('*, rubric_snapshots(snapshot)')
+        .eq('lesson_id', normalizedLessonId)
+        .order('created_at'),
+    ])
+
+    if (lessonResult.error) throw lessonResult.error
+    if (materialsResult.error) throw materialsResult.error
+    if (assignmentsResult.error) throw assignmentsResult.error
+
+    return {
+      success: true as const,
+      data: {
+        lesson: lessonResult.data,
+        materials: materialsResult.data || [],
+        assignments: assignmentsResult.data || [],
+      },
+    }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function updateLessonContentAction(input: {
+  lessonId: string
+  title: string
+  content: string
+  downloadAllowed: boolean
+  currentVersion: number
+}) {
+  try {
+    const supabaseAdmin = await getAdminClient()
+    const lessonId = input.lessonId.trim()
+    const title = input.title.trim()
+    if (!lessonId || !title) throw new Error('Lesson id and title are required')
+    if (title.length > 255) throw new Error('Lesson title must be at most 255 characters')
+
+    const { error } = await supabaseAdmin
+      .from('lessons')
+      .update({
+        title,
+        content: input.content,
+        download_allowed: input.downloadAllowed,
+        version: Math.max(1, input.currentVersion) + 1,
+      })
+      .eq('id', lessonId)
+
+    if (error) throw error
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function deleteCanonicalMaterialAction(materialId: string) {
+  try {
+    const supabaseAdmin = await getAdminClient()
+    const normalizedMaterialId = materialId.trim()
+    if (!normalizedMaterialId) throw new Error('Material id is required')
+
+    const { error } = await supabaseAdmin
+      .from('canonical_materials')
+      .delete()
+      .eq('id', normalizedMaterialId)
+
+    if (error) throw error
+    return { success: true as const }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
+  }
+}
+
+export async function downloadAssignmentSolutionTextAction(storagePath: string) {
+  try {
+    const supabaseAdmin = await getAdminClient()
+    const { data, error } = await supabaseAdmin.storage
+      .from('assignment-solutions')
+      .download(getSafeStoragePath(storagePath))
+
+    if (error) throw error
+    if (!data) throw new Error('Solution file was not found')
+    if (data.size > 5 * 1024 * 1024) throw new Error('Solution text file is too large')
+
+    return { success: true as const, data: await data.text() }
+  } catch (error) {
+    return { success: false as const, error: getErrorMessage(error) }
   }
 }
